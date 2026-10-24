@@ -1,0 +1,88 @@
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\title{Latent Bottleneck Transformers for Efficient Long-Context Modeling}
+\author{Anonymous}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Transformers scale quadratically in sequence length, which limits their use on
+long inputs. We propose the Latent Bottleneck Transformer (LBT), which routes
+tokens through a fixed-size latent pool before the feed-forward block. On
+LongBench, LBT matches a full-attention baseline within 0.4 points while using
+61\% less memory at 32k context. We release code and training recipes.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+Long-context modeling matters for retrieval, code, and genomics % inline comment
+but attention cost grows quadratically with sequence length $n$.
+Prior work compresses keys and values~\cite{vaswani2017attention}, or sparsifies
+patterns; we instead bottleneck representation width.
+Our contributions:
+\begin{itemize}
+\item a fixed-size latent pool with learned routing (Section~\ref{sec:method});
+\item 61\% memory reduction at 32k context with $<0.4$ point quality loss;
+\item an analysis of failure modes on retrieval-heavy subsets.
+\end{itemize}
+
+\section{Method}\label{sec:method}
+\subsection{Latent routing}
+Each layer keeps a latent matrix $Z \in \mathbb{R}^{m \times d}$ with $m \ll n$.
+Tokens attend to $Z$; $Z$ attends to all tokens:
+\begin{equation}
+Z \leftarrow \mathrm{softmax}\!\left(\frac{Z W_q (X W_k)^\top}{\sqrt{d}}\right) X W_v
+\label{eq:route}
+\end{equation}
+Complexity drops from $O(n^2)$ to $O(nm)$ as shown in Eq.~\eqref{eq:route}.
+
+\subsection{Training}
+We train with sequence-length curriculum 4k$\to$32k, AdamW, lr $3\times10^{-4}$,
+3 seeds. Full hyperparameters in the appendix.
+
+\section{Experiments}\label{sec:exp}
+\subsection{Main results}
+Table~\ref{tab:main} compares LBT against full attention and two compression
+baselines on LongBench. Our method is within 0.4 points of full attention at
+a third of the memory.
+
+\begin{table}[t]
+\centering
+\caption{LongBench results (overall score, \%; memory at 32k in GB). Mean over 3 seeds.}
+\label{tab:main}
+\begin{tabular}{lccc}
+\toprule
+Model & Score & Memory & $\Delta$ vs. full \\
+\midrule
+Full attention & 47.9 & 41.2 & -- \\
+Linear-attn & 43.1 & 12.6 & $-4.8$ \\
+Pool-attn & 45.0 & 15.9 & $-2.9$ \\
+\textbf{LBT (ours)} & \textbf{47.5} & \textbf{16.1} & $-0.4$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Ablations}
+Removing the routing gate costs 1.9 points; halving $m$ costs 1.1 points
+(Table~\ref{tab:abl} in the appendix).
+
+\begin{figure}[t]
+\centering
+\caption{Quality vs. context length. LBT tracks full attention until 32k.}
+\label{fig:len}
+\end{figure}
+
+Figure~\ref{fig:len} shows quality is stable up to 32k tokens.
+
+\section{Related work}
+Efficient-attention surveys subsume linear, low-rank, and pooling methods.
+None combine a fixed latent pool with learned routing under a memory budget.
+
+\section{Conclusion}
+A fixed-size latent pool recovers most of full attention's quality at a third
+of its memory. Limitations: retrieval-heavy subsets degrade beyond 16k
+(see Section~\ref{sec:exp}); theory for $m$ selection is open.
+
+\bibliography{refs}
+\end{document}

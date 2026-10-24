@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Prebuttal run artifacts
+prebuttal-report.md
+prebuttal-report.html
+prebuttal-report.json
+calib_out/
+demo-run/
+zbridge.toml
+relay/
+scripts/zcode_bridge/prompts/
+scripts/zcode_bridge/answers/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Internal strategy docs — not for the public repo
+docs/internal/

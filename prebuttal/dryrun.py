@@ -1,0 +1,75 @@
+"""Dry run: backend matrix + token/cost estimate, without calling any model."""
+
+from __future__ import annotations
+
+from .config import RunConfig
+from .pack import estimate_tokens
+from .providers.detect import BackendStatus
+
+_PROMPT_OVERHEAD_CHARS = 3500  # persona + venue form + instructions
+
+
+def _cost_line(model: str, kind: str, in_tok: int, out_tok: int, cfg: RunConfig) -> str:
+    if kind == "agent":
+        return "uses your subscription — no per-token cost"
+    if kind == "relay":
+        return "answered by you / your agent — no model cost"
+    if kind == "ollama":
+        return "local model — free"
+    price = cfg.pricing.get(model)
+    if not price:
+        return 'unknown price — add [pricing."' + model + '"] in prebuttal.toml'
+    pin, pout = price
+    cost = (in_tok * pin + out_tok * pout) / 1e6
+    return f"~${cost:.4f} (at ${pin:g}/${pout:g} per 1M tokens)"
+
+
+def render_dry_run(
+    cfg: RunConfig,
+    resolved: list[tuple[str, str, str]],
+    ac: tuple[str, str],
+    pack_chars: int,
+    statuses: list[BackendStatus],
+) -> str:
+    kind_by_backend = {s.backend: s.kind for s in statuses}
+    pack_tok = estimate_tokens(pack_chars)
+    in_tok = pack_tok + estimate_tokens(_PROMPT_OVERHEAD_CHARS)
+    out_tok = cfg.est_completion_tokens
+
+    lines: list[str] = []
+    lines.append("=" * 62)
+    lines.append("Prebuttal dry run — nothing will be called.")
+    lines.append("=" * 62)
+    lines.append("")
+    lines.append("Backend configuration")
+    for rid, backend, model in resolved:
+        model_s = model or "CLI default"
+        lines.append(f"  {rid:<4} → {backend:<14} model: {model_s}")
+    lines.append(f"  {'AC':<4} → {ac[0]:<14} model: {ac[1] or 'CLI default'}")
+    lines.append("")
+    lines.append("Paper pack")
+    lines.append(
+        f"  {pack_chars:,} chars ≈ {pack_tok:,} tokens (budget {cfg.budget_chars:,} chars)"
+    )
+    lines.append(f"  per reviewer ≈ {in_tok:,} in + ~{out_tok:,} out tokens")
+    lines.append("")
+    lines.append("Cost estimate (indicative — see [pricing] overrides)")
+    total = 0.0
+    entries = [(rid, b, m) for (rid, b, m) in resolved] + [("AC", ac[0], ac[1])]
+    for rid, backend, model in entries:
+        kind = kind_by_backend.get(backend, "api")
+        note = _cost_line(model or "", kind, in_tok, out_tok, cfg)
+        if note.startswith("~$"):
+            total += float(note[2:].split(" ")[0].strip("$"))
+        lines.append(f"  {rid:<4} {backend:<14} {note}")
+    if total > 0:
+        lines.append(f"  total (priced backends): ~${total:.4f}")
+    lines.append("")
+    lines.append(
+        "Seeds: "
+        + ", ".join(f"{rid}={cfg.seed + i + 1}" for i, (rid, _b, _m) in enumerate(resolved))
+        + f", AC={cfg.seed}"
+    )
+    lines.append("")
+    lines.append("Dry run only — no model was called.")
+    return "\n".join(lines)
