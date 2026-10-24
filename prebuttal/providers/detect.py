@@ -23,8 +23,11 @@ _PREFERENCE = [
     "api-openai",
     "api-anthropic",
     "ollama",
-    "relay",  # always available: prompts spool to files, anyone answers
 ]
+
+# Always "available" but never picked by auto mode: a relay reviewer waits for a
+# human/agent to write answers, so it must be an explicit choice.
+EXPLICIT_ONLY = frozenset({"relay"})
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,7 @@ class NoBackendError(Exception):
             "  - set GEMINI_API_KEY (free tier)                         -> api-gemini\n"
             "  - set OPENAI_API_KEY / ANTHROPIC_API_KEY                 -> api-openai/-anthropic\n"
             "  - run Ollama locally (ollama pull llama3.1)               -> ollama\n"
+            "Or answer the reviews yourself / via your agent: --backend relay\n"
             "See `prebuttal backends`."
         )
         super().__init__(hint)
@@ -109,7 +113,8 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
             "relay",
             True,
             "file bridge — prompts spool to disk; a human, host-agent "
-            "subagents, or any external system writes the answers (zero key)",
+            "subagents, or any external system writes the answers "
+            "(zero key; explicit only: --backend relay)",
         )
     )
 
@@ -127,7 +132,8 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
     return out
 
 
-def _ordered_available(statuses: list[BackendStatus], cfg: RunConfig | None) -> list[BackendStatus]:
+def auto_candidates(statuses: list[BackendStatus], cfg: RunConfig | None) -> list[BackendStatus]:
+    """Backends that ``auto`` may pick, in preference order (never EXPLICIT_ONLY)."""
     by_name = {s.backend: s for s in statuses}
     order: list[BackendStatus] = []
     for name in _PREFERENCE:
@@ -148,10 +154,12 @@ def resolve_backends(
     """Assign concrete (backend, model) to each reviewer and the AC.
 
     ``auto`` reviewers get distinct backends in preference order (cycling when
-    fewer are available); explicit backends pass through untouched.
+    fewer are available); explicit backends pass through untouched, so an
+    all-explicit setup (e.g. ``--backend relay``) needs no auto candidate.
     """
-    avail = _ordered_available(statuses, cfg)
-    if not avail:
+    avail = auto_candidates(statuses, cfg)
+    needs_auto = cfg.ac.backend == "auto" or any(r.backend == "auto" for r in cfg.reviewers)
+    if needs_auto and not avail:
         raise NoBackendError(statuses)
 
     resolved: list[tuple[str, str, str]] = []

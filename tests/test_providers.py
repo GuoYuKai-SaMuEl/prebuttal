@@ -56,6 +56,36 @@ def test_auto_cycles_when_only_one_backend():
     assert ac == ("ollama", "llama3.1")  # ollama default model filled in
 
 
+def test_auto_never_picks_relay():
+    """Regression: with only claude installed, R2 used to land on relay and block."""
+    cfg = load_config(None)
+    statuses = [
+        BackendStatus("agent-claude", "agent", True, ""),
+        BackendStatus("relay", "relay", True, ""),
+    ]
+    resolved, ac = resolve_backends(cfg, statuses)
+    assert [b for (_r, b, _m) in resolved] == ["agent-claude"] * 3
+    assert ac[0] == "agent-claude"
+
+
+def test_only_relay_available_is_no_backend():
+    """Relay alone must not silently satisfy auto mode — exit 3 with guidance."""
+    cfg = load_config(None)
+    with pytest.raises(NoBackendError) as exc:
+        resolve_backends(cfg, [BackendStatus("relay", "relay", True, "")])
+    assert "--backend relay" in str(exc.value)
+
+
+def test_explicit_relay_needs_no_auto_candidate():
+    cfg = load_config(None)
+    for r in cfg.reviewers:
+        r.backend = "relay"
+    cfg.ac.backend = "relay"
+    resolved, ac = resolve_backends(cfg, [BackendStatus("relay", "relay", True, "")])
+    assert [b for (_r, b, _m) in resolved] == ["relay"] * 3
+    assert ac[0] == "relay"
+
+
 def test_no_backend_raises_with_guidance(monkeypatch):
     cfg = load_config(None)
     monkeypatch.setattr("prebuttal.providers.detect.scan_backends", lambda c: [])
@@ -228,6 +258,7 @@ def test_agent_cli_prompt_on_stdin(monkeypatch):
         return FakeCompleted()
 
     monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: None)  # keep the bare name
     provider = AgentCLIProvider("agent-claude", ["claude", "-p"])
     comp = provider.complete(system="SYS", user="USR", retries=0)
     assert recorded["cmd"] == ["claude", "-p"]
@@ -252,6 +283,32 @@ def test_agent_cli_missing_binary(monkeypatch):
     assert "not found" in str(exc.value)
 
 
+def test_agent_cli_forwards_model_flag(monkeypatch):
+    """A per-reviewer `model` must reach the CLI command, not just the report."""
+    import subprocess as sp
+
+    from prebuttal.providers.agent_cli import claude_provider, codex_provider
+
+    cmds: list[list[str]] = []
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "{}"
+        stderr = ""
+
+    def fake_run(cmd, input=None, **kw):
+        cmds.append(list(cmd))
+        return FakeCompleted()
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: None)  # keep the bare name
+    claude_provider(model="opus").complete(system="s", user="u", retries=0)
+    codex_provider(model="gpt-5.1").complete(system="s", user="u", retries=0)
+    assert cmds[0] == ["claude", "-p", "--model", "opus"]
+    # codex's stdin marker "-" must stay the FINAL argument
+    assert cmds[1] == ["codex", "exec", "--skip-git-repo-check", "--model", "gpt-5.1", "-"]
+
+
 def test_agent_cli_windows_cmd_fallback(monkeypatch):
     """Windows .cmd launchers that CreateProcess can't run directly retry via cmd /c."""
     import subprocess as sp
@@ -274,7 +331,71 @@ def test_agent_cli_windows_cmd_fallback(monkeypatch):
         return FakeCompleted()
 
     monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: None)  # host-independent
     provider = AgentCLIProvider("agent-x", [cli_path, "-p"])
     comp = provider.complete(system="s", user="u", retries=0)
     assert calls == [[cli_path, "-p"], ["cmd", "/c", cli_path, "-p"]]
     assert comp.text == "ok"
+
+
+def test_agent_cli_runs_resolved_path(monkeypatch):
+    """Regression: Windows npm installs `claude.cmd`; CreateProcess can't find the
+    bare name, so the path `shutil.which` detected must be what gets launched."""
+    import subprocess as sp
+
+    from prebuttal.providers.agent_cli import claude_provider
+
+    cmds: list[list[str]] = []
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "{}"
+        stderr = ""
+
+    def fake_run(cmd, input=None, **kw):
+        cmds.append(list(cmd))
+        return FakeCompleted()
+
+    resolved = "C:\\Users\\me\\AppData\\Roaming\\npm\\claude.CMD"
+    monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: resolved if name == "claude" else None)
+    claude_provider().complete(system="s", user="u", retries=0)
+    assert cmds == [[resolved, "-p"]]
+
+
+def test_agent_cli_does_not_inherit_stored_keys(monkeypatch, isolated_prebuttal_home):
+    """Regression: a key from keys.env leaking into `claude -p` switches it from
+    subscription auth to API billing. Keys the user exported themselves stay."""
+    import os
+    import subprocess as sp
+
+    from prebuttal import keys
+    from prebuttal.providers.agent_cli import claude_provider
+
+    # setenv first so monkeypatch restores the real state after apply_stored_keys
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "placeholder")
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-user-exported")
+    monkeypatch.setattr(keys, "_applied", set())
+    keys.store_key("ANTHROPIC_API_KEY", "sk-ant-stored-123456")
+    keys.store_key("OPENAI_API_KEY", "sk-openai-stored-123456")
+    assert keys.apply_stored_keys() == ["ANTHROPIC_API_KEY"]
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-stored-123456"  # API backends still see it
+
+    envs: list[dict] = []
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "{}"
+        stderr = ""
+
+    def fake_run(cmd, input=None, env=None, **kw):
+        envs.append(env)
+        return FakeCompleted()
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    claude_provider().complete(system="s", user="u", retries=0)
+    assert envs[0] is not None
+    assert "ANTHROPIC_API_KEY" not in envs[0]
+    assert envs[0]["OPENAI_API_KEY"] == "sk-user-exported"

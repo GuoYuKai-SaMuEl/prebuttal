@@ -53,7 +53,7 @@ chose (`prebuttal backends` to inspect):
 | `api-gemini` | GEMINI_API_KEY | **free tier** — the cheapest "first key" path |
 | `api-openai` / `api-anthropic` | OPENAI_API_KEY / ANTHROPIC_API_KEY | BYO key |
 | `ollama` | none | local & private — *unpublished papers never leave your machine* |
-| `relay` | none | file protocol: prompts spool to disk and **you, your agent's subagents, or any system** write the answers — the zero-key fallback (`[relay]` in prebuttal.toml) |
+| `relay` | none | file protocol: prompts spool to disk and **you, your agent's subagents, or any system** write the answers — zero key, explicit only (`--backend relay`; never picked by auto) |
 
 Useful flags:
 
@@ -101,12 +101,13 @@ temperature = 0.4
 id = "R2"
 persona = "adversarial"
 backend = "agent-codex"       # codex exec, subscription auth
+model = "gpt-5.1"             # optional: forwarded as --model (agent CLIs too)
 temperature = 0.7
 
 [[reviewer]]
 id = "R3"
 persona = "detail_obsessive"
-backend = "api-gemini"        # free tier
+backend = "api-gemini"        # free tier; default model gemini-2.5-flash
 temperature = 0.5
 
 [ac]

@@ -40,7 +40,10 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 #   agent-claude / agent-codex  (subscription CLIs, zero API key)
 #   api-gemini / api-openai / api-anthropic  (BYO key; Gemini has a free tier)
 #   ollama (local) / relay (you or your agent answer by hand)
-# Pin one per reviewer for a fixed setup, e.g. backend = "api-gemini"
+# Pin one per reviewer for a fixed setup, e.g.
+#   backend = "api-gemini"   model = "gemini-2.5-flash"
+# (model works for every backend; agent CLIs get it as `--model X`,
+#  empty model = the backend/CLI's own default)
 
 [[reviewer]]
 id = "R1"

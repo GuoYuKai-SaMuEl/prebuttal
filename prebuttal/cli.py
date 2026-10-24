@@ -28,6 +28,7 @@ from .pack import render_pack
 from .providers import (
     NoBackendError,
     ProviderError,
+    auto_candidates,
     build_provider,
     resolve_backends,
     scan_backends,
@@ -118,16 +119,17 @@ def cmd_backends(args) -> int:
     print("Detected review backends:")
     for s in statuses:
         print("  " + s.line())
-    avail = [s for s in statuses if s.available]
+    avail = auto_candidates(statuses, None)
     if avail:
         print(f"\nAuto mode will draw from: {', '.join(s.backend for s in avail)}")
         return EXIT_OK
-    print("\nNo backend available. Install one of:")
+    print("\nNo automatic backend available. Install one of:")
     print("  npm i -g @anthropic-ai/claude-code   -> agent-claude (subscription)")
     print("  npm i -g @openai/codex               -> agent-codex (subscription)")
     print("  set GEMINI_API_KEY                   -> api-gemini (free tier)")
     print("  set OPENAI_API_KEY / ANTHROPIC_API_KEY")
     print("  ollama pull llama3.1 && ollama serve -> ollama (local, private)")
+    print("Or answer the reviews yourself / via your agent: prebuttal run ... --backend relay")
     return EXIT_NO_BACKEND
 
 

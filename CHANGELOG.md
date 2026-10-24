@@ -55,6 +55,21 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Fixed
 
+- Per-reviewer `model` now actually reaches agent-CLI backends
+  (`claude -p --model X`, `codex exec --model X`); previously it was recorded
+  in reports but never passed to the CLI.
+- Auto mode no longer assigns reviewers to `relay` (which waited up to 30 min
+  for a hand-written answer): relay is now explicit-only (`--backend relay`),
+  and with no automatic backend `prebuttal run` exits 3 with guidance.
+- Agent CLIs are launched via the path `prebuttal backends` detected, so
+  npm-installed `claude.cmd` / `codex.cmd` work on Windows.
+- API keys loaded from `~/.prebuttal/keys.env` are no longer passed to agent
+  CLIs (a stored `ANTHROPIC_API_KEY` switched `claude -p` from subscription
+  auth to API billing).
+- LaTeX: `table*` / `figure*` were captured twice (duplicate tables, shifted
+  numbers, wrong `\ref`); `tabular*` leaked its column spec into the first
+  cell; nested `\input` now resolves from the root directory like LaTeX, and
+  unresolvable inputs produce an ingestion warning instead of vanishing.
 - PDF ingestion on real LaTeX output: wrapped titles now join into one title,
   section numbers separated from their titles merge back (side-by-side or
   stacked), and table cells are rebuilt from word geometry so kerned decimals

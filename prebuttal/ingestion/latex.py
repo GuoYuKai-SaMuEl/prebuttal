@@ -35,15 +35,32 @@ def _strip_comments(tex: str) -> str:
     return "\n".join(out)
 
 
-def _merge_inputs(tex: str, base: Path, seen: set[Path]) -> str:
+def _merge_inputs(
+    tex: str, root_dir: Path, seen: set[Path], missing: list[str], cur_dir: Path | None = None
+) -> str:
+    """Inline ``\\input``/``\\include`` recursively.
+
+    Like LaTeX, paths resolve against the root file's directory at every
+    nesting level; the including file's own directory is only a fallback.
+    Unresolvable inputs are recorded in ``missing`` instead of vanishing.
+    """
+
     def repl(m: re.Match) -> str:
         name = m.group(1).strip()
-        for cand in (base / name, base / (name + ".tex")):
-            cand = cand.resolve()
-            if cand.is_file() and cand not in seen:
-                seen.add(cand)
-                sub = _strip_comments(_read_text(cand))
-                return _merge_inputs(sub, cand.parent, seen)
+        dirs = [root_dir] if cur_dir in (None, root_dir) else [root_dir, cur_dir]
+        found = False
+        for d in dirs:
+            for cand in (d / name, d / (name + ".tex")):
+                cand = cand.resolve()
+                if not cand.is_file():
+                    continue
+                found = True
+                if cand not in seen:
+                    seen.add(cand)
+                    sub = _strip_comments(_read_text(cand))
+                    return _merge_inputs(sub, root_dir, seen, missing, cand.parent)
+        if not found:
+            missing.append(name)
         return ""
 
     return re.sub(r"\\(?:input|include)\{([^{}]+)\}", repl, tex)
@@ -278,8 +295,10 @@ def _tabular_body(block: str) -> str | None:
     """Rows text of the largest tabular-like environment inside ``block``."""
     best: str | None = None
     for name, nargs in _TABULAR_VARIANTS:
-        begin_re = re.compile(r"\\begin\{" + re.escape(name) + r"\*?\}")
-        end_re = re.compile(r"\\end\{" + re.escape(name) + r"\*?\}")
+        # exact names: `tabular*` takes an extra width arg, so `tabular` must
+        # not also match it (the column spec would leak into the first cell)
+        begin_re = re.compile(r"\\begin\{" + re.escape(name) + r"\}")
+        end_re = re.compile(r"\\end\{" + re.escape(name) + r"\}")
         pos = 0
         while True:
             m = begin_re.search(block, pos)
@@ -348,9 +367,13 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
     base = root.parent
 
     tex = _strip_comments(_read_text(root))
-    tex = _merge_inputs(tex, base, {root.resolve()})
+    missing_inputs: list[str] = []
+    tex = _merge_inputs(tex, base, {root.resolve()}, missing_inputs)
 
-    warnings: list[str] = []
+    warnings: list[str] = [
+        f"\\input{{{name}}} not found relative to {base.name}/ — its content is missing"
+        for name in missing_inputs
+    ]
 
     doc_m = re.search(r"\\begin\{document\}", tex)
     if doc_m:
@@ -372,45 +395,44 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
     if abs_spans:
         abstract = " ".join(_clean_block(abs_spans[0][2]).split())
 
-    # --- tables & figures (numbered by order of appearance)
+    # --- tables & figures (numbered by order of appearance; _env_spans already
+    # matches the starred variants, so `table` covers `table*` in document order)
     tables: list[Table] = []
     table_spans: list[tuple[int, int]] = []
     label_map: dict[str, str] = {}
-    for env in ("table", "table*"):
-        for s, e, blk in _env_spans(body, env):
-            table_spans.append((s, e))
-            cap, label = _caption_label(blk)
-            tab_text = _tabular_body(blk)
-            rows = _tabular_to_rows(tab_text) if tab_text else []
-            number = str(len(tables) + 1)
-            if label:
-                label_map[label] = number
-            raw = (
-                "\n".join(" & ".join(r) for r in rows)
-                if rows
-                else " ".join(_clean_inline(re.sub(r"\\includegraphics\S*", " ", blk)).split())
+    for s, e, blk in _env_spans(body, "table"):
+        table_spans.append((s, e))
+        cap, label = _caption_label(blk)
+        tab_text = _tabular_body(blk)
+        rows = _tabular_to_rows(tab_text) if tab_text else []
+        number = str(len(tables) + 1)
+        if label:
+            label_map[label] = number
+        raw = (
+            "\n".join(" & ".join(r) for r in rows)
+            if rows
+            else " ".join(_clean_inline(re.sub(r"\\includegraphics\S*", " ", blk)).split())
+        )
+        tables.append(
+            Table(
+                number=number,
+                caption=cap,
+                header=rows[0] if rows else [],
+                rows=rows[1:] if rows else [],
+                raw=raw,
+                source="latex-tabular",
             )
-            tables.append(
-                Table(
-                    number=number,
-                    caption=cap,
-                    header=rows[0] if rows else [],
-                    rows=rows[1:] if rows else [],
-                    raw=raw,
-                    source="latex-tabular",
-                )
-            )
+        )
 
     figures: list[Figure] = []
     fig_spans: list[tuple[int, int]] = []
-    for env in ("figure", "figure*"):
-        for s, e, blk in _env_spans(body, env):
-            fig_spans.append((s, e))
-            cap, label = _caption_label(blk)
-            number = str(len(figures) + 1)
-            if label:
-                label_map[label] = number
-            figures.append(Figure(number=number, caption=" ".join(_clean_inline(cap).split())))
+    for s, e, blk in _env_spans(body, "figure"):
+        fig_spans.append((s, e))
+        cap, label = _caption_label(blk)
+        number = str(len(figures) + 1)
+        if label:
+            label_map[label] = number
+        figures.append(Figure(number=number, caption=" ".join(_clean_inline(cap).split())))
 
     # --- sections
     appendix_at = None

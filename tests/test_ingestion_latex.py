@@ -58,6 +58,95 @@ def test_ingest_dispatch_dir(latex_project):
     assert paper.tables and paper.tables[0].rows
 
 
+def test_starred_floats_counted_once_in_document_order(tmp_path):
+    """Regression: `table*` was captured by both the `table` and `table*` passes
+    (duplicate table, shifted numbers, \\ref resolving to the duplicate)."""
+    (tmp_path / "main.tex").write_text(
+        r"""\documentclass{article}
+\begin{document}
+\section{Results}
+Wide is Table~\ref{tab:wide}, narrow is Table~\ref{tab:narrow}, plot is Figure~\ref{fig:b}.
+\begin{table*}
+\caption{Wide}\label{tab:wide}
+\begin{tabular}{cc} a & b \\ 1 & 2 \\ \end{tabular}
+\end{table*}
+\begin{table}
+\caption{Narrow}\label{tab:narrow}
+\begin{tabular}{cc} c & d \\ 3 & 4 \\ \end{tabular}
+\end{table}
+\begin{figure*}\caption{Alpha}\label{fig:a}\end{figure*}
+\begin{figure}\caption{Beta}\label{fig:b}\end{figure}
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(tmp_path)
+    assert [(t.number, t.caption) for t in paper.tables] == [("1", "Wide"), ("2", "Narrow")]
+    assert [(f.number, f.caption) for f in paper.figures] == [("1", "Alpha"), ("2", "Beta")]
+    text = paper.sections[0].text
+    assert "Wide is Table 1" in text and "narrow is Table 2" in text
+    assert "plot is Figure 2" in text
+
+
+def test_tabular_star_column_spec_not_in_cells(tmp_path):
+    """Regression: `tabular` also matched `tabular*`, leaking `{lcc}` into cell 1."""
+    (tmp_path / "main.tex").write_text(
+        r"""\documentclass{article}
+\begin{document}
+\section{Results}
+\begin{table}
+\caption{Star}
+\begin{tabular*}{\linewidth}{lcc} Model & Acc & F1 \\ Ours & 91.2 & 88.0 \\ \end{tabular*}
+\end{table}
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    t = ingest_latex_source(tmp_path).tables[0]
+    assert t.header == ["Model", "Acc", "F1"]
+    assert t.rows == [["Ours", "91.2", "88.0"]]
+
+
+def test_nested_input_resolves_from_root_dir(tmp_path):
+    """Regression: a nested \\input resolved against the including file's folder
+    (LaTeX uses the root's), and an unresolved input vanished without a trace."""
+    (tmp_path / "sections").mkdir()
+    (tmp_path / "main.tex").write_text(
+        r"""\documentclass{article}
+\begin{document}
+\section{Intro}
+\input{sections/body}
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "sections" / "body.tex").write_text(
+        "BODY-START \\input{sections/inner} \\input{sections/missing} BODY-END\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "sections" / "inner.tex").write_text("INNER-TEXT\n", encoding="utf-8")
+
+    paper = ingest_latex_source(tmp_path)
+    text = paper.sections[0].text
+    assert "BODY-START INNER-TEXT BODY-END" in text
+    assert any("sections/missing" in w for w in paper.warnings)
+
+
+def test_input_relative_to_including_file_still_works(tmp_path):
+    """Fallback kept: projects that \\input siblings by bare name still parse."""
+    (tmp_path / "sections").mkdir()
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}\\section{Intro}"
+        "\\input{sections/body}\\end{document}",
+        encoding="utf-8",
+    )
+    (tmp_path / "sections" / "body.tex").write_text("A \\input{sibling} B\n", encoding="utf-8")
+    (tmp_path / "sections" / "sibling.tex").write_text("SIBLING\n", encoding="utf-8")
+    paper = ingest_latex_source(tmp_path)
+    assert "A SIBLING B" in paper.sections[0].text
+    assert paper.warnings == [] or not any("not found" in w for w in paper.warnings)
+
+
 def test_single_tex_file(tmp_path):
     (tmp_path / "solo.tex").write_text(
         r"\documentclass{article}\begin{document}\title{Solo}\maketitle"

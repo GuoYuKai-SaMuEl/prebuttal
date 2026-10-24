@@ -11,8 +11,11 @@ Temperature/seed are *recorded* in the report — agent CLIs do not expose them.
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 
+from .. import keys as key_store
 from ..models import Usage
 from .base import BaseProvider, ProviderError, TransientProviderError, strip_ansi
 
@@ -20,9 +23,25 @@ from .base import BaseProvider, ProviderError, TransientProviderError, strip_ans
 _MAX_ARGV_CHARS = 24_000
 
 
+def _child_env() -> dict[str, str]:
+    """Environment for agent CLIs, minus API keys loaded from keys.env.
+
+    Stored keys are meant for prebuttal's API backends only; leaking e.g.
+    ANTHROPIC_API_KEY into `claude -p` would switch it from subscription auth
+    to per-token API billing.  Keys the user exported themselves are kept.
+    """
+    applied = key_store.applied_keys()
+    return {k: v for k, v in os.environ.items() if k not in applied}
+
+
 def _run(
     cmd: list[str], prompt: str, *, stdin: bool, timeout_s: float
 ) -> subprocess.CompletedProcess:
+    # Run what `prebuttal backends` detected: on Windows, npm installs
+    # `claude.cmd` / `codex.cmd`, which CreateProcess can't find by bare name.
+    exe = shutil.which(cmd[0])
+    if exe:
+        cmd = [exe, *cmd[1:]]
     try:
         return subprocess.run(
             cmd,
@@ -32,6 +51,7 @@ def _run(
             encoding="utf-8",
             errors="replace",
             timeout=timeout_s,
+            env=_child_env(),
         )
     except subprocess.TimeoutExpired as e:
         raise ProviderError(f"{cmd[0]} timed out after {timeout_s:.0f}s") from e
@@ -56,30 +76,46 @@ class AgentCLIProvider(BaseProvider):
         stdin: bool = True,
         timeout_s: float = 900.0,
         detail: str = "",
+        model_flag: str = "",
     ):
+        """``model_flag``: how to forward `model` to the CLI.  "" = don't
+        (custom agents); "append" = add `--model X` at the end; "before-last"
+        = insert before the last arg (for CLIs whose final arg is the stdin
+        prompt marker, e.g. `codex exec ... -`)."""
         super().__init__(backend, model, timeout_s=timeout_s)
         self.command = list(command)
         self.stdin = stdin
         self.detail = detail
+        self.model_flag = model_flag
 
     def describe(self) -> str:
         base = f"{self.backend} ({self.command[0]}, subscription auth)"
         return base + (f" / {self.model}" if self.model else "")
 
+    def _build_command(self) -> list[str]:
+        cmd = list(self.command)
+        if self.model and self.model_flag:
+            flag = ["--model", self.model]
+            if self.model_flag == "before-last" and len(cmd) > 1:
+                return cmd[:-1] + flag + [cmd[-1]]
+            return cmd + flag
+        return cmd
+
     def _complete(self, *, system, user, temperature, seed, max_tokens):
         prompt = f"{system}\n\n---\n\n{user}"
+        cmd = self._build_command()
         if self.stdin:
-            proc = _run(self.command, prompt, stdin=True, timeout_s=self.timeout_s)
+            proc = _run(cmd, prompt, stdin=True, timeout_s=self.timeout_s)
         else:
             if len(prompt) > _MAX_ARGV_CHARS:
                 raise ProviderError(
                     f"prompt too long for argv ({len(prompt)} chars); "
                     "configure this agent with stdin = true"
                 )
-            proc = _run([*self.command, prompt], "", stdin=False, timeout_s=self.timeout_s)
+            proc = _run([*cmd, prompt], "", stdin=False, timeout_s=self.timeout_s)
         if proc.returncode != 0:
             err = (proc.stderr or proc.stdout or "").strip()[-500:]
-            raise TransientProviderError(f"{self.command[0]} exited {proc.returncode}: {err}")
+            raise TransientProviderError(f"{cmd[0]} exited {proc.returncode}: {err}")
         return strip_ansi(proc.stdout or ""), Usage()
 
 
@@ -90,6 +126,7 @@ def claude_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIPro
         model=model,
         timeout_s=timeout_s,
         detail="Claude Code headless (`claude -p`), subscription auth, zero API key",
+        model_flag="append",
     )
 
 
@@ -100,4 +137,5 @@ def codex_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProv
         model=model,
         timeout_s=timeout_s,
         detail="Codex CLI headless (`codex exec`), subscription auth, zero API key",
+        model_flag="before-last",
     )

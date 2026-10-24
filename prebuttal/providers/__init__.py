@@ -11,6 +11,7 @@ from .base import BaseProvider, Completion, ProviderError, TransientProviderErro
 from .detect import (
     BackendStatus,
     NoBackendError,
+    auto_candidates,
     default_model_for,
     resolve_backends,
     scan_backends,
@@ -79,6 +80,7 @@ __all__ = [
     "ProviderError",
     "RelayProvider",
     "TransientProviderError",
+    "auto_candidates",
     "build_provider",
     "default_model_for",
     "ollama_models",

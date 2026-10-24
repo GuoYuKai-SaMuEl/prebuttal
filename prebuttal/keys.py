@@ -107,6 +107,11 @@ def apply_stored_keys() -> list[str]:
     return applied
 
 
+def applied_keys() -> frozenset[str]:
+    """Env vars that came from keys.env (not from the user's real environment)."""
+    return frozenset(_applied)
+
+
 def mask(var: str) -> str | None:
     value = os.environ.get(var) or _read_all().get(var)
     if not value:

@@ -116,6 +116,18 @@ def test_backends_command(tmp_path, monkeypatch, capsys, fake_statuses):
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK
     assert "agent-claude" in out
+    # relay is listed (explicit use) but auto mode must not claim it
+    assert "Auto mode will draw from: agent-claude\n" in out
+
+
+def test_backends_command_only_relay(monkeypatch, capsys):
+    from prebuttal.providers.detect import BackendStatus
+
+    statuses = [BackendStatus("relay", "relay", True, "file bridge")]
+    monkeypatch.setattr(cli, "scan_backends", lambda cfg=None: statuses)
+    rc = cli.main(["backends"])
+    assert rc == cli.EXIT_NO_BACKEND
+    assert "--backend relay" in capsys.readouterr().out
 
 
 def test_backends_command_none_available(tmp_path, monkeypatch, capsys):
