@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prebuttal — answer Reviewer 2 before Reviewer 2 exists</title>
-<meta name="description" content="A pre-submission stress test for ML papers: three independent AI reviewers plus an area chair, real NeurIPS/ICLR/ICML/ARR review forms, calibrated scores.">
+<meta name="description" content="A pre-submission stress test for ML papers: three independent AI reviewers plus an area chair, real NeurIPS/ICLR/ICML/ARR review forms, a calibration pipeline against OpenReview.">
 <style>
   :root {
     --bg: #ffffff; --bg2: #f6f8fa; --fg: #1f2328; --muted: #59636e;
@@ -132,8 +132,8 @@
     </div>
     <div class="card">
       <h3>Honest by construction</h3>
-      <p>Every review is labeled with its backend and model; scores are meant to be
-      calibrated against real OpenReview distributions; run history diffs weaknesses
+      <p>Every review is labeled with its backend and model; a calibration script
+      measures scores against real OpenReview ratings (results not yet published); run history diffs weaknesses
       across revisions.</p>
     </div>
   </div>

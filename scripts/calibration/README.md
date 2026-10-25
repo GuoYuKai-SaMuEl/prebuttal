@@ -1,6 +1,7 @@
-# Calibration (README asset)
+# Calibration
 
-This directory produces the calibration scatter plot shown in the main README:
+This directory produces the calibration scatter plot (not yet published in
+the main README — run it and open a PR with the results and config):
 Prebuttal's simulated ratings vs **real** OpenReview ratings for the same papers.
 
 ## What this is — and is not

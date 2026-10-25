@@ -13,7 +13,8 @@
 
 **Purpose-built for ML conferences: real NeurIPS / ICLR / ICML / ARR review-form
 output, three reviewers running in fully independent contexts (optionally
-cross-model), and scoring calibrated against real OpenReview distributions.**
+cross-model), and a built-in pipeline to measure its scores against real
+OpenReview ratings.**
 
 Prebuttal is a pre-submission **stress test** for your paper: it sends your
 submission through three isolated AI reviewers with different temperaments
@@ -34,7 +35,7 @@ That is the main competitor. It loses, four ways:
 | One conversation role-playing three reviewers → **persona collapse** into a single bland compromise opinion | Three reviewers in **fully independent contexts** (separate calls/processes), genuinely different verdicts + measured disagreement |
 | Long papers get skimmed; tables are flattened into prose | **Ingestion pipeline**: cell-by-cell table extraction (LaTeX tabular parsing, PDF table detection, caption fallback) — reviewers can point at *Table 3, column 4* |
 | Output is free-form chat text | **Real conference review forms**: NeurIPS 1–6, ICLR 1–10, ICML 1–10, ARR Soundness/Excitement/Overall — with official scale anchors |
-| Scores are vibes | Fixed seeds, recorded backends/models per reviewer, score **calibration** against real OpenReview ratings |
+| Scores are vibes | Fixed seeds, recorded backends/models per reviewer, and a **calibration script** to measure scores against real OpenReview ratings (published results pending) |
 
 ## Quickstart
 
@@ -147,7 +148,9 @@ python scripts/calibration/calibrate.py \
     --venue-id ICLR.cc/2024/Conference --venue iclr -n 20 --out-dir calib_out
 ```
 
-Output: scatter plot + MAE + correlation. The claim this supports is narrow
+Output: scatter plot + MAE + correlation. **No calibration results are
+published yet** — until they are, treat every score as uncalibrated. Once
+published, the claim they support is narrow
 and deliberate: *this tool was measured* — unlike role-play prompts. It is
 **not** a claim that it predicts your score; real reviewers disagree with each
 other by more than this tool's error. Disagreement (σ) is reported with every
@@ -235,13 +238,15 @@ reports, JSON, or share pages.
 
 ## Comparison
 
-| Project | Form | Venue forms | Calibration | Cross-model | Tables in-pipeline |
+What Prebuttal provides, next to the common alternatives (by category —
+check any specific tool's own docs for what it supports):
+
+| Approach | Form | Venue forms | Calibration | Cross-model | Tables in-pipeline |
 |---|---|---|---|---|---|
-| **Prebuttal** | CLI + skill | NeurIPS / ICLR / ICML / ARR (editable plain text) | OpenReview scatter + MAE | claude × codex × API × ollama | cell-by-cell |
-| econ-paper-review-skill | agent skill | economics journals only | ✗ | ✗ | ✗ |
-| academic-paper-reviewer (TypingMind) | agent skill | ✗ | ✗ | ✗ | ✗ |
-| AgentReview / LLM-REVal | research framework | ✗ (not a tool) | ✗ | ✗ | ✗ |
-| paste into ChatGPT | chat | ✗ | ✗ | ✗ | ✗ |
+| **Prebuttal** | CLI + skill | NeurIPS / ICLR / ICML / ARR (editable plain text) | OpenReview script (scatter + MAE; results pending) | claude × codex × API × ollama | cell-by-cell |
+| generic "review my paper" agent skills / prompts | agent skill | varies | rarely | single model | via the host model |
+| multi-agent peer-review research frameworks | research code | study-specific | study-specific | sometimes | rarely |
+| paste into a chatbot | chat | ✗ | ✗ | ✗ | ✗ |
 
 ## How it works
 
