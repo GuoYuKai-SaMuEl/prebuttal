@@ -10,6 +10,8 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-26
+
 ### Added
 - **Projects.** Every paper gets a project, found from its source (PDF path,
   LaTeX folder or arXiv id — stable across title changes; `--project NAME`
@@ -62,6 +64,15 @@ releases (0.2, 0.3, …) are substantial new features.
   a footnote, `report.json` gains `temperature_applied` / `seed_applied`, the
   share page omits the seed when no role used it, and `--dry-run` says which
   backends ignore it.
+- `prebuttal export -o FILE` now follows the file's extension: `-o x.md`
+  exports Markdown (it wrote HTML into `.md` files). `--format` still wins
+  when given explicitly.
+- `--dry-run` prices a backend's default model instead of printing
+  `unknown price — add [pricing.""]` when no model is pinned.
+- Runs archived before 0.2.0 get their rating scale back-filled from the
+  venue, so they show `x/10`-style scores and join trends and the dashboard;
+  the project trend column skips comparisons across different rating scales
+  (e.g. iclr /10 vs neurips /6).
 
 ## [0.1.0] — 2026-10-25
 

@@ -56,7 +56,9 @@ Know what is intentional behavior before reporting it:
   part of the release testing. Custom `[agents.*]` commands get the fence but none of the CLI
   lock-down — restrict their tools yourself. Read reports before sharing them.
 - **No telemetry.** Prebuttal makes network calls only to the backend you
-  configured and (for arXiv input) to arxiv.org to download the paper.
+  configured and (for arXiv input) to arxiv.org to download the paper. (The
+  project's public *website* counts page views with a cookieless GoatCounter
+  script; the tool you install shares nothing with anyone.)
 - **API keys** stay in environment variables or `~/.prebuttal/keys.env`
   (user-only file created by `prebuttal key set`); they are never written to
   reports, JSON output, or share pages. Remove a stored key with

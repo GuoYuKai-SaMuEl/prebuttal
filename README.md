@@ -343,14 +343,16 @@ new features; 1.0 only once the interface is battle-tested.
 Tentative — priorities shift with usage and feedback. Short-term the focus
 is **hardening the core on real papers**, not adding features:
 
-1. **v0.1 (current, pre-release)** — core: ingestion pipeline, real venue
+1. **v0.2 (current, pre-release)** — core: ingestion pipeline, real venue
    forms, 3 independent reviewers + AC, every backend (agent CLIs / APIs /
-   Ollama / relay), reports + JSON + share page, calibration script
-2. **Now (v0.1.x)** — polish from real-usage findings: table & ingestion
+   Ollama / relay), reports + JSON + share page, calibration script; plus
+   projects & revision history (per-paper report folders, run management,
+   local dashboard) and per-role reasoning effort
+2. **Now (v0.2.x)** — polish from real-usage findings: table & ingestion
    edge cases (complex PDF tables), calibration scatter plot + honest
    per-model calibration notes, provider-reliability UX (free-pool reality,
    retry transparency), relay UX
-3. **Next (v0.2+)** — more venues, community personas, OpenReview
+3. **Next (v0.3+)** — more venues, community personas, OpenReview
    submission integration, and a browser-only web quick-scan (GitHub Pages:
    drag-drop a PDF + your own OpenRouter/Gemini key — no server, we stay a
    non-custodian); then the rebuttal workbench (reviews →
