@@ -17,8 +17,13 @@ ruff format .          # format (CI enforces both)
 ```
 
 No API key is needed to develop: the test suite runs fully offline against
-fake providers. If you add a test that needs a PDF, generate it with PyMuPDF
+fake providers. If you add a test that needs a PDF, generate it with reportlab
 in the test (see `tests/conftest.py::make_pdf_bytes`).
+
+**Dependency licenses:** Prebuttal is MIT, so runtime dependencies must be
+permissively licensed (MIT / BSD / Apache-2.0 / ISC / PSF). Copyleft packages
+(GPL, AGPL — e.g. PyMuPDF) are not accepted as dependencies, not even as
+optional extras that core features rely on.
 
 ## The three easiest contributions
 

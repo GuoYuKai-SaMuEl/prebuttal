@@ -1,12 +1,19 @@
-"""PDF ingestion via PyMuPDF: sections, cell-level tables, figure captions.
+"""PDF ingestion via pdfminer.six + pdfplumber: sections, cell-level tables,
+figure captions.
 
-Table strategy: ruled-table detection first (``page.find_tables``), captions
-matched by proximity; any numbered "Table N" caption without a detected grid
-falls back to a verbatim caption-block so experimental numbers survive.
+Both libraries are MIT-licensed, which keeps the package's dependency tree
+compatible with its own MIT license (PyMuPDF, used before 0.1.1, is AGPL).
+
+Table strategy: fully ruled grids via ``page.find_tables`` and booktabs-style
+tables (horizontal rules only — the ML-paper default) via rule clustering +
+column whitespace; captions matched by proximity; any numbered "Table N"
+caption without a detected grid falls back to a verbatim caption-block so
+experimental numbers survive.
 """
 
 from __future__ import annotations
 
+import io
 import re
 import statistics
 from itertools import pairwise
@@ -50,18 +57,19 @@ def _cluster(vals: list[float], tol: float = 2.5) -> list[float]:
     return [sum(g) / len(g) for g in groups]
 
 
-def _grid_from_geometry(page, tab) -> list[list[str]] | None:
+_CID = re.compile(r"\(cid:\d+\)")
+
+
+def _nearest(vals: list[float], v: float) -> int:
+    return min(range(len(vals)), key=lambda k: abs(vals[k] - v))
+
+
+def _grid_from_cells(cells: list[tuple], words: list[dict]) -> list[list[str]] | None:
     """Rebuild table cells from word coordinates.
 
-    ``tab.extract()`` assembles text from character spans and mangles kerned
-    LaTeX decimals ("47.9" comes out as "479 ."); words from ``get_text``
-    keep their spelling, so assigning them to cell boxes by center point and
-    sorting by x reconstructs the true cell text.
+    Words keep their spelling (kerned LaTeX decimals stay "47.9"); assigning
+    them to cell boxes by center point and sorting by x gives the cell text.
     """
-    try:
-        cells = [tuple(c) for c in tab.cells]
-    except Exception:  # pragma: no cover - older PyMuPDF without .cells
-        return None
     if not cells:
         return None
     row_y = _cluster([c[1] for c in cells])
@@ -69,65 +77,153 @@ def _grid_from_geometry(page, tab) -> list[list[str]] | None:
     if not row_y or not col_x:
         return None
     grid = [["" for _ in col_x] for _ in row_y]
-
-    def _nearest(vals: list[float], v: float) -> int:
-        return min(range(len(vals)), key=lambda k: abs(vals[k] - v))
-
     cell_words: dict[tuple[int, int], list[tuple[float, str]]] = {}
-    for w in page.get_text("words"):
-        cx, cy = (w[0] + w[2]) / 2, (w[1] + w[3]) / 2
+    for w in words:
+        cx, cy = (w["x0"] + w["x1"]) / 2, (w["top"] + w["bottom"]) / 2
         for x0, y0, x1, y1 in cells:
             if x0 - 0.5 <= cx <= x1 + 0.5 and y0 - 0.5 <= cy <= y1 + 0.5:
                 key = (_nearest(row_y, y0), _nearest(col_x, x0))
-                cell_words.setdefault(key, []).append((w[0], w[4]))
+                cell_words.setdefault(key, []).append((w["x0"], w["text"]))
                 break
     for (r, c), ws in cell_words.items():
         grid[r][c] = " ".join(text for _x, text in sorted(ws))
     return grid
 
 
+def _rule_regions(page) -> list[tuple[float, float, float, float]]:
+    """Bounding boxes of booktabs-style tables: stacks of >= 2 horizontal
+    rules spanning (nearly) the same x-range, close together vertically."""
+    rules = sorted(
+        (e for e in page.horizontal_edges if e["x1"] - e["x0"] >= 40),
+        key=lambda e: e["top"],
+    )
+    regions: list[tuple[float, float, float, float]] = []
+    group: list[dict] = []
+
+    def _flush() -> None:
+        if len(group) >= 2:
+            regions.append(
+                (
+                    min(e["x0"] for e in group),
+                    group[0]["top"],
+                    max(e["x1"] for e in group),
+                    group[-1]["bottom"],
+                )
+            )
+
+    for e in rules:
+        if group:
+            gx0, gx1 = min(g["x0"] for g in group), max(g["x1"] for g in group)
+            overlap = min(gx1, e["x1"]) - max(gx0, e["x0"])
+            span = min(gx1 - gx0, e["x1"] - e["x0"])
+            if overlap >= 0.8 * span and e["top"] - group[-1]["top"] <= 300:
+                group.append(e)
+                continue
+            _flush()
+        group = [e]
+    _flush()
+    return regions
+
+
+def _grid_from_region(bbox: tuple, words: list[dict]) -> list[list[str]] | None:
+    """Rows by baseline, columns by whitespace shared across every row."""
+    x0, top, x1, bottom = bbox
+    inside = [
+        w
+        for w in words
+        if x0 - 2 <= (w["x0"] + w["x1"]) / 2 <= x1 + 2
+        and top < (w["top"] + w["bottom"]) / 2 < bottom
+    ]
+    if not inside:
+        return None
+    rows: list[list[dict]] = []
+    for w in sorted(inside, key=lambda w: w["top"]):
+        if rows and w["top"] - rows[-1][0]["top"] <= 3:
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+    spans: list[list[float]] = []
+    for w in sorted(inside, key=lambda w: w["x0"]):
+        if spans and w["x0"] - spans[-1][1] < 6:  # 6pt < LaTeX's 2*tabcolsep gap
+            spans[-1][1] = max(spans[-1][1], w["x1"])
+        else:
+            spans.append([w["x0"], w["x1"]])
+    if len(rows) < 2 or len(spans) < 2:
+        return None
+    grid = [["" for _ in spans] for _ in rows]
+    for r, row in enumerate(rows):
+        for w in sorted(row, key=lambda w: w["x0"]):
+            cx = (w["x0"] + w["x1"]) / 2
+            c = next((k for k, (a, b) in enumerate(spans) if a <= cx <= b), None)
+            if c is not None:
+                grid[r][c] = f"{grid[r][c]} {w['text']}".strip()
+    return grid
+
+
+def _text_lines(page, page_no: int) -> list[dict]:
+    """Layout-analysed text lines (column-aware) with font size + boldness."""
+    from pdfminer.layout import LTChar, LTTextBoxHorizontal
+
+    out: list[dict] = []
+    for box in page.layout:
+        if not isinstance(box, LTTextBoxHorizontal):
+            continue
+        for line in box:
+            chars = [c for c in line if isinstance(c, LTChar)]
+            text = _norm(_CID.sub("", line.get_text()))
+            if not chars or not text:
+                continue
+            fonts = {(c.fontname or "").lower() for c in chars}
+            out.append(
+                {
+                    "page": page_no,
+                    "x": line.x0,
+                    "y": page.height - line.y1,
+                    "text": text,
+                    "size": max(c.size for c in chars),
+                    "bold": any("bold" in f or "bx" in f for f in fonts),  # CMR vs CMBX
+                }
+            )
+    return out
+
+
+def _text_blocks(page) -> list[tuple[float, float, str]]:
+    """(top, bottom, text) per layout text box — caption candidates."""
+    from pdfminer.layout import LTTextBoxHorizontal
+
+    return [
+        (page.height - b.y1, page.height - b.y0, _norm(_CID.sub("", b.get_text())))
+        for b in page.layout
+        if isinstance(b, LTTextBoxHorizontal)
+    ]
+
+
 def ingest_pdf_bytes(
     data: bytes, *, source_path: str = "", title_hint: str | None = None
 ) -> StructuredPaper:
-    import pymupdf  # local import keeps `prebuttal.backends` startup light
+    import pdfplumber  # local import keeps `prebuttal backends` startup light
 
     try:
-        doc = pymupdf.open(stream=data, filetype="pdf")
-    except Exception as e:  # pragma: no cover
+        doc = pdfplumber.open(io.BytesIO(data), laparams={})
+        pages = doc.pages
+    except Exception as e:
         raise PDFError(f"cannot open PDF: {e}") from e
+    try:
+        return _ingest(doc, pages, source_path=source_path, title_hint=title_hint)
+    finally:
+        doc.close()
 
+
+def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> StructuredPaper:
     warnings: list[str] = []
-    pages = [doc[i] for i in range(doc.page_count)]  # stubs have no __iter__
 
     # --- font-size statistics over the whole document (body text baseline)
+    lines_all: list[dict] = []  # {page, x, y, text, size, bold}
+    for i, page in enumerate(pages):
+        lines_all.extend(_text_lines(page, i))
     sizes: list[float] = []
-    lines_all: list[dict] = []  # {page, y, text, size, bold}
-    for page in pages:
-        d = page.get_text("dict")
-        for block in d.get("blocks", []):
-            if block.get("type") != 0:
-                continue
-            for line in block.get("lines", []):
-                spans = line.get("spans", [])
-                if not spans:
-                    continue
-                text = _norm("".join(sp.get("text", "") for sp in spans))
-                if not text:
-                    continue
-                size = max(sp.get("size", 10.0) for sp in spans)
-                font_bits = {(sp.get("font") or "").lower() for sp in spans}
-                bold = any("bold" in f or "bx" in f for f in font_bits)  # CMR vs CMBX
-                lines_all.append(
-                    {
-                        "page": page.number,
-                        "x": line["bbox"][0],
-                        "y": line["bbox"][1],
-                        "text": text,
-                        "size": size,
-                        "bold": bold,
-                    }
-                )
-                sizes.extend([size] * min(len(text), 40))
+    for ln in lines_all:
+        sizes.extend([ln["size"]] * min(len(ln["text"]), 40))
     body_size = statistics.median(sizes) if sizes else 10.0
 
     # LaTeX emits section numbers and titles as separate lines ("1" then
@@ -163,7 +259,7 @@ def ingest_pdf_bytes(
     title = ""
     if title_hint and len(title_hint) > 8:
         title = title_hint
-    meta_title = _norm((doc.metadata or {}).get("title") or "")
+    meta_title = _norm(str((doc.metadata or {}).get("Title") or ""))
     if not title and len(meta_title) > 8 and "untitled" not in meta_title.lower():
         title = meta_title
     if not title and lines_all:
@@ -251,33 +347,37 @@ def ingest_pdf_bytes(
     tables: list[Table] = []
     seen_numbers: set[str] = set()
     for page in pages:
+        words = page.extract_words()
+        found: list[tuple[tuple, list[list[str]]]] = []
         try:
-            finder = page.find_tables()
-        except Exception:  # pragma: no cover - PyMuPDF build without table support
-            finder = None
-        if finder is None:
-            continue
-        blocks = page.get_text("blocks")
+            grids = page.find_tables()  # fully ruled grids (vertical + horizontal lines)
+        except Exception:  # pragma: no cover - malformed page geometry
+            grids = []
+        for tab in grids:
+            grid = _grid_from_cells([tuple(c) for c in tab.cells], words)
+            if grid is None:
+                grid = tab.extract()
+            found.append((tab.bbox, grid))
+        for bbox in _rule_regions(page):
+            overlaps = any(
+                bbox[1] < fb[3] and fb[1] < bbox[3] and bbox[0] < fb[2] and fb[0] < bbox[2]
+                for fb, _g in found
+            )
+            if not overlaps:
+                grid = _grid_from_region(bbox, words)
+                if grid is not None:
+                    found.append((bbox, grid))
         caps = []
-        for b in blocks:
-            if b[6] != 0:
-                continue
-            t = _norm(b[4])
+        for y0, y1, t in _text_blocks(page):
             cm = _TABLE_CAP.match(t)
             if cm:
-                caps.append((b[1], b[3], cm.group(1), t[:400]))
-        for tab in finder.tables:
-            grid = _grid_from_geometry(page, tab)
-            if grid is None:
-                try:
-                    grid = tab.extract()  # fallback for non-ruled/odd tables
-                except Exception:  # pragma: no cover
-                    continue
+                caps.append((y0, y1, cm.group(1), t[:400]))
+        for tab_bbox, grid in found:
             grid = [[_norm(str(c)) if c is not None else "" for c in row] for row in grid]
             grid = [row for row in grid if any(c for c in row)]
             if len(grid) < 2:
                 continue
-            bbox_y = (tab.bbox[1] + tab.bbox[3]) / 2
+            bbox_y = (tab_bbox[1] + tab_bbox[3]) / 2
             number = ""
             caption = ""
             best_d = None

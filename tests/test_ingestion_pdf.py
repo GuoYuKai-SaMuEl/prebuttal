@@ -60,3 +60,61 @@ def test_arxiv_ingest_offline(tmp_path, sample_pdf_bytes, monkeypatch):
     assert paper.source_type == "arxiv"
     assert "arXiv edition" in paper.title
     assert paper.tables  # pdf pipeline ran
+
+
+def test_pdf_ruled_grid_is_cell_accurate(sample_pdf_bytes):
+    t = ingest_pdf_bytes(sample_pdf_bytes).tables[0]
+    assert t.source == "pdf-table"
+    assert t.header == ["Model", "Acc.", "F1"]
+    assert t.rows == [["WidgetNet", "97.3", "96.1"], ["Baseline", "95.2", "93.8"]]
+
+
+def _two_column_booktabs_pdf() -> bytes:
+    """Two-column page + a booktabs table (horizontal rules only, the ML default)."""
+    import io
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    h = A4[1]
+
+    def text(x, y, s, size=9, bold=False):
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        c.drawString(x, h - y, s)
+
+    text(50, 60, "Two Column Widgets for Testing", 18, bold=True)
+    left = ["1 Introduction"] + [f"Left column sentence {i} about widgets." for i in range(10)]
+    right = ["2 Experiments"] + [f"Right column result line {i} here." for i in range(10)]
+    for i, s in enumerate(left):
+        text(50, 100 + i * 13, s, 12 if i == 0 else 9, bold=i == 0)
+    for i, s in enumerate(right):
+        text(310, 100 + i * 13, s, 12 if i == 0 else 9, bold=i == 0)
+
+    x0, y0 = 310, 300
+    text(x0, y0 - 8, "Table 2: Ablation results on the bench.")
+    c.setLineWidth(0.6)
+    for yy in (y0, y0 + 16, y0 + 64):
+        c.line(x0, h - yy, x0 + 230, h - yy)
+    rows = [["Variant", "Acc", "F1"], ["Full model", "91.2", "88.0"], ["No router", "89.5", "86.1"]]
+    for r, row in enumerate(rows):
+        for col, cell in enumerate(row):
+            text(x0 + 3 + (0, 110, 170)[col], y0 + 12 + r * 15 + (2 if r else 0), cell)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def test_pdf_two_columns_and_booktabs_table():
+    paper = ingest_pdf_bytes(_two_column_booktabs_pdf())
+    intro = next(s for s in paper.sections if s.title == "Introduction")
+    exp = next(s for s in paper.sections if s.title == "Experiments")
+    # column-aware layout: the right column must not bleed into the left one
+    assert "Left column sentence 9" in intro.text and "Right column" not in intro.text
+    assert "Right column result line 9" in exp.text
+    t = next(t for t in paper.tables if t.number == "2")
+    assert t.source == "pdf-table"
+    assert t.header == ["Variant", "Acc", "F1"]
+    assert t.rows == [["Full model", "91.2", "88.0"], ["No router", "89.5", "86.1"]]
+    assert "Ablation" in t.caption

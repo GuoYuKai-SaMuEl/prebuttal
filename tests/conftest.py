@@ -258,41 +258,39 @@ def make_pdf_bytes(
     title: str = "Deep Widgets for Structured Prediction",
     body_extra: str = "",
 ) -> bytes:
-    """Build a small synthetic paper PDF (headings, abstract, ruled table)."""
-    import pymupdf
+    """Build a small synthetic paper PDF (headings, abstract, ruled table).
 
-    doc = pymupdf.open()
-    page = doc.new_page()
+    Coordinates are top-left based (y grows downward) like PDF readers report
+    them; reportlab draws bottom-up, so every y is flipped against the page.
+    """
+    import io
 
-    page.insert_text((72, 80), title, fontsize=18, fontname="hebo")
-    page.insert_text((72, 104), "Alice Smith, Bob Jones", fontsize=10, fontname="helv")
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
 
-    page.insert_text((72, 130), "Abstract", fontsize=11, fontname="hebo")
-    page.insert_text(
-        (72, 144),
-        "We propose widgets that learn structure end to end.",
-        fontsize=10,
-        fontname="helv",
-    )
-    page.insert_text(
-        (72, 156),
-        "On three benchmarks we improve accuracy by 2.1 points.",
-        fontsize=10,
-        fontname="helv",
-    )
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    height = A4[1]
 
-    page.insert_text((72, 190), "1 Introduction", fontsize=12, fontname="hebo")
-    page.insert_text(
-        (72, 205),
-        "Widgets matter for structured tasks and evaluation.",
-        fontsize=10,
-        fontname="helv",
-    )
+    def text(x: float, y: float, s: str, size: float, bold: bool = False) -> None:
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        c.drawString(x, height - y, s)
 
-    page.insert_text((72, 230), "2 Experiments", fontsize=12, fontname="hebo")
-    page.insert_text(
-        (72, 245), "We compare against strong baselines with 3 seeds.", fontsize=10, fontname="helv"
-    )
+    def line(x0: float, y0: float, x1: float, y1: float) -> None:
+        c.line(x0, height - y0, x1, height - y1)
+
+    text(72, 80, title, 18, bold=True)
+    text(72, 104, "Alice Smith, Bob Jones", 10)
+
+    text(72, 130, "Abstract", 11, bold=True)
+    text(72, 144, "We propose widgets that learn structure end to end.", 10)
+    text(72, 156, "On three benchmarks we improve accuracy by 2.1 points.", 10)
+
+    text(72, 190, "1 Introduction", 12, bold=True)
+    text(72, 205, "Widgets matter for structured tasks and evaluation.", 10)
+
+    text(72, 230, "2 Experiments", 12, bold=True)
+    text(72, 245, "We compare against strong baselines with 3 seeds.", 10)
 
     # ruled table with caption
     x0, y0 = 72, 280
@@ -303,37 +301,27 @@ def make_pdf_bytes(
         ["Baseline", "95.2", "93.8"],
     ]
     row_h = 16
-    page.insert_text(
-        (x0, y0 - 6),
-        "Table 1: Main results. WidgetNet reaches 97.3 accuracy.",
-        fontsize=10,
-        fontname="helv",
-    )
+    text(x0, y0 - 6, "Table 1: Main results. WidgetNet reaches 97.3 accuracy.", 10)
     for i in range(len(rows) + 1):
-        page.draw_line((x0, y0 + i * row_h), (x0 + sum(widths), y0 + i * row_h))
+        line(x0, y0 + i * row_h, x0 + sum(widths), y0 + i * row_h)
     xs = [x0]
     for w in widths:
         xs.append(xs[-1] + w)
     for x in xs:
-        page.draw_line((x, y0), (x, y0 + len(rows) * row_h))
+        line(x, y0, x, y0 + len(rows) * row_h)
     for r, row in enumerate(rows):
-        for c, cell in enumerate(row):
-            page.insert_text((xs[c] + 3, y0 + r * row_h + 11), cell, fontsize=9, fontname="helv")
+        for col, cell in enumerate(row):
+            text(xs[col] + 3, y0 + r * row_h + 11, cell, 9)
 
-    page.insert_text(
-        (72, 420), "Figure 1: Accuracy vs. training size.", fontsize=10, fontname="helv"
-    )
+    text(72, 420, "Figure 1: Accuracy vs. training size.", 10)
     # in-prose references: must NOT become a phantom table/figure
-    page.insert_text(
-        (72, 435),
-        "Table 9 confirms that our widgets hold up. Figure 2 shows the trend.",
-        fontsize=10,
-        fontname="helv",
-    )
+    text(72, 435, "Table 9 confirms that our widgets hold up. Figure 2 shows the trend.", 10)
     if body_extra:
-        page.insert_text((72, 455), body_extra, fontsize=10, fontname="helv")
+        text(72, 455, body_extra, 10)
 
-    return doc.tobytes()
+    c.showPage()
+    c.save()
+    return buf.getvalue()
 
 
 @pytest.fixture

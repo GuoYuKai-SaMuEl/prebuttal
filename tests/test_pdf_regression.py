@@ -1,6 +1,6 @@
 """Regression fixture: a REAL LaTeX-produced PDF (examples/demo-paper compiled
 with pdflatex + MiKTeX). Locks the ingestion moat — sections, cell-accurate
-numbers — against PyMuPDF behavior drift and our own regressions.
+numbers — against PDF-parser behavior drift and our own regressions.
 
 To regenerate: cd examples/demo-paper && pdflatex main.tex (twice) and copy
 main.pdf to tests/fixtures/demo-paper.pdf.
