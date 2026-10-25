@@ -134,7 +134,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   <header>
     <div class="brand">Prebuttal</div>
     <h1>{title}</h1>
-    <div class="meta-line">{venue_name} · simulated review · {r.run.generated_at} {seed_note}</div>
+    <div class="meta-line">{venue_name} · simulated review · {r.run.generated_at}{seed_note}</div>
     <div class="meta-line">backends: {backends}</div>
   </header>
   <div class="hero">{score_html}

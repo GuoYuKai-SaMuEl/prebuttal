@@ -159,7 +159,7 @@
     </div>
     <div class="score">
       <div class="num">7.0 → 7.3<span style="font-size:18px;color:var(--muted)">/10</span></div>
-      <div class="cap">v1 → v2 · same panel, same seed</div>
+      <div class="cap">v1 → v2 · same panel, same settings</div>
       <div class="real">real: rejected → accepted</div>
     </div>
   </div>
@@ -204,7 +204,8 @@
   <h2 id="revision-loop">The revision loop</h2>
   <p class="sub">Every paper is a project; every run lines up as revision history —
   and two runs can be diffed. New in v0.2.</p>
-  <pre class="term">$ prebuttal run 2312.00752v1 --note "v1 — rejected at ICLR 2024"
+  <pre class="term"># abridged output of the real runs
+$ prebuttal run 2312.00752v1 --project mamba-revision --note "v1 — rejected at ICLR 2024"
   R1 claude/sonnet 8 · R2 codex 5 · R3 gemini-3.8-flash 8
   Predicted: 7/10 (σ 1.41)          → saved as mamba-revision#1
 
