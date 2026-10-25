@@ -70,6 +70,16 @@ releases (0.2, 0.3, …) are substantial new features.
   `diff` — score deltas and weakness movement (gone / persists / new) across
   revisions.
 
+### Changed
+
+- Default models brought up to the current mid-tier generation (verified
+  against live model listings, 2026-10): `api-gemini` → **gemini-3.5-flash-lite**
+  (latest flash-lite; cheapest long-context tier for the free-quota path),
+  `api-openai` → **gpt-5.6-terra** (the GPT-5.6 balanced tier),
+  `api-anthropic` → **claude-sonnet-5-5**. Old ids still work when pinned
+  explicitly; pricing table extended accordingly. `prebuttal models` filters
+  more non-chat noise (gemma / lyria / omni / robotics / nano-banana).
+
 ### Fixed
 
 - Per-reviewer `model` now actually reaches agent-CLI backends

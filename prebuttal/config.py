@@ -25,7 +25,10 @@ DEFAULT_PRICING: dict[str, tuple[float, float]] = {
     "gemini-2.0-flash": (0.10, 0.40),
     "gpt-4.1-mini": (0.40, 1.60),
     "gpt-4o-mini": (0.15, 0.60),
+    "gpt-5.6-terra": (2.00, 12.00),
+    "gpt-5.6-luna": (0.20, 1.20),
     "claude-sonnet-4-5": (3.00, 15.00),
+    "claude-sonnet-5-5": (2.00, 10.00),
     "claude-haiku-4-5": (1.00, 5.00),
 }
 
@@ -45,7 +48,7 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 # Force one backend for every role without editing this file:
 #   PREBUTTAL_BACKEND=relay   (the --backend flag still wins)
 # Pin one per reviewer for a fixed setup, e.g.
-#   backend = "api-gemini"   model = "gemini-2.5-flash"
+#   backend = "api-gemini"   model = "gemini-3.5-flash-lite"
 # (model works for every backend; agent CLIs get it as `--model X`,
 #  empty model = the backend/CLI's own default)
 

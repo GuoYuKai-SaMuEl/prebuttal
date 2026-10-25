@@ -117,7 +117,7 @@ temperature = 0.7
 [[reviewer]]
 id = "R3"
 persona = "detail_obsessive"
-backend = "api-gemini"        # free tier; default model gemini-2.5-flash
+backend = "api-gemini"        # free tier; default model gemini-3.5-flash-lite
 temperature = 0.5
 
 [ac]

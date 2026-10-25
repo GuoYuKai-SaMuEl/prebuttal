@@ -38,7 +38,7 @@ class _HTTPProvider(BaseProvider):
 
 
 class OpenAIProvider(_HTTPProvider):
-    DEFAULT_MODEL = "gpt-4.1-mini"
+    DEFAULT_MODEL = "gpt-5.6-terra"
 
     def __init__(self, backend: str = "api-openai", model: str = "", **kw):
         key = os.environ.get("OPENAI_API_KEY")
@@ -80,7 +80,7 @@ class OpenAIProvider(_HTTPProvider):
 
 
 class AnthropicProvider(_HTTPProvider):
-    DEFAULT_MODEL = "claude-sonnet-4-5"
+    DEFAULT_MODEL = "claude-sonnet-5-5"
 
     def __init__(self, backend: str = "api-anthropic", model: str = "", **kw):
         key = os.environ.get("ANTHROPIC_API_KEY")
@@ -122,7 +122,7 @@ class AnthropicProvider(_HTTPProvider):
 class GeminiProvider(_HTTPProvider):
     """Google Gemini — the default "first key" path thanks to its free tier."""
 
-    DEFAULT_MODEL = "gemini-2.5-flash"
+    DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
     def __init__(self, backend: str = "api-gemini", model: str = "", **kw):
         key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")

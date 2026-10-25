@@ -13,8 +13,6 @@ from dataclasses import dataclass
 
 import httpx
 
-from .providers.api import _env_default  # respects PREBUTTAL_*_MODEL overrides
-
 _TIMEOUT = 8.0
 
 # OpenAI's /v1/models returns everything (embeddings, audio, previews…);
@@ -25,7 +23,8 @@ _OPENAI_DROP = re.compile(r"embed|audio|image|dall-e|whisper|tts|moderation|tran
 # Gemini's list also carries non-chat surfaces; reviewers need text models only.
 _GEMINI_DROP = re.compile(
     r"embed|a2a|image|tts|audio|transcribe|computer-use|live|veo|imagen|"
-    r"deep-research|learnlm|antigravity|customtools",
+    r"deep-research|learnlm|antigravity|customtools|banana|gemma|lyria|"
+    r"robotics|omni",
     re.I,
 )
 
@@ -112,6 +111,8 @@ def anthropic_models(api_key: str) -> list[str] | None:
 
 def scan() -> list[ModelListing]:
     """Build listings for every known backend, scanning where possible."""
+    from .providers.api import AnthropicProvider, GeminiProvider, OpenAIProvider
+
     out: list[ModelListing] = []
 
     gkey = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
@@ -121,14 +122,17 @@ def scan() -> list[ModelListing]:
             ModelListing(
                 "api-gemini",
                 models or [],
-                _env_default("GEMINI", "gemini-2.5-flash"),
+                GeminiProvider.default_model(),
                 "" if models is not None else "(could not reach the Gemini API)",
             )
         )
     else:
         out.append(
             ModelListing(
-                "api-gemini", [], "gemini-2.5-flash", "(no key — prebuttal key set gemini)"
+                "api-gemini",
+                [],
+                GeminiProvider.default_model(),
+                "(no key — prebuttal key set gemini)",
             )
         )
 
@@ -140,12 +144,12 @@ def scan() -> list[ModelListing]:
             ModelListing(
                 "api-openai",
                 models or [],
-                _env_default("OPENAI", "gpt-4.1-mini"),
+                OpenAIProvider.default_model(),
                 "" if models is not None else "(could not reach the OpenAI-compatible endpoint)",
             )
         )
     else:
-        out.append(ModelListing("api-openai", [], "gpt-4.1-mini", "(no key)"))
+        out.append(ModelListing("api-openai", [], OpenAIProvider.default_model(), "(no key)"))
 
     akey = os.environ.get("ANTHROPIC_API_KEY")
     if akey:
@@ -154,12 +158,12 @@ def scan() -> list[ModelListing]:
             ModelListing(
                 "api-anthropic",
                 models or [],
-                _env_default("ANTHROPIC", "claude-sonnet-4-5"),
+                AnthropicProvider.default_model(),
                 "" if models is not None else "(could not reach the Anthropic API)",
             )
         )
     else:
-        out.append(ModelListing("api-anthropic", [], "claude-sonnet-4-5", "(no key)"))
+        out.append(ModelListing("api-anthropic", [], AnthropicProvider.default_model(), "(no key)"))
 
     from .providers.ollama import ollama_base_url, ollama_models
 
