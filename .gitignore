@@ -17,8 +17,6 @@ calib_out/
 demo-run/
 zbridge.toml
 relay/
-scripts/zcode_bridge/prompts/
-scripts/zcode_bridge/answers/
 
 # Editors / OS
 .idea/
@@ -28,3 +26,7 @@ Thumbs.db
 
 # Internal strategy docs — not for the public repo
 docs/internal/
+
+# Machine-specific dev scripts (local paths, personal tooling) — keep them
+# here, outside version control, so they never land in the public repo again
+scripts/dev/
