@@ -468,29 +468,33 @@ def cmd_run(args) -> int:
     report = run_report(paper, cfg, venue, providers, ac_provider, log=_log)
 
     md = render_markdown(report, venue)
-    out_path = Path(args.out)
-    out_path.write_text(md, encoding="utf-8")
-
-    json_path = None
     json_str = dumps_json(report, venue)
-    if args.json:
-        json_path = Path(args.json)
-        json_path.write_text(json_str, encoding="utf-8")
-
-    share_path = None
     html_str = render_share_html(report, venue, cfg.repo_url) if args.share else None
-    if html_str:
-        share_path = out_path.with_suffix(".html")
-        share_path.write_text(html_str, encoding="utf-8")
 
     # Advanced feature, zero footprint on basic usage: archive best-effort,
-    # and a failure to archive must never fail the review run itself.
+    # and a failure to archive must never fail the review run itself.  It
+    # runs before the output files so a bad --out path can't lose the review.
+    rec = None
     if not args.no_save:
         try:
             rec = save_run(report, venue, cfg, md=md, json_str=json_str, html=html_str)
             print(f"Saved:    {rec.id}  (`prebuttal show {rec.id}`)")
         except OSError as e:
             _log(f"[prebuttal] warning: could not archive this run ({e})")
+
+    out_path = Path(args.out)
+    json_path = Path(args.json) if args.json else None
+    share_path = out_path.with_suffix(".html") if html_str else None
+    try:
+        for path, text in ((out_path, md), (json_path, json_str), (share_path, html_str)):
+            if path is not None and text is not None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+    except OSError as e:
+        print(f"error: cannot write report: {e}", file=sys.stderr)
+        if rec is not None:
+            print(f"The review is archived: `prebuttal show {rec.id}`", file=sys.stderr)
+        return EXIT_USAGE
 
     agg = report.aggregate
     if agg.mean is not None:

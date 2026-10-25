@@ -86,6 +86,31 @@ def test_run_end_to_end_with_fake_backend(tmp_path, monkeypatch, latex_project, 
     assert "pipx install prebuttal" in html
 
 
+def test_run_creates_missing_output_dirs(tmp_path, monkeypatch, latex_project, fake_statuses):
+    """A finished (possibly paid) review must not die on a not-yet-existing --out dir."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PREBUTTAL_HOME", str(tmp_path / "home"))
+    cfg_path = tmp_path / "prebuttal.toml"
+    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
+    rc = cli.main(
+        [
+            "run",
+            str(latex_project),
+            "--config",
+            str(cfg_path),
+            "--share",
+            "--out",
+            "new/dir/report.md",
+            "--json",
+            "other/out.json",
+        ]
+    )
+    assert rc == cli.EXIT_OK
+    assert (tmp_path / "new/dir/report.md").is_file()
+    assert (tmp_path / "new/dir/report.html").is_file()
+    assert (tmp_path / "other/out.json").is_file()
+
+
 def test_run_dry_run_prints_matrix_no_calls(
     tmp_path, monkeypatch, latex_project, fake_statuses, shared_calls
 ):
