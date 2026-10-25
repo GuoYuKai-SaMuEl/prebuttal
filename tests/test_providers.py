@@ -250,6 +250,74 @@ def test_openrouter_provider_request_shape(monkeypatch):
     assert "response_format" not in body  # many OpenRouter models reject JSON mode
 
 
+def test_openrouter_reasoning_model_burns_budget_no_retry(monkeypatch):
+    import httpx
+
+    from prebuttal.providers.api import OpenRouterProvider
+    from prebuttal.providers.base import ProviderError
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": None, "reasoning": "thinking..."},
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 16,
+                    "completion_tokens_details": {"reasoning_tokens": 16},
+                },
+            },
+        )
+
+    _install_mock_http(monkeypatch, handler)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-test")
+    provider = OpenRouterProvider(model="some/reasoner:free")
+    with pytest.raises(ProviderError, match="reasoning"):
+        provider.complete(system="S", user="U", temperature=0.4, seed=1, max_tokens=16, retries=2)
+    assert calls["n"] == 1  # deterministic failure: retrying would waste free quota
+
+
+def test_openrouter_content_parts_are_joined(monkeypatch):
+    import httpx
+
+    from prebuttal.providers.api import OpenRouterProvider
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": [
+                                {"type": "text", "text": '{"rating": '},
+                                {"type": "text", "text": "8}"},
+                            ]
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 9, "completion_tokens": 4},
+            },
+        )
+
+    _install_mock_http(monkeypatch, handler)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-test")
+    provider = OpenRouterProvider(model="x/y:free")
+    comp = provider.complete(
+        system="S", user="U", temperature=0.4, seed=1, max_tokens=64, retries=0
+    )
+    assert comp.text == '{"rating": 8}'
+
+
 def test_anthropic_provider_request_shape(monkeypatch):
     import httpx
 

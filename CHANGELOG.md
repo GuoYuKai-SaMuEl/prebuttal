@@ -15,7 +15,10 @@ releases (0.2, 0.3, …) are substantial new features.
 - `api-openrouter` backend: one OPENROUTER_API_KEY, hundreds of models,
   OpenAI-compatible wire format (attribution headers sent; JSON mode not
   forced since many OpenRouter models reject it). Default is a `:free` model
-  (nvidia/nemotron-3.5-lightning:free) so the zero-cost story holds; `:free`
+  (google/gemma-4-31b-it:free, non-reasoning — reasoning models on the free
+  tier can spend the whole token budget on hidden thinking and return no
+  content; that case now fails fast with an actionable error instead of
+  retrying) so the zero-cost story holds; `:free`
   ids show as $0 in `--dry-run`. `prebuttal key set openrouter` stores the
   key. `prebuttal models` scans OpenRouter's public catalog with no key at
   all — free ids first with live per-1M prices, then curated notables — and

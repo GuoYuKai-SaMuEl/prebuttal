@@ -88,7 +88,9 @@ class OpenRouterProvider(_HTTPProvider):
     reject JSON mode, and the orchestrator's extractor tolerates prose anyway.
     """
 
-    DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
+    # Non-reasoning instruct model: reasoning models on the free tier burn the
+    # whole max-tokens budget on hidden thinking and return no content.
+    DEFAULT_MODEL = "google/gemma-4-31b-it:free"
     BASE_URL = "https://openrouter.ai/api/v1"
 
     def __init__(self, backend: str = "api-openrouter", model: str = "", **kw):
@@ -128,12 +130,27 @@ class OpenRouterProvider(_HTTPProvider):
             payload=payload,
         )
         try:
-            text = data["choices"][0]["message"]["content"] or ""
-            u = data.get("usage", {})
+            choice = data["choices"][0]
+            content = choice["message"].get("content")
+            if isinstance(content, list):  # some upstream providers send parts
+                content = "".join(p.get("text", "") for p in content if isinstance(p, dict))
+            text = content or ""
+            u = data.get("usage") or {}
             usage = Usage(u.get("prompt_tokens", 0), u.get("completion_tokens", 0))
         except (KeyError, IndexError, TypeError) as e:
             raise ProviderError(f"unexpected OpenRouter response shape: {str(data)[:300]}") from e
-        return text, usage
+        if not text.strip():
+            finish = choice.get("finish_reason", "")
+            details = u.get("completion_tokens_details") or {}
+            reasoning = details.get("reasoning_tokens", 0) or 0
+            if finish == "length" or reasoning:
+                raise ProviderError(
+                    f"{self.model} spent the whole {max_tokens}-token budget on hidden "
+                    f"reasoning (reasoning_tokens={reasoning}, finish_reason={finish}) and "
+                    "returned no content; pick a non-reasoning model (`prebuttal models`) "
+                    "or raise max-tokens"
+                )
+            raise TransientProviderError("empty completion from OpenRouter")
         return text, usage
 
 
