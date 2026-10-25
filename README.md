@@ -22,7 +22,8 @@ plus an area chair, and hands you a conference-format review report — scores,
 disagreement, weaknesses with citations to your own tables — *before* the real
 Reviewers 1–3 see it. See a synthetic sample:
 [report](examples/sample-report.md) ·
-[share page](examples/sample-report.html).
+[share page](examples/sample-report.html) — or what a deliberately flawed
+(fictional) paper gets: [1/10 report](examples/weak-paper-report.md).
 
 ---
 

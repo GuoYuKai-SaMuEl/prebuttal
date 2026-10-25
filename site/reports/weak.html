@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prebuttal — GlobalGate: A Universal Attention Mechanism That Solves Long-Context Reasoning</title>
+<style>
+  :root { --ink:#1a1d23; --mut:#6b7280; --line:#e5e7eb; --accent:#4f46e5; --bg:#f8fafc; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  .wrap { max-width:880px; margin:0 auto; padding:32px 20px 56px; }
+  header { border-bottom:2px solid var(--ink); padding-bottom:16px; margin-bottom:20px; }
+  .brand { font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  h1 { font-size:26px; margin:6px 0 4px; line-height:1.25; }
+  .meta-line { color:var(--mut); font-size:14px; }
+  .hero { display:flex; gap:24px; align-items:center; background:#fff; border:1px solid var(--line);
+          border-radius:12px; padding:20px 24px; margin:18px 0; }
+  .score-num { font-size:44px; font-weight:800; line-height:1; }
+  .score-max { font-size:20px; color:var(--mut); font-weight:600; }
+  .score-sub { color:var(--mut); font-size:13px; margin-top:6px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .card-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .rid { font-weight:800; }
+  .persona { color:var(--mut); font-size:13px; font-family:ui-monospace,Consolas,monospace; }
+  .chip { margin-left:auto; font-weight:700; font-size:13px; border-radius:999px; padding:2px 10px; }
+  .chip-score { background:#eef2ff; color:var(--accent); }
+  .chip-fail { background:#fef2f2; color:#b91c1c; }
+  .backend { color:var(--mut); font-size:12px; margin:4px 0 10px; }
+  .card ul { margin:6px 0 0; padding-left:18px; }
+  .card-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
+  .meta { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }
+  .meta h2 { font-size:16px; margin:0 0 8px; }
+  .est { font-weight:700; margin-bottom:6px; }
+  footer { margin-top:28px; padding-top:16px; border-top:1px solid var(--line);
+           color:var(--mut); font-size:13px; }
+  code { background:#eef2ff; border-radius:6px; padding:2px 8px; font-size:13px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Prebuttal</div>
+    <h1>GlobalGate: A Universal Attention Mechanism That Solves Long-Context Reasoning</h1>
+    <div class="meta-line">ICLR · simulated review · 2026-10-25T09:40:41+00:00 · seed 42</div>
+    <div class="meta-line">backends: R1: agent-claude · R2: agent-claude · R3: agent-claude</div>
+  </header>
+  <!-- site-banner --><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin:14px 0;font-size:13px;color:#9a3412">Synthetic example: a fictional, deliberately flawed paper written for this demo (<a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">examples/weak-paper</a>). No real authors, methods or results.</div><!-- /site-banner -->
+  <div class="hero">
+    <div class="score">
+      <div class="score-num">1<span class="score-max">/10</span></div>
+      <div class="score-sub">estimated · σ 0 · range 1–1 · n=3</div>
+    </div>
+    <div class="hero-note">Three independent AI reviewers, isolated contexts, plus an
+    area chair. This is a <b>pre-submission stress test</b>, not a prediction.</div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R1</span>
+        <span class="persona">senior_kind</span>
+        <span class="chip chip-score">1/10</span>
+      </div>
+      <div class="backend">agent-claude · CLI default · conf 5</div>
+      <p>The paper proposes GlobalGate, a layer that multiplies each attention head&#x27;s output by a learned scalar g_h (Section 2, head&#x27;_h = g_h head_h). It claims this &#x27;solves long-context reasoning&#x27;, outperforms all existing methods on every benchmark, and is universal across architectures, tasks and modalities. The only evidence is Table 1: on LongQA-Mini, a new 200-question set written by the authors, GlobalGate (5 epochs) reaches 74.0% versus 61.0% for a vanilla Transformer (1 epoch), both 125M parameters, single seed.…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>Claims vastly exceed evidence. The abstract and Conclusion claim GlobalGate &#x27;solves long-context reasoning&#x27;, is &#x27;universal&#x27; across &#x27;any architecture, task and modality&#x27;, and gives &#x27;state-of-the-art results on all…</li><li>Confounded comparison. Section 3.1: the baseline is trained for 1 epoch and GlobalGate for 5 epochs. The 13-point gap in Table 1 (61.0 vs 74.0) is plausibly explained by 5x more training alone. No equal-compute or…</li><li>Test-set leakage. Section 3.1: &#x27;we use the same 200 questions to select hyperparameters and to report results.&#x27; The reported 74.0% is therefore tuned on the test set and not a valid generalization estimate.</li></ul></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R2</span>
+        <span class="persona">adversarial</span>
+        <span class="chip chip-score">1/10</span>
+      </div>
+      <div class="backend">agent-claude · CLI default · conf 5</div>
+      <p>The paper proposes GlobalGate, which multiplies each attention head&#x27;s output by a learned scalar g_h (Section 2), and claims this &#x27;solves long-context reasoning&#x27; for &#x27;every architecture, task and modality&#x27; (Abstract, Section 4). The only evidence is Table 1 on LongQA-Mini, a 200-question dataset written by the authors: a vanilla Transformer trained for 1 epoch reaches 61.0% and GlobalGate trained for 5 epochs reaches 74.0%, both at 125M parameters. Hyperparameters are selected on the same 200 questions used for…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>Severe overclaiming: the Abstract and Section 4 claim GlobalGate &#x27;solves long-context reasoning&#x27; and works for &#x27;any architecture, task and modality&#x27;, and Section 1 claims &#x27;state-of-the-art results on all benchmarks&#x27;.…</li><li>Confounded comparison: the baseline is trained for 1 epoch and GlobalGate for 5 epochs (Section 3.1). The 61.0 vs 74.0 gap is plausibly explained by 5x more training alone. No equal-compute or equal-epoch control is…</li><li>Train/test contamination in model selection: &#x27;we use the same 200 questions to select hyperparameters and to report results&#x27; (Section 3.1). The 74.0% is therefore an optimistically biased estimate and not a valid…</li></ul></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R3</span>
+        <span class="persona">detail_obsessive</span>
+        <span class="chip chip-score">1/10</span>
+      </div>
+      <div class="backend">agent-claude · CLI default · conf 5</div>
+      <p>The paper proposes GlobalGate, which multiplies each attention head&#x27;s output by a learned scalar g_h (Section 2), and claims it &#x27;solves long-context reasoning&#x27; and is universal across architectures, tasks and modalities. The only evidence is Table 1 on LongQA-Mini, a new 200-question set written by the authors: a vanilla Transformer trained by the authors for 1 epoch scores 61.0% and GlobalGate trained for 5 epochs scores 74.0% (both 125M params, single run, seed 0, 2k context). No other baselines, benchmarks,…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>Claims vastly exceed evidence: the abstract and conclusion state GlobalGate &#x27;solves long-context reasoning&#x27; and &#x27;works for any architecture, task and modality&#x27;, yet the sole experiment (Table 1) uses one 125M model,…</li><li>Confounded comparison: Table 1 compares a baseline trained 1 epoch (61.0) with GlobalGate trained 5 epochs (74.0), Section 3.1. The 13-point gain is plausibly explained by 5x more training alone; no equal-budget…</li><li>Test-set contamination: Section 3.1 says the same 200 questions are used to select hyperparameters and report results. The 74.0 is therefore a tuned-on-test number and not a valid generalization estimate.</li></ul></div>
+    </div>
+  </div>
+  
+  <section class="meta">
+    <h2>Meta-review</h2>
+    <div class="est">AC estimate: 1/10</div>
+    <p>**Summary.** The submission proposes GlobalGate, which multiplies each attention head&#x27;s output by a learned scalar g_h (Section 2). It claims this &quot;solves long-context reasoning,&quot; beats &quot;all existing methods on every benchmark,&quot; and is &quot;universal&quot; across architectures, tasks and modalities. The only empirical evidence is Table 1: on LongQA-Mini, a 200-question set written by the authors, a vanilla Transformer scores 61.0% and GlobalGate scores 74.0% (both 125M parameters).
+
+**Consensus.** All three reviewers (R1, R2, R3) independently rate the paper 1/10 with confidence 5. I checked each of their central points against the submission text, and they hold up. I found no substantive disagreement and no point where a reviewer was merely harsh. The tone of the reviews is professional, and the flaws are verifiable from the paper&#x27;s own statements.
+
+**Verified fatal flaws.**
+1. *Confounded comparison.* Section 3.1 states the baseline is trained for 1 epoch and GlobalGate for 5. The 13-point gap in Table 1 (61.0 vs 74.0) is therefore not attributable to the gate. No equal-budget baseline is reported. This alone invalidates the headline result.
+2. *Tuning on the test set.* Section 3.1: &quot;we use the same 200 questions to select hyperparameters and to report results.&quot; The 74.0% is an optimistically biased estimate.
+3. *No statistical support.* One run (seed 0), n=200. One question is 0.5 points, and the binomial standard error near 70% is about 3 points, so a 95% interval on each number is roughly ±6. Seed variance is unmeasured, so the 13-point gap cannot be properly assessed.
+4. *No baselines.* Section 3.2: &quot;We did not compare against other long-context methods because they are known to be worse.&quot; This is an assertion rather than evidence. The Abstract and Section 1 claims of…</p>
+  </section>
+  <footer>
+    Generated with <b>Prebuttal</b> — <code>pipx install prebuttal</code> ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">https://github.com/GuoYuKai-SaMuEl/prebuttal</a><br>
+    Simulated reviews by LLMs as listed; scores are not predictions of real reviewer behavior.
+  </footer>
+</div>
+</body>
+</html>

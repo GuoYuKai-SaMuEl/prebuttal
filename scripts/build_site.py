@@ -39,12 +39,51 @@ from prebuttal.venues import get_venue
 
 REPO_URL = "https://github.com/GuoYuKai-SaMuEl/prebuttal"
 
-# (site filename, glob over run dir names) — first match with parseable
-# reviews wins, so re-running after a better run upgrades the sample.
-CURATED: list[tuple[str, str]] = [
-    ("mamba.html", "*mamba*"),
-    ("dpo.html", "*direct-preference*"),
+# (site filename, glob over run dir names, banner) — first match with
+# parseable reviews wins, so re-running after a better run upgrades the sample.
+# Curation rule: real papers are only shown when the simulated panel was
+# favorable — a harsh AI review of someone's published work is not ours to
+# publish. The "what a weak paper gets" example is a synthetic paper
+# (examples/weak-paper/), fictional and deliberately flawed.
+REMOVAL = f'Authors who want this page removed: <a href="{REPO_URL}/issues">open an issue</a>.'
+
+
+def _real_paper_banner(arxiv_id: str) -> str:
+    return (
+        "Unofficial demo: an AI-simulated review of the published paper "
+        f'<a href="https://arxiv.org/abs/{arxiv_id}">arXiv:{arxiv_id}</a>, generated only to '
+        "show what Prebuttal outputs. It was not written, reviewed or endorsed by the "
+        "paper's authors and is not an assessment of the work's merit. " + REMOVAL
+    )
+
+
+SYNTHETIC_BANNER = (
+    "Synthetic example: a fictional, deliberately flawed paper written for this demo "
+    f'(<a href="{REPO_URL}/tree/main/examples/weak-paper">examples/weak-paper</a>). '
+    "No real authors, methods or results."
+)
+
+CURATED: list[tuple[str, str, str]] = [
+    ("mamba.html", "*mamba*", _real_paper_banner("2312.00752")),
+    ("dpo.html", "*direct-preference*", _real_paper_banner("2305.18290")),
+    ("weak.html", "*globalgate*", SYNTHETIC_BANNER),
 ]
+
+_BANNER_START = "<!-- site-banner -->"
+_BANNER_END = "<!-- /site-banner -->"
+
+
+def with_banner(html: str, banner: str) -> str:
+    """Insert (or replace) the curation banner right after the page header."""
+    if _BANNER_START in html:
+        head, rest = html.split(_BANNER_START, 1)
+        html = head + rest.split(_BANNER_END, 1)[1]
+    block = (
+        f'{_BANNER_START}<div style="background:#fff7ed;border:1px solid #fed7aa;'
+        f'border-radius:10px;padding:10px 14px;margin:14px 0;font-size:13px;color:#9a3412">'
+        f"{banner}</div>{_BANNER_END}"
+    )
+    return html.replace("</header>", "</header>\n  " + block, 1)
 
 
 def _dataclass_from(cls, data: dict):  # type: ignore[no-untyped-def]
@@ -98,14 +137,20 @@ def main() -> int:
     out_dir = REPO / "site" / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    for name, pattern in CURATED:
+    for name, pattern, banner in CURATED:
+        target = out_dir / name
         d = find_report(runs_dir, pattern)
         if d is None:
-            print(f"[site] no usable run for {pattern} — skipping {name}")
+            if target.exists():  # keep the published page, refresh its banner
+                old = target.read_text(encoding="utf-8")
+                target.write_text(with_banner(old, banner), encoding="utf-8")
+                print(f"[site] no run for {pattern} — kept {name}, banner refreshed")
+            else:
+                print(f"[site] no usable run for {pattern} — skipping {name}")
             continue
         venue = get_venue(venue_key(d))
         html = render_share_html(report_from_json(d), venue, REPO_URL)
-        (out_dir / name).write_text(html, encoding="utf-8")
+        target.write_text(with_banner(html, banner), encoding="utf-8")
         title = d["paper"]["title"][:60]
         print(f"[site] {name} <- {title!r} ({d['venue']})")
 
