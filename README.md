@@ -84,6 +84,9 @@ printed and proceed automatically; fully-explicit configs never prompt.
 `prebuttal models` lists every backend's actually-available models (live API
 scan + installed Ollama models + claude aliases) with the current default
 marked — pick one and set `model = "..."` per reviewer in prebuttal.toml.
+Built-in defaults are mid-tier models current at release time and change
+between versions — providers retire model ids quickly, so if a default stops
+working, upgrade prebuttal or pin a model yourself.
 
 ## The reviewers
 

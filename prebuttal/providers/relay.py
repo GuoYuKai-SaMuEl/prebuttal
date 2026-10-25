@@ -79,6 +79,12 @@ class RelayProvider(BaseProvider):
         readme = self.spool / "README.txt"
         if not readme.exists():
             readme.write_text(README_TXT, encoding="utf-8")
+        # the spool holds full paper text: never let it be committed by accident
+        ignore = self.spool / ".gitignore"
+        if not ignore.exists():
+            ignore.write_text(
+                "# prebuttal relay spool (contains paper text)\n*\n", encoding="utf-8"
+            )
 
     def _complete(self, *, system, user, temperature, seed, max_tokens) -> tuple[str, Usage]:
         # pid keeps stems unique even when two prebuttal processes share one spool dir

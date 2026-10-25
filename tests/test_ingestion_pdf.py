@@ -1,3 +1,5 @@
+import pytest
+
 from prebuttal.ingestion.arxiv import parse_arxiv_id
 from prebuttal.ingestion.pdf import ingest_pdf_bytes
 
@@ -118,3 +120,42 @@ def test_pdf_two_columns_and_booktabs_table():
     assert t.header == ["Variant", "Acc", "F1"]
     assert t.rows == [["Full model", "91.2", "88.0"], ["No router", "89.5", "86.1"]]
     assert "Ablation" in t.caption
+
+
+def _mock_arxiv(monkeypatch, body: bytes, status: int = 200):
+    import contextlib
+
+    import httpx
+
+    import prebuttal.ingestion.arxiv as ax
+
+    def handler(request):
+        return httpx.Response(status, content=body, headers={"content-type": "application/pdf"})
+
+    @contextlib.contextmanager
+    def fake_stream(method, url, **kw):
+        kw.pop("timeout", None)
+        with (
+            httpx.Client(transport=httpx.MockTransport(handler)) as client,
+            client.stream(method, url, **kw) as r,
+        ):
+            yield r
+
+    monkeypatch.setattr(ax.httpx, "stream", fake_stream)
+    return ax
+
+
+def test_arxiv_download_is_size_capped(monkeypatch):
+    ax = _mock_arxiv(monkeypatch, b"%PDF-" + b"0" * 5000)
+    assert ax.fetch_pdf_bytes("2510.12345", max_bytes=10_000).startswith(b"%PDF-")
+    with pytest.raises(ax.ArxivError, match="larger than"):
+        ax.fetch_pdf_bytes("2510.12345", max_bytes=1000)
+
+
+def test_arxiv_rejects_non_pdf_and_http_errors(monkeypatch):
+    ax = _mock_arxiv(monkeypatch, b"<html>captcha</html>")
+    with pytest.raises(ax.ArxivError, match="did not return a PDF"):
+        ax.fetch_pdf_bytes("2510.12345")
+    ax = _mock_arxiv(monkeypatch, b"", status=404)
+    with pytest.raises(ax.ArxivError, match="HTTP 404"):
+        ax.fetch_pdf_bytes("2510.12345")

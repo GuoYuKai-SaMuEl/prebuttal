@@ -30,22 +30,33 @@ def parse_arxiv_id(source: str) -> str | None:
     return m.group(1) + (m.group(2) or "") if m else None
 
 
-def fetch_pdf_bytes(arxiv_id: str) -> bytes:
+# Real papers are a few MB; anything far bigger is not a paper (or hostile).
+MAX_PDF_BYTES = 100 * 1024 * 1024
+
+
+def fetch_pdf_bytes(arxiv_id: str, *, max_bytes: int = MAX_PDF_BYTES) -> bytes:
     url = f"https://arxiv.org/pdf/{arxiv_id}"
     try:
-        r = httpx.get(
+        with httpx.stream(
+            "GET",
             url,
             follow_redirects=True,
             timeout=60,
             headers={"User-Agent": _UA},
-        )
+        ) as r:
+            if r.status_code != 200:
+                raise ArxivError(f"arXiv returned HTTP {r.status_code} for {url}")
+            buf = bytearray()
+            for chunk in r.iter_bytes():
+                buf += chunk
+                if len(buf) > max_bytes:
+                    raise ArxivError(f"{url} is larger than {max_bytes // 2**20} MB — not a paper?")
+            ctype = r.headers.get("content-type", "?")
     except httpx.HTTPError as e:
         raise ArxivError(f"cannot reach arxiv.org: {e}") from e
-    if r.status_code != 200:
-        raise ArxivError(f"arXiv returned HTTP {r.status_code} for {url}")
-    if not r.content[:5] == b"%PDF-":
-        raise ArxivError(f"{url} did not return a PDF (got {r.headers.get('content-type', '?')})")
-    return r.content
+    if not buf[:5] == b"%PDF-":
+        raise ArxivError(f"{url} did not return a PDF (got {ctype})")
+    return bytes(buf)
 
 
 def fetch_title(arxiv_id: str) -> str | None:

@@ -10,7 +10,18 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
-### Added
+### Security
+
+- Prompt-injection hardening — the paper is untrusted input. `agent-claude`
+  now runs `claude -p --tools "" --strict-mcp-config` (no tools, no MCP),
+  `agent-codex` runs `codex exec --sandbox read-only`, and both start in an
+  empty temporary directory instead of your project. Every prompt fences the
+  paper in `<submission>…</submission>` as data and asks reviewers to report
+  embedded instructions as a weakness. An outdated CLI that rejects the new
+  flags fails fast with an "update the CLI" message. See SECURITY.md.
+- Reports, JSON, share pages and run history no longer record the paper's
+  absolute local path (it leaked user names when shared); local sources are
+  shown relative to the working directory, else `~`, else by name.
 
 - GitHub Pages site (`site/`): landing page + curated sample reports (the
   Mamba and DPO full runs, regenerated from run history by
@@ -97,6 +108,15 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Changed
 
+- **PDF parsing moved from PyMuPDF (AGPL-3.0) to pdfminer.six + pdfplumber
+  (MIT)**, so installing the MIT-licensed package no longer pulls in a
+  copyleft dependency. Booktabs-style tables (horizontal rules only) get a
+  dedicated detector; cell-accurate numbers, two-column layout and the real
+  LaTeX regression fixture are covered by tests.
+- Wording: scores are no longer described as "calibrated" — the calibration
+  pipeline ships, published results are pending.
+- Classifier `Development Status :: 3 - Alpha` (was Beta) to match pre-release.
+- Machine-specific scripts moved to the gitignored `scripts/dev/`.
 - Default models brought up to the current mid-tier generation (verified
   against live model listings, 2026-10): `api-gemini` → **gemini-3.5-flash-lite**
   (latest flash-lite; cheapest long-context tier for the free-quota path),
@@ -107,6 +127,11 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Fixed
 
+- `--out` / `--json` in a directory that doesn't exist yet no longer crashes
+  after the reviews ran; parent dirs are created, and the run is archived
+  before the outputs are written so a write error can't lose a paid review.
+- arXiv downloads are streamed and capped at 100 MB.
+- The relay spool directory writes its own `.gitignore` (it holds paper text).
 - Per-reviewer `model` now actually reaches agent-CLI backends
   (`claude -p --model X`, `codex exec --model X`); previously it was recorded
   in reports but never passed to the CLI.

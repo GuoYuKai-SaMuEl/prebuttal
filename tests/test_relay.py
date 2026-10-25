@@ -53,6 +53,8 @@ def test_relay_roundtrip(tmp_path):
     assert "SYS-INSTR" in body and "USER-PAPER" in body
     assert ".ans.md" in body  # protocol note names the answer file
     assert (spool / "README.txt").exists()
+    # the spool holds paper text: it must ignore itself in git
+    assert (spool / ".gitignore").read_text(encoding="utf-8").splitlines()[-1] == "*"
 
 
 def test_relay_timeout(tmp_path):

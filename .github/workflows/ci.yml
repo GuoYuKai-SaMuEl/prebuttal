@@ -61,6 +61,24 @@ jobs:
       - name: Run tests
         run: python -m pytest -q --durations=10
 
+  min-deps:
+    name: Test (oldest supported dependencies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the lower bounds declared in pyproject.toml
+        # keep in sync with [project.dependencies]
+        run: |
+          python -m pip install "pdfplumber==0.11.0" "pdfminer.six==20231228" "httpx==0.27.0"
+          python -m pip install --no-deps -e .
+          python -m pip install pytest reportlab
+      - name: Run tests
+        run: python -m pytest -q
+
   package:
     name: Build & verify dist
     runs-on: ubuntu-latest
