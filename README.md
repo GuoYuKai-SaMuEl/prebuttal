@@ -61,7 +61,13 @@ Useful flags:
 prebuttal run paper.pdf --venue neurips --dry-run   # cost + plan preview, calls nothing
 prebuttal run paper.pdf --venue iclr --json out.json --share   # machine output + share page
 prebuttal run paper.pdf --seed 42                   # reproducible
+prebuttal run paper.pdf -y                          # skip the plan confirmation
 ```
+
+In auto mode on a terminal, Prebuttal shows the review plan before calling
+anything — press Enter to run, `e` to re-pick each reviewer's persona, backend
+and model via numbered menus, or `n` to abort. CI and pipes get the plan
+printed and proceed automatically; fully-explicit configs never prompt.
 
 `prebuttal models` lists every backend's actually-available models (live API
 scan + installed Ollama models + claude aliases) with the current default

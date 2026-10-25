@@ -41,11 +41,13 @@ def render_dry_run(
     lines.append("Prebuttal dry run — nothing will be called.")
     lines.append("=" * 62)
     lines.append("")
-    lines.append("Backend configuration")
+    lines.append("Review plan")
+    persona_by_id = {r.id: r.persona for r in cfg.reviewers}
     for rid, backend, model in resolved:
         model_s = model or "CLI default"
-        lines.append(f"  {rid:<4} → {backend:<14} model: {model_s}")
-    lines.append(f"  {'AC':<4} → {ac[0]:<14} model: {ac[1] or 'CLI default'}")
+        persona = persona_by_id.get(rid, "")
+        lines.append(f"  {rid:<4} {persona:<18} → {backend:<14} model: {model_s}")
+    lines.append(f"  {'AC':<4} {'area_chair':<18} → {ac[0]:<14} model: {ac[1] or 'CLI default'}")
     lines.append("")
     lines.append("Paper pack")
     lines.append(

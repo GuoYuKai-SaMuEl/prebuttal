@@ -166,6 +166,11 @@ def auto_candidates(statuses: list[BackendStatus], cfg: RunConfig | None) -> lis
             s = by_name.get(f"agent-{name}")
             if s and s.available and s not in order:
                 order.append(s)
+    # any other available, non-explicit backend (registered plugins) joins last
+    known = {s.backend for s in order}
+    for s in sorted(statuses, key=lambda x: x.backend):
+        if s.available and s.backend not in known and s.backend not in EXPLICIT_ONLY:
+            order.append(s)
     return order
 
 

@@ -72,6 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--seed", type=int, default=None, help="reproducibility seed")
     run.add_argument("--dry-run", action="store_true", help="show cost + backends, call nothing")
     run.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="skip the plan confirmation prompt (auto mode; non-interactive never prompts)",
+    )
+    run.add_argument(
         "--json", metavar="PATH", default=None, help="also write machine-readable JSON"
     )
     run.add_argument("--share", action="store_true", help="also write a shareable HTML page")
@@ -216,6 +222,95 @@ def cmd_models(args) -> int:
     return EXIT_OK
 
 
+# ------------------------------------------------------- interactive plan flow
+
+
+def _is_interactive() -> bool:
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except Exception:  # pragma: no cover - exotic stdio
+        return False
+
+
+def _menu(prompt: str, options: list[str], default: int = 1) -> int:
+    """Numbered text menu — works in every terminal (cmd included), no deps."""
+    for i, opt in enumerate(options, 1):
+        mark = "*" if i == default else " "
+        print(f" {mark} {i}) {opt}")
+    while True:
+        raw = input(f"{prompt} [{default}]: ").strip()
+        if not raw:
+            return default
+        if raw.isdigit() and 1 <= int(raw) <= len(options):
+            return int(raw)
+        print(f"  (enter a number 1-{len(options)}, or Enter for the default)")
+
+
+def _model_options(backend: str) -> list[str]:
+    """Model choices for a backend; empty list = nothing to choose."""
+    import os
+
+    from .modelscan import (
+        _CLAUDE_ALIASES,
+        anthropic_models,
+        gemini_models,
+        openai_models,
+    )
+    from .providers.ollama import ollama_base_url, ollama_models
+
+    if backend in ("auto", "agent-codex", "relay"):
+        return []
+    if backend == "agent-claude":
+        return ["(CLI decides)", *list(_CLAUDE_ALIASES)]
+
+    def _with_default(models: list[str] | None, first: str = "(backend default)") -> list[str]:
+        return [first, *(models or [])]
+
+    if backend == "api-gemini":
+        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        return _with_default(gemini_models(key) if key else None)
+    if backend == "api-openai":
+        key = os.environ.get("OPENAI_API_KEY")
+        return _with_default(openai_models(key) if key else None)
+    if backend == "api-anthropic":
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        return _with_default(anthropic_models(key) if key else None)
+    if backend == "ollama":
+        return ["(first installed)", *ollama_models(ollama_base_url())]
+    return []
+
+
+def _edit_reviewers(cfg, statuses) -> None:
+    """Numbered-menu wizard over personas / backends / models (in place)."""
+    from .personas import available_personas
+    from .providers import auto_candidates
+
+    backend_options = ["auto"] + [s.backend for s in auto_candidates(statuses, cfg)] + ["relay"]
+
+    def _pick_backend(current: str) -> str:
+        default = backend_options.index(current) + 1 if current in backend_options else 1
+        return backend_options[_menu("  backend", backend_options, default) - 1]
+
+    def _pick_model(current: str, backend: str) -> str:
+        models = _model_options(backend)
+        if len(models) < 2:
+            return current  # nothing to choose — keep whatever was pinned
+        pick = _menu("  model", models, 1)
+        return "" if pick == 1 else models[pick - 1]
+
+    for r in cfg.reviewers:
+        print(f"\n== {r.id} — persona {r.persona}, backend {r.backend} ==")
+        personas = available_personas()
+        dp = personas.index(r.persona) + 1 if r.persona in personas else 1
+        r.persona = personas[_menu("  persona", personas, dp) - 1]
+        r.backend = _pick_backend(r.backend)
+        r.model = _pick_model(r.model, r.backend)
+
+    print("\n== AC — persona area_chair ==")
+    cfg.ac.backend = _pick_backend(cfg.ac.backend)
+    cfg.ac.model = _pick_model(cfg.ac.model, cfg.ac.backend)
+
+
 def cmd_key(args) -> int:
     import getpass
 
@@ -305,6 +400,42 @@ def cmd_run(args) -> int:
     if args.dry_run:
         print(render_dry_run(cfg, resolved, ac, len(pack), statuses))
         return EXIT_OK
+
+    # Plan confirmation: only when something is still on `auto` (ambiguity to
+    # resolve), never in non-interactive contexts (CI/pipes), skippable with -y.
+    any_auto = cfg.ac.backend == "auto" or any(r.backend == "auto" for r in cfg.reviewers)
+    if any_auto and not args.yes:
+        plan = render_dry_run(cfg, resolved, ac, len(pack), statuses)
+        if _is_interactive():
+            try:
+                while True:
+                    print("\n" + plan)
+                    choice = (
+                        input("[Enter] run with this plan · [e] edit reviewers · [n] abort: ")
+                        .strip()
+                        .lower()
+                    )
+                    if choice == "n":
+                        _log("aborted by user")
+                        return EXIT_USAGE
+                    if choice == "e":
+                        _edit_reviewers(cfg, statuses)
+                        resolved, ac = resolve_backends(cfg, statuses)
+                        uses_relay = (
+                            any(b == "relay" for (_r, b, _m) in resolved) or ac[0] == "relay"
+                        )
+                        plan = render_dry_run(cfg, resolved, ac, len(pack), statuses)
+                        continue
+                    break
+            except EOFError:
+                _log("aborted (no input available)")
+                return EXIT_USAGE
+        else:
+            _log(
+                "[prebuttal] auto mode (non-interactive) — plan follows; "
+                "preview with --dry-run, silence with -y:"
+            )
+            _log(plan)
 
     providers = {}
     try:

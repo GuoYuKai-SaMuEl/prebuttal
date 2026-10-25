@@ -12,6 +12,14 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Added
 
+- Interactive plan confirmation for auto mode: on a terminal, `prebuttal run`
+  shows the full review plan (personas, backends, models, cost) before calling
+  anything — `[Enter]` runs, `[e]` opens a numbered-menu wizard (persona →
+  backend → live model list from `prebuttal models`), `[n]` aborts.
+  Non-interactive contexts (CI, pipes) print the plan and proceed; `-y` /
+  `--yes` silences; fully-explicit configs never prompt. `--dry-run` plans now
+  show personas too, and backends registered via `register_backend` are
+  eligible for auto assignment.
 - `PREBUTTAL_BACKEND` environment variable: force one backend for every
   reviewer and the AC (e.g. `relay` for agent-subagent reviewing);
   precedence `--backend` > `PREBUTTAL_BACKEND` > `prebuttal.toml`.
