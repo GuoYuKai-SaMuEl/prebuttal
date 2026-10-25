@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html
 
-from .models import ReviewReport
+from .models import ReviewReport, param_support
 from .venues import Venue
 
 _SUMMARY_CHARS = 520
@@ -27,6 +27,9 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     agg = r.aggregate
     title = _e(r.paper.title)
     venue_name = _e(venue.name)
+    backends = [rev.backend for rev in r.reviews] + [r.meta.backend]
+    seeded = any(param_support(b)[1] for b in backends)
+    seed_note = f" · seed {r.run.seed}" if seeded else ""
 
     score_html = ""
     if agg.mean is not None:
@@ -131,7 +134,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   <header>
     <div class="brand">Prebuttal</div>
     <h1>{title}</h1>
-    <div class="meta-line">{venue_name} · simulated review · {r.run.generated_at} · seed {r.run.seed}</div>
+    <div class="meta-line">{venue_name} · simulated review · {r.run.generated_at} {seed_note}</div>
     <div class="meta-line">backends: {backends}</div>
   </header>
   <div class="hero">{score_html}

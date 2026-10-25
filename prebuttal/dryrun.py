@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .config import RunConfig
+from .models import param_support
 from .pack import estimate_tokens
 from .providers.detect import BackendStatus
 
@@ -74,6 +75,9 @@ def render_dry_run(
         + ", ".join(f"{rid}={cfg.seed + i + 1}" for i, (rid, _b, _m) in enumerate(resolved))
         + f", AC={cfg.seed}"
     )
+    ignored = sorted({b for (_r, b, _m) in entries if not param_support(b)[1]})
+    if ignored:
+        lines.append(f"  (not applied by {', '.join(ignored)}: they use the model's defaults)")
     lines.append("")
     lines.append("Dry run only — no model was called.")
     return "\n".join(lines)

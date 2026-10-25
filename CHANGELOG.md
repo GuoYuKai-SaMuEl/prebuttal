@@ -10,6 +10,14 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- Reports no longer show a temperature or seed the backend never applied.
+  Agent CLIs (`claude`, `codex`, custom `[agents.*]`) and relay expose
+  neither and the Anthropic API has no seed; those cells now read `n/a` with
+  a footnote, `report.json` gains `temperature_applied` / `seed_applied`, the
+  share page omits the seed when no role used it, and `--dry-run` says which
+  backends ignore it.
+
 ## [0.1.0] — 2026-10-25
 
 First public release.

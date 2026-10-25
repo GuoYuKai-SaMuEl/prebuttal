@@ -47,7 +47,7 @@ AC confidence: 5 / 5
 
 ## Review 1: R1 — persona `senior_kind`
 
-*Backend `agent-claude` · model `CLI default` · temp 0.4 · seed 43 · 22s · usage n/a (backend reports no tokens)*
+*Backend `agent-claude` · model `CLI default` · temp n/a · seed n/a · 22s · usage n/a (backend reports no tokens)*
 
 ### Summary
 
@@ -93,7 +93,7 @@ The paper states no limitations, and its Conclusion asserts the problem is solve
 
 ## Review 2: R2 — persona `adversarial`
 
-*Backend `agent-claude` · model `CLI default` · temp 0.7 · seed 44 · 22s · usage n/a (backend reports no tokens)*
+*Backend `agent-claude` · model `CLI default` · temp n/a · seed n/a · 22s · usage n/a (backend reports no tokens)*
 
 ### Summary
 
@@ -141,7 +141,7 @@ The paper states no limitations and in fact asserts the opposite ('Future work i
 
 ## Review 3: R3 — persona `detail_obsessive`
 
-*Backend `agent-claude` · model `CLI default` · temp 0.5 · seed 45 · 22s · usage n/a (backend reports no tokens)*
+*Backend `agent-claude` · model `CLI default` · temp n/a · seed n/a · 22s · usage n/a (backend reports no tokens)*
 
 ### Summary
 
@@ -192,10 +192,12 @@ The paper states no limitations and instead asserts that future work is unnecess
 
 | Reviewer | Persona | Backend | Model | Temp | Seed |
 |---|---|---|---|---|---|
-| R1 | senior_kind | `agent-claude` | `CLI default` | 0.4 | 43 |
-| R2 | adversarial | `agent-claude` | `CLI default` | 0.7 | 44 |
-| R3 | detail_obsessive | `agent-claude` | `CLI default` | 0.5 | 45 |
-| AC | area_chair | `agent-claude` | `CLI default` | 0.3 | 42 |
+| R1 | senior_kind | `agent-claude` | `CLI default` | n/a | n/a |
+| R2 | adversarial | `agent-claude` | `CLI default` | n/a | n/a |
+| R3 | detail_obsessive | `agent-claude` | `CLI default` | n/a | n/a |
+| AC | area_chair | `agent-claude` | `CLI default` | n/a | n/a |
+
+*n/a = the backend does not expose this parameter, so the model's own default was used (agent CLIs and relay expose neither; the Anthropic API has no seed).*
 
 Total usage: usage n/a (backend reports no tokens).
 

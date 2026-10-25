@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from . import __version__
-from .models import Aggregate, Review, ReviewReport, dataclass_to_dict
+from .models import Aggregate, Review, ReviewReport, dataclass_to_dict, param_support
 from .venues import Venue
 
 HONESTY_NOTE = (
@@ -35,6 +35,22 @@ def _dispersion_label(agg: Aggregate, max_rating: float) -> str:
     return "HIGH disagreement — reviewers are split"
 
 
+NOT_APPLIED = "n/a"
+PARAM_NOTE = (
+    f"{NOT_APPLIED} = the backend does not expose this parameter, so the model's own "
+    "default was used (agent CLIs and relay expose neither; the Anthropic API has no seed)."
+)
+
+
+def _params(backend: str, temperature: float, seed: int | None) -> tuple[str, str]:
+    """Temperature and seed as displayed: the value only where the backend applied it."""
+    temp_ok, seed_ok = param_support(backend)
+    return (
+        f"{temperature:g}" if temp_ok else NOT_APPLIED,
+        str(seed) if seed_ok and seed is not None else NOT_APPLIED,
+    )
+
+
 def _bar(value: float, maximum: float) -> str:
     filled = max(0, min(round(value), int(maximum)))
     return "█" * filled + "░" * max(0, int(maximum) - filled)
@@ -43,9 +59,10 @@ def _bar(value: float, maximum: float) -> str:
 def _render_review(review: Review, venue: Venue, index: int) -> str:
     out = [f"## Review {index}: {review.reviewer_id} — persona `{review.persona}`", ""]
     model = review.model or "CLI default"
+    temp, seed = _params(review.backend, review.temperature, review.seed)
     out.append(
-        f"*Backend `{review.backend}` · model `{model}` · temp {review.temperature} "
-        f"· seed {review.seed} · {review.duration_s:.0f}s · {review.usage.describe()}*"
+        f"*Backend `{review.backend}` · model `{model}` · temp {temp} "
+        f"· seed {seed} · {review.duration_s:.0f}s · {review.usage.describe()}*"
     )
     out.append("")
     if review.error and not review.parse_ok:
@@ -177,14 +194,20 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     out.append("| Reviewer | Persona | Backend | Model | Temp | Seed |")
     out.append("|---|---|---|---|---|---|")
     for rev in r.reviews:
+        temp, seed = _params(rev.backend, rev.temperature, rev.seed)
         out.append(
             f"| {rev.reviewer_id} | {rev.persona} | `{rev.backend}` | "
-            f"`{rev.model or 'CLI default'}` | {rev.temperature} | {rev.seed} |"
+            f"`{rev.model or 'CLI default'}` | {temp} | {seed} |"
         )
+    temp, seed = _params(r.meta.backend, r.meta.temperature, r.run.seed)
     out.append(
         f"| AC | area_chair | `{r.meta.backend}` | `{r.meta.model or 'CLI default'}` | "
-        f"{r.meta.temperature} | {r.run.seed} |"
+        f"{temp} | {seed} |"
     )
+    backends = [rev.backend for rev in r.reviews] + [r.meta.backend]
+    if any(param_support(b) != (True, True) for b in backends):
+        out.append("")
+        out.append(f"*{PARAM_NOTE}*")
     out.append("")
     out.append(f"Total usage: {r.usage_total.describe()}.")
     out.append("")
@@ -194,6 +217,11 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     out.append(f"*{HONESTY_NOTE}*")
     out.append("")
     return "\n".join(out)
+
+
+def _applied(backend: str) -> dict[str, bool]:
+    temp_ok, seed_ok = param_support(backend)
+    return {"temperature_applied": temp_ok, "seed_applied": seed_ok}
 
 
 def to_json(report: ReviewReport, venue: Venue) -> dict[str, Any]:
@@ -211,13 +239,14 @@ def to_json(report: ReviewReport, venue: Venue) -> dict[str, Any]:
         "reviewers": [
             {
                 **dataclass_to_dict(rev),
+                **_applied(rev.backend),
                 "rating_label": venue.rating_field.anchor_for(rev.rating)
                 if rev.rating is not None
                 else None,
             }
             for rev in r.reviews
         ],
-        "meta": dataclass_to_dict(r.meta),
+        "meta": {**dataclass_to_dict(r.meta), **_applied(r.meta.backend)},
         "usage_total": dataclass_to_dict(r.usage_total),
         "notice": HONESTY_NOTE,
     }

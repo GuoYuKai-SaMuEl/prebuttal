@@ -63,6 +63,30 @@ def test_share_html(latex_project):
     assert "goatcounter" not in html.lower()  # analytics belong to the site only
 
 
+def test_params_not_applied_are_not_shown(latex_project):
+    report, venue = _report(latex_project)
+    for rev in report.reviews:
+        rev.backend = "agent-claude"
+    report.meta.backend = "api-anthropic"
+    md = render_markdown(report, venue)
+    assert "temp n/a · seed n/a" in md
+    assert "| `api-anthropic` | `fake-1` | 0.3 | n/a |" in md
+    assert "does not expose this parameter" in md
+
+    data = json.loads(dumps_json(report, venue))
+    assert data["reviewers"][0]["temperature_applied"] is False
+    assert data["meta"]["temperature_applied"] is True
+    assert data["meta"]["seed_applied"] is False
+    assert "· seed" not in render_share_html(report, venue, "https://x")
+
+
+def test_params_applied_are_shown(latex_project):
+    report, venue = _report(latex_project)
+    md = render_markdown(report, venue)
+    assert "n/a = the backend" not in md
+    assert "· seed 42" in render_share_html(report, venue, "https://x")
+
+
 def test_share_html_escapes_malicious_title():
     from prebuttal.models import (
         MetaReview,

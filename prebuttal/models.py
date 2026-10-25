@@ -118,6 +118,20 @@ class StructuredPaper:
         }
 
 
+def param_support(backend: str) -> tuple[bool, bool]:
+    """Whether ``backend`` really applies (temperature, seed).
+
+    Agent CLIs (``claude -p``, ``codex exec``, custom ``[agents.*]``) expose
+    neither, the relay responder is an outside agent, and the Anthropic API
+    has no seed. Reports show the configured value only where it took effect.
+    """
+    if backend.startswith("agent-") or backend == "relay":
+        return False, False
+    if backend == "api-anthropic":
+        return True, False
+    return True, True
+
+
 @dataclass
 class Review:
     reviewer_id: str

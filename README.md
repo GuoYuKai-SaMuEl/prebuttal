@@ -36,7 +36,7 @@ That is the main competitor. It loses, four ways:
 | One conversation role-playing three reviewers → **persona collapse** into a single bland compromise opinion | Three reviewers in **fully independent contexts** (separate calls/processes), genuinely different verdicts + measured disagreement |
 | Long papers get skimmed; tables are flattened into prose | **Ingestion pipeline**: cell-by-cell table extraction (LaTeX tabular parsing, PDF table detection, caption fallback) — reviewers can point at *Table 3, column 4* |
 | Output is free-form chat text | **Real conference review forms**: NeurIPS 1–6, ICLR 1–10, ICML 1–10, ARR Soundness/Excitement/Overall — with official scale anchors |
-| Scores are vibes | Fixed seeds, recorded backends/models per reviewer, and a **calibration script** to measure scores against real OpenReview ratings (published results pending) |
+| Scores are vibes | Seeds and temperatures applied where the backend supports them (API, Ollama) and marked n/a where it doesn't (agent CLIs), recorded backends/models per reviewer, and a **calibration script** to measure scores against real OpenReview ratings (published results pending) |
 
 ## Quickstart
 
@@ -83,7 +83,7 @@ Useful flags:
 ```bash
 prebuttal run paper.pdf --venue neurips --dry-run   # cost + plan preview, calls nothing
 prebuttal run paper.pdf --venue iclr --json out.json --share   # machine output + share page
-prebuttal run paper.pdf --seed 42                   # reproducible
+prebuttal run paper.pdf --seed 42                   # reproducible (API / Ollama backends)
 prebuttal run paper.pdf -y                          # skip the plan confirmation
 ```
 
