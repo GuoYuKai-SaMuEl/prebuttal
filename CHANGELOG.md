@@ -51,6 +51,11 @@ releases (0.2, 0.3, …) are substantial new features.
   optional project name.
 
 ### Fixed
+- Overloaded backends (HTTP 503 / 502 / 504 / 529, as free Gemini tiers
+  return under load) get the patient retry curve 429 already had — at least
+  four retries over ~3 minutes, honoring `Retry-After` — instead of giving up
+  after ~9 s. Each wait is announced on stderr, and a run that loses a
+  reviewer says which one, why, and that the report uses the rest.
 - `api-anthropic` no longer sends `temperature`: current Claude models
   accept only their default sampling and reject other values with a 400
   (the default model, Claude Sonnet 5.5, among them). `max_tokens` is raised

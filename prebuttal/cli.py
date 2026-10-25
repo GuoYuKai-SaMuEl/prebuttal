@@ -872,6 +872,16 @@ def cmd_run(args) -> int:
         print(md)
 
     failed = [r for r in report.reviews if not r.parse_ok]
+    for r in failed:
+        _log(f"[prebuttal] {r.reviewer_id} failed: {(r.error or 'no usable review')[:160]}")
+    if not report.meta.parse_ok:
+        _log(f"[prebuttal] AC failed: {(report.meta.error or 'no usable meta-review')[:160]}")
+    if failed and len(failed) < len(report.reviews):
+        _log(
+            f"[prebuttal] the report uses the {len(report.reviews) - len(failed)} reviews that "
+            "finished. Overloaded backends usually recover within minutes: re-run later, "
+            "or pick another model / backend (--model, --backend)."
+        )
     if len(failed) == len(report.reviews):
         return EXIT_ALL_FAILED
     if failed or not report.meta.parse_ok:

@@ -25,6 +25,18 @@ def _env_default(name: str, fallback: str) -> str:
     return os.environ.get(f"PREBUTTAL_{name}_MODEL", fallback)
 
 
+# 429 rate limit, 502/503/504 overloaded or unavailable, 529 Anthropic overloaded
+_OVERLOADED = {429, 502, 503, 504, 529}
+
+
+def _retry_after(value: str | None) -> float | None:
+    """Seconds from a Retry-After header (HTTP-date form is ignored)."""
+    try:
+        return float(value) if value else None
+    except ValueError:
+        return None
+
+
 class _HTTPProvider(BaseProvider):
     kind = "api"
 
@@ -34,10 +46,14 @@ class _HTTPProvider(BaseProvider):
                 r = client.post(url, headers=headers, json=payload)
         except httpx.HTTPError as e:
             raise TransientProviderError(f"network error: {e}") from e
-        if r.status_code == 429:
-            # Saturation-style throttling: shared free pools stay closed for
-            # minutes, so mark slow for the long backoff curve.
-            raise TransientProviderError(f"HTTP {r.status_code}: {r.text[:200]}", slow=True)
+        if r.status_code in _OVERLOADED:
+            # Throttling / "model overloaded": shared (free) capacity stays
+            # gone for minutes, so take the long backoff curve.
+            raise TransientProviderError(
+                f"HTTP {r.status_code}: {r.text[:200]}",
+                slow=True,
+                retry_after=_retry_after(r.headers.get("retry-after")),
+            )
         if r.status_code >= 500:
             raise TransientProviderError(f"HTTP {r.status_code}: {r.text[:200]}")
         if r.status_code != 200:

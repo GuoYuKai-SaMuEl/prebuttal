@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -17,13 +18,20 @@ class ProviderError(Exception):
 class TransientProviderError(Exception):
     """Retryable failure (429, 5xx, network hiccup).
 
-    ``slow=True`` marks saturation-style failures (upstream 429) where the
-    pool can stay closed for minutes, so backoff should be much longer.
+    ``slow=True`` marks saturation-style failures (429, overloaded 503/529)
+    where capacity can stay gone for minutes, so backoff is longer and gets
+    more attempts.  ``retry_after``: the server's own wait hint, in seconds.
     """
 
-    def __init__(self, message: str, *, slow: bool = False):
+    def __init__(self, message: str, *, slow: bool = False, retry_after: float | None = None):
         super().__init__(message)
         self.slow = slow
+        self.retry_after = retry_after
+
+
+# Overload waits: 15s, 30s, 60s, 90s (~3 min) before a reviewer is given up.
+SLOW_MIN_RETRIES = 4
+_MAX_WAIT_S = 120.0
 
 
 @dataclass
@@ -77,8 +85,8 @@ class BaseProvider(ABC):
         max_tokens: int = 4000,
         retries: int = 3,
     ) -> Completion:
-        last: Exception | None = None
-        for attempt in range(retries + 1):
+        attempt = 0
+        while True:
             try:
                 text, usage = self._complete(
                     system=system,
@@ -91,11 +99,22 @@ class BaseProvider(ABC):
                     raise TransientProviderError("empty completion")
                 return Completion(text=text, usage=usage, model=self.model, backend=self.backend)
             except TransientProviderError as e:
-                last = e
-                if attempt < retries:
-                    step = 15 if e.slow else 3
-                    time.sleep(min(2**attempt * step, 90))
-        raise ProviderError(f"[{self.backend}] {last}")
+                # overload gets more patience, but retries=0 (a repair pass) stays 0
+                budget = max(retries, SLOW_MIN_RETRIES) if e.slow and retries > 0 else retries
+                if attempt >= budget:
+                    raise ProviderError(f"[{self.backend}] {e}") from e
+                wait = e.retry_after
+                if wait is None:
+                    wait = min(2**attempt * (15 if e.slow else 3), 90)
+                wait = min(max(wait, 0.0), _MAX_WAIT_S)
+                print(
+                    f"[{self.backend}] {str(e)[:120]} — retrying in {wait:.0f}s "
+                    f"({attempt + 1}/{budget})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                time.sleep(wait)
+                attempt += 1
 
     def describe(self) -> str:
         model = f" / {self.model}" if self.model else ""

@@ -621,3 +621,61 @@ def test_agent_cli_does_not_inherit_stored_keys(monkeypatch, isolated_prebuttal_
     assert envs[0] is not None
     assert "ANTHROPIC_API_KEY" not in envs[0]
     assert envs[0]["OPENAI_API_KEY"] == "sk-user-exported"
+
+
+def test_overloaded_503_gets_patient_retries_and_honors_retry_after(monkeypatch, capsys):
+    import httpx
+
+    from prebuttal.providers.api import GeminiProvider
+
+    responses = iter(
+        [
+            httpx.Response(503, json={"error": "overloaded"}, headers={"retry-after": "7"}),
+            httpx.Response(503, json={"error": "overloaded"}),
+            httpx.Response(503, json={"error": "overloaded"}),
+            httpx.Response(
+                200,
+                json={
+                    "candidates": [{"content": {"parts": [{"text": "ok"}]}}],
+                    "usageMetadata": {},
+                },
+            ),
+        ]
+    )
+    _install_mock_http(monkeypatch, lambda request: next(responses))
+    monkeypatch.setenv("GEMINI_API_KEY", "g-test")
+    sleeps: list[float] = []
+    monkeypatch.setattr("prebuttal.providers.base.time.sleep", lambda s: sleeps.append(s))
+    comp = GeminiProvider(model="gemini-3.8-flash").complete(
+        system="S", user="U", temperature=0.4, seed=1, max_tokens=64, retries=2
+    )
+    assert comp.text == "ok"
+    # 3 retries although retries=2: overload gets at least SLOW_MIN_RETRIES
+    assert sleeps == [7.0, 30.0, 60.0]
+    assert "retrying in 7s (1/4)" in capsys.readouterr().err
+
+
+def test_overload_retry_budget_and_repair_pass(monkeypatch):
+    import httpx
+
+    from prebuttal.providers.api import GeminiProvider
+    from prebuttal.providers.base import SLOW_MIN_RETRIES, ProviderError
+
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(503, json={"error": "overloaded"})
+
+    _install_mock_http(monkeypatch, handler)
+    monkeypatch.setenv("GEMINI_API_KEY", "g-test")
+    monkeypatch.setattr("prebuttal.providers.base.time.sleep", lambda s: None)
+    provider = GeminiProvider(model="gemini-3.8-flash")
+    with pytest.raises(ProviderError, match="503"):
+        provider.complete(system="S", user="U", retries=2)
+    assert calls["n"] == SLOW_MIN_RETRIES + 1
+
+    calls["n"] = 0
+    with pytest.raises(ProviderError):
+        provider.complete(system="S", user="U", retries=0)  # repair pass: no retries
+    assert calls["n"] == 1
