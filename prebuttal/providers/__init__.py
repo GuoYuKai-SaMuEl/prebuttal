@@ -53,7 +53,20 @@ def register_backend(name: str, factory: Factory) -> None:
 
 
 def build_provider(
-    backend: str, model: str, cfg: RunConfig, *, timeout_s: float | None = None
+    backend: str,
+    model: str,
+    cfg: RunConfig,
+    *,
+    timeout_s: float | None = None,
+    effort: str = "",
+) -> BaseProvider:
+    provider = _make_provider(backend, model, cfg, timeout_s)
+    provider.effort = effort
+    return provider
+
+
+def _make_provider(
+    backend: str, model: str, cfg: RunConfig, timeout_s: float | None
 ) -> BaseProvider:
     timeout = timeout_s if timeout_s is not None else cfg.timeout_s
     if backend.startswith("agent-") and backend[6:] in cfg.agents:

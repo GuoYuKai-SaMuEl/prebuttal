@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import pytest
+from conftest import latest_report
 
 from prebuttal import cli
 from prebuttal.providers.base import ProviderError
@@ -147,15 +148,15 @@ timeout_s = 30
                 str(latex_project),
                 "--config",
                 str(cfg_path),
-                "--out",
-                "report.md",
+                "--out-dir",
+                "reports",
                 "--json",
                 "out.json",
             ]
         )
     assert rc == cli.EXIT_OK
 
-    md = (tmp_path / "report.md").read_text(encoding="utf-8")
+    md = latest_report(tmp_path / "reports").read_text(encoding="utf-8")
     assert "Predicted outcome" in md
     assert "relay" in md
     assert "(4.67 / 10)" in md or "**4.67 / 10**" in md  # mean of 6, 3, 5

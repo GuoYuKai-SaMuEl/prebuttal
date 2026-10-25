@@ -70,12 +70,12 @@ def test_params_not_applied_are_not_shown(latex_project):
     report.meta.backend = "api-anthropic"
     md = render_markdown(report, venue)
     assert "temp n/a · seed n/a" in md
-    assert "| `api-anthropic` | `fake-1` | 0.3 | n/a |" in md
-    assert "does not expose this parameter" in md
+    assert "| `api-anthropic` | `fake-1` | default | n/a | n/a |" in md
+    assert "does not take this parameter" in md
 
     data = json.loads(dumps_json(report, venue))
     assert data["reviewers"][0]["temperature_applied"] is False
-    assert data["meta"]["temperature_applied"] is True
+    assert data["meta"]["temperature_applied"] is False
     assert data["meta"]["seed_applied"] is False
     assert "· seed" not in render_share_html(report, venue, "https://x")
 

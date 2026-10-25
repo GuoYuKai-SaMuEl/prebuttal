@@ -46,6 +46,12 @@ def make_report(latex_project, *, venue_key: str = "iclr", rating_shift: int = 0
     return report, venue
 
 
+def latest_report(root: Path, fmt: str = "md") -> Path:
+    """The newest report a CLI run wrote under ``root`` (= its --out-dir)."""
+    (path,) = root.glob(f"*/latest.{fmt}")
+    return path
+
+
 # ------------------------------------------------- shared CLI-test fixtures
 
 FAKE_TOML = """

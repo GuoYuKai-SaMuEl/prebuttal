@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import make_report
+from conftest import latest_report, make_report
 
 from prebuttal import cli
 from prebuttal.config import load_config
@@ -101,9 +101,9 @@ def test_cli_full_flow_run_runs_show_diff(
     monkeypatch.chdir(tmp_path)
     home = tmp_path / "prebuttal-home"
 
-    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out", "r1.md"])
+    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out-dir", "r1"])
     assert rc == cli.EXIT_OK
-    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out", "r2.md"])
+    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out-dir", "r2"])
     assert rc == cli.EXIT_OK
     hist = load_history()
     assert len(hist) == 2
@@ -133,7 +133,7 @@ def test_cli_full_flow_run_runs_show_diff(
 
     # --no-save leaves the archive untouched
     rc = cli.main(
-        ["run", str(latex_project), "--config", str(fake_config), "--out", "r3.md", "--no-save"]
+        ["run", str(latex_project), "--config", str(fake_config), "--out-dir", "r3", "--no-save"]
     )
     assert rc == cli.EXIT_OK
     assert len(load_history()) == 2
@@ -155,10 +155,10 @@ def test_archive_failure_never_breaks_the_run(
         raise OSError("disk full")
 
     monkeypatch.setattr(cli, "save_run", boom)
-    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out", "r.md"])
+    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out-dir", "r"])
     assert rc == cli.EXIT_OK  # the review itself succeeded
     assert "could not archive" in capsys.readouterr().err
-    assert (tmp_path / "r.md").is_file()
+    assert latest_report(tmp_path / "r").is_file()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")

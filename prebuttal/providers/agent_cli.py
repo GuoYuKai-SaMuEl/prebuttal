@@ -86,18 +86,22 @@ class AgentCLIProvider(BaseProvider):
         detail: str = "",
         model_flag: str = "",
         isolate_cwd: bool = False,
+        effort_args: tuple[str, ...] = (),
     ):
         """``model_flag``: how to forward `model` to the CLI.  "" = don't
         (custom agents); "append" = add `--model X` at the end; "before-last"
         = insert before the last arg (for CLIs whose final arg is the stdin
         prompt marker, e.g. `codex exec ... -`).  ``isolate_cwd``: run in an
-        empty temp dir so an injected prompt finds no project files."""
+        empty temp dir so an injected prompt finds no project files.
+        ``effort_args``: flag template for the reasoning effort, with
+        ``{effort}`` substituted, inserted where ``model_flag`` puts --model."""
         super().__init__(backend, model, timeout_s=timeout_s)
         self.command = list(command)
         self.stdin = stdin
         self.detail = detail
         self.model_flag = model_flag
         self.isolate_cwd = isolate_cwd
+        self.effort_args = effort_args
 
     def describe(self) -> str:
         base = f"{self.backend} ({self.command[0]}, subscription auth)"
@@ -105,12 +109,16 @@ class AgentCLIProvider(BaseProvider):
 
     def _build_command(self) -> list[str]:
         cmd = list(self.command)
-        if self.model and self.model_flag:
-            flag = ["--model", self.model]
-            if self.model_flag == "before-last" and len(cmd) > 1:
-                return cmd[:-1] + flag + [cmd[-1]]
-            return cmd + flag
-        return cmd
+        if not self.model_flag:
+            return cmd
+        flags: list[str] = []
+        if self.model:
+            flags += ["--model", self.model]
+        if self.applied_effort and self.effort_args:
+            flags += [a.format(effort=self.applied_effort) for a in self.effort_args]
+        if self.model_flag == "before-last" and len(cmd) > 1:
+            return cmd[:-1] + flags + [cmd[-1]]
+        return cmd + flags
 
     def _complete(self, *, system, user, temperature, seed, max_tokens):
         if self.isolate_cwd:
@@ -152,6 +160,7 @@ def claude_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIPro
         detail="Claude Code headless (`claude -p`), subscription auth, zero API key",
         model_flag="append",
         isolate_cwd=True,
+        effort_args=("--effort", "{effort}"),
     )
 
 
@@ -175,4 +184,5 @@ def codex_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProv
         detail="Codex CLI headless (`codex exec`), subscription auth, zero API key",
         model_flag="before-last",
         isolate_cwd=True,
+        effort_args=("-c", 'model_reasoning_effort="{effort}"'),
     )

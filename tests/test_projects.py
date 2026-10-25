@@ -67,11 +67,6 @@ def test_format_and_output_dir_choices(run, tmp_path):
     (run_dir,) = [d for d in (tmp_path / "out" / PROJECT).iterdir() if d.is_dir()]
     assert [p.name for p in run_dir.iterdir()] == ["report.json"]
 
-    rc, _ = run("--out", "single/review.md", "--format", "md,html")
-    assert rc == cli.EXIT_OK
-    assert (tmp_path / "single" / "review.md").is_file()
-    assert (tmp_path / "single" / "review.html").is_file()
-
     rc, _ = run("--format", "pdf")
     assert rc == cli.EXIT_USAGE  # rejected before any review runs
 

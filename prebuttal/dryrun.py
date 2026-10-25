@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .config import RunConfig
-from .models import param_support
+from .config import RunConfig, role_effort
+from .models import effort_support, param_support
 from .pack import estimate_tokens
 from .providers.detect import BackendStatus
 
@@ -46,11 +46,26 @@ def render_dry_run(
     lines.append("")
     lines.append("Review plan")
     persona_by_id = {r.id: r.persona for r in cfg.reviewers}
+
+    def _effort(rid: str, backend: str, model: str) -> str:
+        effort = role_effort(cfg, rid)
+        if not effort:
+            return ""
+        if not effort_support(backend, model):
+            return f"  effort: {effort} (not supported here — model default)"
+        return f"  effort: {effort}"
+
     for rid, backend, model in resolved:
         model_s = model or "CLI default"
         persona = persona_by_id.get(rid, "")
-        lines.append(f"  {rid:<4} {persona:<18} → {backend:<14} model: {model_s}")
-    lines.append(f"  {'AC':<4} {'area_chair':<18} → {ac[0]:<14} model: {ac[1] or 'CLI default'}")
+        lines.append(
+            f"  {rid:<4} {persona:<18} → {backend:<14} model: {model_s}"
+            + _effort(rid, backend, model)
+        )
+    lines.append(
+        f"  {'AC':<4} {'area_chair':<18} → {ac[0]:<14} model: {ac[1] or 'CLI default'}"
+        + _effort("AC", ac[0], ac[1])
+    )
     lines.append("")
     lines.append("Paper pack")
     lines.append(
@@ -75,7 +90,7 @@ def render_dry_run(
         + ", ".join(f"{rid}={cfg.seed + i + 1}" for i, (rid, _b, _m) in enumerate(resolved))
         + f", AC={cfg.seed}"
     )
-    ignored = sorted({b for (_r, b, _m) in entries if not param_support(b)[1]})
+    ignored = sorted({b for (_r, b, m) in entries if not param_support(b, m)[1]})
     if ignored:
         lines.append(f"  (not applied by {', '.join(ignored)}: they use the model's defaults)")
     lines.append("")

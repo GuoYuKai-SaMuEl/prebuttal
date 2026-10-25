@@ -2,6 +2,8 @@
 
 import json
 
+from conftest import latest_report
+
 from prebuttal import cli
 from prebuttal.providers.detect import BackendStatus
 from prebuttal.runs import load_history
@@ -65,30 +67,30 @@ def test_dry_run_plan_shows_personas(tmp_path, monkeypatch, latex_project, capsy
 def test_non_tty_auto_proceeds_with_notice(tmp_path, monkeypatch, latex_project, capsys):
     monkeypatch.chdir(tmp_path)
     _auto_statuses(monkeypatch)
-    rc = cli.main(["run", str(latex_project), "--config", str(_config(tmp_path)), "--out", "r.md"])
+    rc = cli.main(["run", str(latex_project), "--config", str(_config(tmp_path)), "--out-dir", "r"])
     err = capsys.readouterr().err
     assert rc == cli.EXIT_OK
     assert "non-interactive" in err  # plan was announced, then it ran anyway
-    assert (tmp_path / "r.md").is_file()
+    assert latest_report(tmp_path / "r").is_file()
 
 
 def test_yes_flag_silences_notice(tmp_path, monkeypatch, latex_project, capsys):
     monkeypatch.chdir(tmp_path)
     _auto_statuses(monkeypatch)
     rc = cli.main(
-        ["run", str(latex_project), "--config", str(_config(tmp_path)), "--out", "r.md", "-y"]
+        ["run", str(latex_project), "--config", str(_config(tmp_path)), "--out-dir", "r", "-y"]
     )
     captured = capsys.readouterr()
     assert rc == cli.EXIT_OK
     assert "non-interactive" not in captured.err
-    assert (tmp_path / "r.md").is_file()
+    assert latest_report(tmp_path / "r").is_file()
 
 
 def test_explicit_config_never_prompts_or_notices(
     tmp_path, monkeypatch, latex_project, fake_statuses, fake_config, capsys
 ):
     monkeypatch.chdir(tmp_path)
-    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out", "r.md"])
+    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "--out-dir", "r"])
     err = capsys.readouterr().err
     assert rc == cli.EXIT_OK
     assert "non-interactive" not in err  # explicit config = nothing ambiguous
@@ -134,11 +136,11 @@ def test_interactive_edit_then_run(tmp_path, monkeypatch, latex_project, capsys)
     )
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
 
-    rc = cli.main(["run", str(latex_project), "--config", str(_config(tmp_path)), "--out", "r.md"])
+    rc = cli.main(["run", str(latex_project), "--config", str(_config(tmp_path)), "--out-dir", "r"])
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK
     assert "== R1" in out and "== AC" in out  # the wizard ran
-    assert (tmp_path / "r.md").is_file()
+    assert latest_report(tmp_path / "r").is_file()
 
     # the edited choice is what actually reviewed the paper
     rec = load_history()[0]

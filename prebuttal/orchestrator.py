@@ -271,6 +271,7 @@ def run_one_reviewer(
         model=provider.model,
         temperature=rcfg.temperature,
         seed=seed,
+        effort=provider.applied_effort,
         started_at=_now(),
     )
     try:
@@ -375,6 +376,7 @@ def run_meta(
         backend=provider.backend,
         model=provider.model,
         temperature=cfg.ac.temperature,
+        effort=provider.applied_effort,
     )
     t0 = time.monotonic()
     log(f"[AC] synthesizing via {provider.describe()}")

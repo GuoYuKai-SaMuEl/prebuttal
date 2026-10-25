@@ -10,8 +10,15 @@ import os
 
 import httpx
 
-from ..models import Usage
+from ..models import Usage, openai_reasoning_model
 from .base import BaseProvider, ProviderError, TransientProviderError
+
+# Models that think before answering spend part of the output budget on it;
+# below this a long review can be cut off mid-JSON.
+REASONING_MIN_TOKENS = 16_000
+
+# Gemini 2.x takes a thinking token budget instead of a level.
+_GEMINI_BUDGET = {"low": 1024, "medium": 8192, "high": 24576}
 
 
 def _env_default(name: str, fallback: str) -> str:
@@ -57,16 +64,23 @@ class OpenAIProvider(_HTTPProvider):
         return _env_default("OPENAI", cls.DEFAULT_MODEL)
 
     def _complete(self, *, system, user, temperature, seed, max_tokens):
-        payload = {
+        payload: dict = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
         }
+        if openai_reasoning_model(self.model):
+            # reasoning models reject sampling parameters and max_tokens, and
+            # their hidden reasoning counts against the completion budget
+            payload["max_completion_tokens"] = max(max_tokens, REASONING_MIN_TOKENS)
+            if self.applied_effort:
+                payload["reasoning_effort"] = self.applied_effort
+        else:
+            payload["temperature"] = temperature
+            payload["max_tokens"] = max_tokens
         if seed is not None:
             payload["seed"] = seed
         data = self._post_json(
@@ -123,6 +137,8 @@ class OpenRouterProvider(_HTTPProvider):
         }
         if seed is not None:
             payload["seed"] = seed
+        if self.applied_effort:  # OpenRouter's unified reasoning control
+            payload["reasoning"] = {"effort": self.applied_effort}
         data = self._post_json(
             f"{self.BASE_URL}/chat/completions",
             headers={
@@ -173,14 +189,17 @@ class AnthropicProvider(_HTTPProvider):
         return _env_default("ANTHROPIC", cls.DEFAULT_MODEL)
 
     def _complete(self, *, system, user, temperature, seed, max_tokens):
-        # Anthropic has no seed parameter: recorded in the report, not enforced.
-        payload = {
+        # No temperature or seed: current Claude models accept only their
+        # default sampling (other values are a 400), and there is no seed.
+        # Thinking is on by default and its tokens count against max_tokens.
+        payload: dict = {
             "model": self.model,
             "system": system,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
+            "max_tokens": max(max_tokens, REASONING_MIN_TOKENS),
             "messages": [{"role": "user", "content": user}],
         }
+        if self.applied_effort:
+            payload["output_config"] = {"effort": self.applied_effort}
         data = self._post_json(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -224,6 +243,11 @@ class GeminiProvider(_HTTPProvider):
         }
         if seed is not None:
             gen["seed"] = seed
+        if self.applied_effort:
+            if self.model.startswith("gemini-2"):  # 2.x: token budget
+                gen["thinkingConfig"] = {"thinkingBudget": _GEMINI_BUDGET[self.applied_effort]}
+            else:  # 3.x and later: thinking levels
+                gen["thinkingConfig"] = {"thinkingLevel": self.applied_effort}
         payload = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user}]}],

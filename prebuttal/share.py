@@ -27,8 +27,8 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     agg = r.aggregate
     title = _e(r.paper.title)
     venue_name = _e(venue.name)
-    roles = [rev.backend for rev in r.reviews] + [r.meta.backend]
-    seeded = any(param_support(b)[1] for b in roles)
+    roles = [(rev.backend, rev.model) for rev in r.reviews] + [(r.meta.backend, r.meta.model)]
+    seeded = any(param_support(b, m)[1] for b, m in roles)
     seed_note = f" · seed {r.run.seed}" if seeded else ""
 
     score_html = ""

@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from conftest import PersonaFakeProvider
+from conftest import PersonaFakeProvider, latest_report
 
 from prebuttal import cli
 from prebuttal.providers import register_backend
@@ -67,14 +67,13 @@ def test_run_end_to_end_with_fake_backend(tmp_path, monkeypatch, latex_project, 
             str(cfg_path),
             "--json",
             "out.json",
-            "--share",
-            "--out",
-            "report.md",
+            "--out-dir",
+            "reports",
         ]
     )
     assert rc == cli.EXIT_OK
 
-    md = (tmp_path / "report.md").read_text(encoding="utf-8")
+    md = latest_report(tmp_path / "reports").read_text(encoding="utf-8")
     assert "Predicted outcome" in md
     assert "Meta-review" in md
 
@@ -82,12 +81,12 @@ def test_run_end_to_end_with_fake_backend(tmp_path, monkeypatch, latex_project, 
     assert data["aggregate"]["mean"] == 6.0
     assert data["run"]["seed"] == 7
 
-    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    html = latest_report(tmp_path / "reports", "html").read_text(encoding="utf-8")
     assert "pip install prebuttal" in html
 
 
 def test_run_creates_missing_output_dirs(tmp_path, monkeypatch, latex_project, fake_statuses):
-    """A finished (possibly paid) review must not die on a not-yet-existing --out dir."""
+    """A finished (possibly paid) review must not die on not-yet-existing output dirs."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PREBUTTAL_HOME", str(tmp_path / "home"))
     cfg_path = tmp_path / "prebuttal.toml"
@@ -98,17 +97,23 @@ def test_run_creates_missing_output_dirs(tmp_path, monkeypatch, latex_project, f
             str(latex_project),
             "--config",
             str(cfg_path),
-            "--share",
-            "--out",
-            "new/dir/report.md",
+            "--out-dir",
+            "new/dir",
             "--json",
             "other/out.json",
         ]
     )
     assert rc == cli.EXIT_OK
-    assert (tmp_path / "new/dir/report.md").is_file()
-    assert (tmp_path / "new/dir/report.html").is_file()
+    assert latest_report(tmp_path / "new/dir").is_file()
+    assert latest_report(tmp_path / "new/dir", "html").is_file()
     assert (tmp_path / "other/out.json").is_file()
+
+
+def test_removed_flags_explain_the_replacement(capsys):
+    assert cli.main(["run", "paper.pdf", "--out", "x.md"]) == cli.EXIT_USAGE
+    assert "--out-dir" in capsys.readouterr().err
+    assert cli.main(["run", "paper.pdf", "--share"]) == cli.EXIT_USAGE
+    assert "by default" in capsys.readouterr().err
 
 
 def test_run_dry_run_prints_matrix_no_calls(

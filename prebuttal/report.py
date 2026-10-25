@@ -49,14 +49,15 @@ def _dispersion_label(agg: Aggregate, max_rating: float) -> str:
 
 NOT_APPLIED = "n/a"
 PARAM_NOTE = (
-    f"{NOT_APPLIED} = the backend does not expose this parameter, so the model's own "
-    "default was used (agent CLIs and relay expose neither; the Anthropic API has no seed)."
+    f"{NOT_APPLIED} = the backend does not take this parameter, so the model's own default "
+    "was used (agent CLIs and relay take neither; current Claude API models accept only "
+    "their default sampling and have no seed; OpenAI reasoning models take no temperature)."
 )
 
 
-def _params(backend: str, temperature: float, seed: int | None) -> tuple[str, str]:
+def _params(backend: str, model: str, temperature: float, seed: int | None) -> tuple[str, str]:
     """Temperature and seed as displayed: the value only where the backend applied it."""
-    temp_ok, seed_ok = param_support(backend)
+    temp_ok, seed_ok = param_support(backend, model)
     return (
         f"{temperature:g}" if temp_ok else NOT_APPLIED,
         str(seed) if seed_ok and seed is not None else NOT_APPLIED,
@@ -71,9 +72,10 @@ def _bar(value: float, maximum: float) -> str:
 def _render_review(review: Review, venue: Venue, index: int) -> str:
     out = [f"## Review {index}: {review.reviewer_id} — persona `{review.persona}`", ""]
     model = review.model or "CLI default"
-    temp, seed = _params(review.backend, review.temperature, review.seed)
+    temp, seed = _params(review.backend, review.model, review.temperature, review.seed)
+    effort = f" · effort {review.effort}" if review.effort else ""
     out.append(
-        f"*Backend `{review.backend}` · model `{model}` · temp {temp} "
+        f"*Backend `{review.backend}` · model `{model}`{effort} · temp {temp} "
         f"· seed {seed} · {review.duration_s:.0f}s · {review.usage.describe()}*"
     )
     out.append("")
@@ -203,21 +205,21 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     out.append("")
     out.append("## Backend transparency")
     out.append("")
-    out.append("| Reviewer | Persona | Backend | Model | Temp | Seed |")
-    out.append("|---|---|---|---|---|---|")
+    out.append("| Reviewer | Persona | Backend | Model | Effort | Temp | Seed |")
+    out.append("|---|---|---|---|---|---|---|")
     for rev in r.reviews:
-        temp, seed = _params(rev.backend, rev.temperature, rev.seed)
+        temp, seed = _params(rev.backend, rev.model, rev.temperature, rev.seed)
         out.append(
             f"| {rev.reviewer_id} | {rev.persona} | `{rev.backend}` | "
-            f"`{rev.model or 'CLI default'}` | {temp} | {seed} |"
+            f"`{rev.model or 'CLI default'}` | {rev.effort or 'default'} | {temp} | {seed} |"
         )
-    temp, seed = _params(r.meta.backend, r.meta.temperature, r.run.seed)
+    temp, seed = _params(r.meta.backend, r.meta.model, r.meta.temperature, r.run.seed)
     out.append(
         f"| AC | area_chair | `{r.meta.backend}` | `{r.meta.model or 'CLI default'}` | "
-        f"{temp} | {seed} |"
+        f"{r.meta.effort or 'default'} | {temp} | {seed} |"
     )
-    backends = [rev.backend for rev in r.reviews] + [r.meta.backend]
-    if any(param_support(b) != (True, True) for b in backends):
+    roles = [(rev.backend, rev.model) for rev in r.reviews] + [(r.meta.backend, r.meta.model)]
+    if any(param_support(b, m) != (True, True) for b, m in roles):
         out.append("")
         out.append(f"*{PARAM_NOTE}*")
     out.append("")
@@ -231,8 +233,8 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     return "\n".join(out)
 
 
-def _applied(backend: str) -> dict[str, bool]:
-    temp_ok, seed_ok = param_support(backend)
+def _applied(backend: str, model: str) -> dict[str, bool]:
+    temp_ok, seed_ok = param_support(backend, model)
     return {"temperature_applied": temp_ok, "seed_applied": seed_ok}
 
 
@@ -251,14 +253,14 @@ def to_json(report: ReviewReport, venue: Venue) -> dict[str, Any]:
         "reviewers": [
             {
                 **dataclass_to_dict(rev),
-                **_applied(rev.backend),
+                **_applied(rev.backend, rev.model),
                 "rating_label": venue.rating_field.anchor_for(rev.rating)
                 if rev.rating is not None
                 else None,
             }
             for rev in r.reviews
         ],
-        "meta": {**dataclass_to_dict(r.meta), **_applied(r.meta.backend)},
+        "meta": {**dataclass_to_dict(r.meta), **_applied(r.meta.backend, r.meta.model)},
         "usage_total": dataclass_to_dict(r.usage_total),
         "notice": HONESTY_NOTE,
     }

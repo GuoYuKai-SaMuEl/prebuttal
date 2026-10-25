@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import platform
+import re
 import sys
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import UTC, datetime
@@ -118,18 +119,40 @@ class StructuredPaper:
         }
 
 
-def param_support(backend: str) -> tuple[bool, bool]:
-    """Whether ``backend`` really applies (temperature, seed).
+EFFORT_LEVELS = ("low", "medium", "high")
+
+
+def openai_reasoning_model(model: str) -> bool:
+    """gpt-5* / o-series: no sampling parameters, reasoning_effort instead."""
+    m = model.lower().rsplit("/", 1)[-1]
+    return bool(re.match(r"(gpt-5|o[1-9])", m)) and "chat" not in m
+
+
+def param_support(backend: str, model: str = "") -> tuple[bool, bool]:
+    """Whether ``backend`` (with ``model``) really applies (temperature, seed).
 
     Agent CLIs (``claude -p``, ``codex exec``, custom ``[agents.*]``) expose
-    neither, the relay responder is an outside agent, and the Anthropic API
-    has no seed. Reports show the configured value only where it took effect.
+    neither, the relay responder is an outside agent, current Claude API
+    models accept only their default sampling and have no seed, and OpenAI
+    reasoning models (gpt-5, o-series) take no temperature. Reports show the
+    configured value only where it took effect.
     """
-    if backend.startswith("agent-") or backend == "relay":
+    if backend.startswith("agent-") or backend in ("relay", "api-anthropic"):
         return False, False
-    if backend == "api-anthropic":
-        return True, False
+    if backend == "api-openai" and openai_reasoning_model(model):
+        return False, True
     return True, True
+
+
+def effort_support(backend: str, model: str = "") -> bool:
+    """Whether ``backend`` (with ``model``) has a reasoning-effort control we can set."""
+    if backend in ("agent-claude", "agent-codex", "api-anthropic", "api-gemini", "api-openrouter"):
+        return True
+    if backend == "api-openai":
+        return openai_reasoning_model(model)
+    if backend == "ollama":
+        return "gpt-oss" in model.lower()  # the Ollama models with think levels
+    return False
 
 
 @dataclass
@@ -140,6 +163,7 @@ class Review:
     model: str
     temperature: float
     seed: int | None
+    effort: str = ""  # reasoning effort actually sent; "" = the model's default
     fields: dict[str, Any] = field(default_factory=dict)
     rating: float | None = None
     confidence: float | None = None
@@ -156,6 +180,7 @@ class MetaReview:
     backend: str
     model: str
     temperature: float
+    effort: str = ""
     meta_review: str = ""
     estimated_rating: float | None = None
     confidence: float | None = None

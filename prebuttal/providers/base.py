@@ -7,7 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from ..models import Usage
+from ..models import Usage, effort_support
 
 
 class ProviderError(Exception):
@@ -48,6 +48,12 @@ class BaseProvider(ABC):
         self.backend = backend
         self.model = model
         self.timeout_s = timeout_s
+        self.effort = ""  # requested reasoning effort ("" = model default)
+
+    @property
+    def applied_effort(self) -> str:
+        """The effort this provider actually sends; "" when unset or unsupported."""
+        return self.effort if self.effort and effort_support(self.backend, self.model) else ""
 
     @abstractmethod
     def _complete(

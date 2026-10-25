@@ -127,6 +127,7 @@ models and temperatures:
 [default]
 venue = "iclr"
 seed = 42
+# effort = "high"             # optional, see "Reasoning effort" below
 
 [[reviewer]]
 id = "R1"
@@ -151,6 +152,27 @@ temperature = 0.5
 persona = "area_chair"
 backend = "agent-claude"
 ```
+
+### Reasoning effort
+
+Leave it unset and every model thinks as much as its provider's default — the
+right choice for most papers. To trade cost and time for depth, set
+`--effort low|medium|high` for one run, `effort = "..."` under `[default]`,
+or per `[[reviewer]]` / `[ac]`. It maps onto each backend's own control:
+
+| Backend | Sent as |
+|---|---|
+| `agent-claude` | `claude --effort` |
+| `agent-codex` | `-c model_reasoning_effort=...` |
+| `api-anthropic` | `output_config.effort` |
+| `api-openai` | `reasoning_effort` (gpt-5 / o-series reasoning models) |
+| `api-gemini` | `thinkingLevel` (Gemini 3+) / `thinkingBudget` (2.x) |
+| `api-openrouter` | `reasoning.effort` |
+| `ollama` | `think` (gpt-oss models) |
+
+Where a model has no such control (classic chat models, relay, custom agent
+CLIs) the setting is skipped; `--dry-run` says so up front, and every report
+lists the effort each review actually ran with.
 
 ## Calibration (honesty, not prophecy)
 
@@ -214,8 +236,9 @@ The revision loop: fix what the reviewers flagged, re-run with the same
 `--seed` and a `--note "what changed"`, then `prebuttal diff` shows which
 weaknesses went away, persisted, or appeared. Report location and formats
 are configurable: `--out-dir`, `--format md,html,json`, or an `[output]`
-section in `prebuttal.toml` (`dir = ""` keeps reports in the archive only;
-`--out FILE.md` writes one exact file as before).
+section in `prebuttal.toml` (`dir = ""` keeps reports in the archive only).
+Need a file at a fixed path, e.g. for a script? `--json PATH`, or
+`prebuttal export -f md -o PATH` after the run.
 
 ## Skill package
 

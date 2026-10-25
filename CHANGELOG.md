@@ -28,16 +28,34 @@ releases (0.2, 0.3, …) are substantial new features.
   to the newest run; `diff` with no arguments compares it with the run before.
 - `run --note "what changed"`; `run` prints the change against the previous
   run of the same paper.
+- **Reasoning effort** (`--effort low|medium|high`, `effort =` under
+  `[default]`, `[[reviewer]]` or `[ac]`), mapped to each backend's own
+  control: `claude --effort`, codex `model_reasoning_effort`, Anthropic
+  `output_config.effort`, OpenAI `reasoning_effort`, Gemini
+  `thinkingLevel` / `thinkingBudget`, OpenRouter `reasoning.effort`, Ollama
+  `think`. Unset (the default) leaves every model at its provider's default;
+  reports and `--dry-run` show the effort each role actually used.
+
+### Removed
+- `run --out` and `run --share`. Every run writes its own report folder
+  (HTML included) instead; for a file at a fixed path use `--json PATH` or
+  `prebuttal export -o PATH`. Passing either flag prints what replaces it.
 
 ### Changed
 - `run` no longer writes `prebuttal-report.md` into the current directory
-  (each run overwrote the last). `--out FILE.md` still writes one exact file.
-  HTML is produced by default, so `--share` is no longer needed (still
-  accepted). Archived runs always include `report.html`.
+  (each run overwrote the last); HTML is produced by default and archived
+  runs always include `report.html`.
 - `prebuttal runs` shows `<project>#N` labels, dates and notes, and takes an
   optional project name.
 
 ### Fixed
+- `api-anthropic` no longer sends `temperature`: current Claude models
+  accept only their default sampling and reject other values with a 400
+  (the default model, Claude Sonnet 5.5, among them). `max_tokens` is raised
+  to at least 16k so default-on thinking can't cut a review short.
+- `api-openai` with a reasoning model (gpt-5 family, o-series — including the
+  default model) sends `max_completion_tokens` and no `temperature`, both of
+  which those models require.
 - Reports no longer show a temperature or seed the backend never applied.
   Agent CLIs (`claude`, `codex`, custom `[agents.*]`) and relay expose
   neither and the Anthropic API has no seed; those cells now read `n/a` with

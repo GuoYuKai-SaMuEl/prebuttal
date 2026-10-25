@@ -45,6 +45,8 @@ exactly what this tool exists to avoid.
    (`claude -p`, `codex exec`) and local Ollama — zero-key paths. Check
    `prebuttal backends`. For unpublished work, suggest Ollama (nothing leaves
    the machine). Use `--dry-run` first if the user asks about cost.
+5. Leave `--effort` unset (each model's default) unless the user asks for a
+   deeper or a cheaper/faster review: `--effort high` or `--effort low`.
 
 ## Relay mode (zero API key, zero CLI install)
 

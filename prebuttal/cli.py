@@ -29,10 +29,12 @@ from .config import (
     apply_overrides,
     env_backend,
     load_config,
+    role_effort,
 )
 from .dashboard import dashboard_path, ensure_html, render_dashboard
 from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
+from .models import EFFORT_LEVELS
 from .orchestrator import run_report
 from .outputs import parse_formats, write_local
 from .pack import render_pack
@@ -93,7 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"prebuttal {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    run = sub.add_parser("run", help="review a paper (PDF / LaTeX dir / arXiv link)")
+    # no abbreviations: `--out x` must not silently mean `--out-dir x`
+    run = sub.add_parser(
+        "run", help="review a paper (PDF / LaTeX dir / arXiv link)", allow_abbrev=False
+    )
     run.add_argument("paper", help="path to .pdf, LaTeX project dir, or arXiv link/id")
     run.add_argument("--venue", choices=VENUE_KEYS, help="review form to use")
     run.add_argument("-c", "--config", default=None, help="prebuttal.toml path")
@@ -101,6 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--backend", default=None, help="force a backend for all roles")
     run.add_argument("--model", default=None, help="force a model id for all roles")
     run.add_argument("--seed", type=int, default=None, help="reproducibility seed")
+    run.add_argument(
+        "--effort",
+        choices=EFFORT_LEVELS,
+        default=None,
+        help="reasoning effort for thinking models (default: each model's own)",
+    )
     run.add_argument("--dry-run", action="store_true", help="show cost + backends, call nothing")
     run.add_argument(
         "-y",
@@ -127,15 +138,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="reports folder (default ./prebuttal-reports; one subfolder per run)",
     )
     run.add_argument(
-        "--out",
-        default=None,
-        metavar="PATH",
-        help="write the Markdown report to exactly this file instead (other formats beside it)",
-    )
-    run.add_argument(
         "--json", metavar="PATH", default=None, help="also write machine-readable JSON here"
     )
-    run.add_argument("--share", action="store_true", help=argparse.SUPPRESS)  # html is default now
     run.add_argument("--stdout", action="store_true", help="print the full report to stdout")
     run.add_argument(
         "--no-save",
@@ -677,13 +681,12 @@ def cmd_run(args) -> int:
         backend=backend,
         model=args.model,
         reviewers_count=args.reviewers,
+        effort=args.effort,
     )
     venue = get_venue(cfg.venue)
     # validate output choices before any (possibly paid) review runs
     try:
         formats = parse_formats(args.format) if args.format else cfg.output_formats
-        if args.share and "html" not in formats:
-            formats = (*formats, "html")
         if args.project:
             normalize_key(args.project)
     except (ValueError, ProjectError) as e:
@@ -764,8 +767,8 @@ def cmd_run(args) -> int:
     providers = {}
     try:
         for rid, backend, model in resolved:
-            providers[rid] = build_provider(backend, model, cfg)
-        ac_provider = build_provider(ac[0], ac[1], cfg)
+            providers[rid] = build_provider(backend, model, cfg, effort=role_effort(cfg, rid))
+        ac_provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
     except ProviderError as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_NO_BACKEND
@@ -810,15 +813,9 @@ def cmd_run(args) -> int:
 
     written: list[Path] = []
     try:
-        if args.out:  # exact file: Markdown there, other formats beside it
-            out_path = Path(args.out)
-            for fmt in formats:
-                path = out_path if fmt == "md" else out_path.with_suffix(f".{fmt}")
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(texts[fmt], encoding="utf-8")
-                written.append(path)
-        elif args.out_dir if args.out_dir is not None else cfg.output_dir:
-            root = Path(args.out_dir if args.out_dir is not None else cfg.output_dir)
+        out_dir = args.out_dir if args.out_dir is not None else cfg.output_dir
+        if out_dir:
+            root = Path(out_dir)
             _dir, written = write_local(root, project, venue.key, {f: texts[f] for f in formats})
         if args.json:
             json_path = Path(args.json)
@@ -880,8 +877,31 @@ def _utf8_stdio() -> None:
                 stream.reconfigure(encoding="utf-8", errors="replace")
 
 
+# Flags removed in 0.2 — explain the replacement instead of a bare argparse error.
+_REMOVED_FLAGS = {
+    "--share": "HTML reports are written by default now; drop --share",
+    "--out": (
+        "each run now gets its own folder under prebuttal-reports/<project>/ "
+        "(nothing is overwritten); use --out-dir DIR for another location, "
+        "--json PATH for a file at a fixed path, or `prebuttal export -o FILE` afterwards"
+    ),
+}
+
+
+def _removed_flag(argv: list[str]) -> str | None:
+    for tok in argv:
+        name = tok.split("=", 1)[0]
+        if name in _REMOVED_FLAGS:
+            return f"error: {name} was removed — {_REMOVED_FLAGS[name]}"
+    return None
+
+
 def main(argv=None) -> int:
     _utf8_stdio()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["run"] and (msg := _removed_flag(argv)):
+        print(msg, file=sys.stderr)
+        return EXIT_USAGE
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

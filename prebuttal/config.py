@@ -44,6 +44,10 @@ DEFAULT_CONFIG_TOML = """\
 venue = "iclr"          # neurips | iclr | icml | acl
 seed = 42               # reproducibility: recorded in every report
 budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
+# effort = "high"       # reasoning effort: low | medium | high (unset = each
+                        # model's default). Thinking models only: Claude, codex,
+                        # OpenAI gpt-5/o-series, Gemini, OpenRouter, Ollama gpt-oss.
+                        # Also per [[reviewer]] / [ac], or --effort for one run.
 
 # backend = "auto" (default) picks the best available backends at startup:
 #   agent-claude / agent-codex  (subscription CLIs, zero API key)
@@ -80,7 +84,7 @@ persona = "area_chair"
 backend = "auto"
 temperature = 0.3
 
-# Link shown in the footer of --share pages (defaults to the Prebuttal repo).
+# Link shown in the footer of HTML reports (defaults to the Prebuttal repo).
 # [share]
 # repo_url = "https://github.com/GuoYuKai-SaMuEl/prebuttal"
 
@@ -131,6 +135,7 @@ class ReviewerConfig:
     model: str = ""
     temperature: float = 0.4
     seed: int | None = None  # None -> default seed + reviewer index
+    effort: str = ""  # "" -> [default] effort
 
 
 @dataclass
@@ -139,6 +144,7 @@ class ACConfig:
     backend: str = "auto"
     model: str = ""
     temperature: float = 0.3
+    effort: str = ""  # "" -> [default] effort
 
 
 @dataclass
@@ -146,6 +152,7 @@ class RunConfig:
     venue: str = "neurips"
     seed: int = 42
     budget_chars: int = 120_000
+    effort: str = ""  # reasoning effort for every role; "" = each model's default
     compress: bool = False  # LLM-summarize elided sections instead of truncating
     max_tokens: int = 6000
     est_completion_tokens: int = 2500
@@ -182,6 +189,25 @@ def default_reviewers(n: int = 3) -> list[ReviewerConfig]:
     return out
 
 
+def check_effort(value: Any, where: str) -> str:
+    from .models import EFFORT_LEVELS
+
+    effort = str(value or "").strip().lower()
+    if effort and effort not in EFFORT_LEVELS:
+        raise ConfigError(
+            f"unknown effort '{value}' in {where} — choose {' | '.join(EFFORT_LEVELS)}"
+        )
+    return effort
+
+
+def role_effort(cfg: RunConfig, role_id: str) -> str:
+    """Effort for reviewer ``role_id`` (or "AC"): its own setting, else the default."""
+    if role_id == "AC":
+        return cfg.ac.effort or cfg.effort
+    own = next((r.effort for r in cfg.reviewers if r.id == role_id), "")
+    return own or cfg.effort
+
+
 def _as_list(x: Any) -> list[str]:
     if x is None:
         return []
@@ -216,6 +242,7 @@ def load_config(path: str | Path | None = None) -> RunConfig:
         )
     cfg.seed = int(d.get("seed", cfg.seed))
     cfg.budget_chars = int(d.get("budget_chars", cfg.budget_chars))
+    cfg.effort = check_effort(d.get("effort", cfg.effort), f"{path} [default]")
     cfg.compress = bool(d.get("compress", cfg.compress))
     cfg.max_tokens = int(d.get("max_tokens", cfg.max_tokens))
     cfg.est_completion_tokens = int(d.get("est_completion_tokens", cfg.est_completion_tokens))
@@ -236,6 +263,7 @@ def load_config(path: str | Path | None = None) -> RunConfig:
                 backend=str(entry.get("backend", "auto")),
                 model=str(entry.get("model", "") or ""),
                 temperature=float(entry.get("temperature", 0.4)),
+                effort=check_effort(entry.get("effort"), f"{path} reviewer {rid}"),
             )
         )
     if reviewers:
@@ -250,6 +278,7 @@ def load_config(path: str | Path | None = None) -> RunConfig:
             backend=str(ac.get("backend", "auto")),
             model=str(ac.get("model", "") or ""),
             temperature=float(ac.get("temperature", 0.3)),
+            effort=check_effort(ac.get("effort"), f"{path} [ac]"),
         )
 
     for name, spec in raw.get("agents", {}).items():
@@ -311,8 +340,13 @@ def apply_overrides(
     backend: str | None = None,
     model: str | None = None,
     reviewers_count: int | None = None,
+    effort: str | None = None,
 ) -> RunConfig:
     """Return a copy of cfg with CLI-flag overrides applied."""
+    if effort is not None:  # --effort wins over every per-role setting
+        cfg.effort = check_effort(effort, "--effort")
+        cfg.reviewers = [replace(r, effort="") for r in cfg.reviewers]
+        cfg.ac = replace(cfg.ac, effort="")
     if venue is not None:
         if venue not in VENUE_KEYS:
             raise ConfigError(f"unknown venue '{venue}' — supported: {', '.join(VENUE_KEYS)}")

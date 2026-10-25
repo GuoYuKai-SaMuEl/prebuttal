@@ -57,6 +57,8 @@ class OllamaProvider(BaseProvider):
             ],
             "options": options,
         }
+        if self.applied_effort:  # gpt-oss takes "low" | "medium" | "high"
+            payload["think"] = self.applied_effort
         try:
             r = httpx.post(f"{self.base_url}/api/chat", json=payload, timeout=self.timeout_s)
         except httpx.HTTPError as e:

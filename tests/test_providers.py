@@ -385,8 +385,10 @@ def test_anthropic_provider_request_shape(monkeypatch):
     body = captured["json"]
     assert body["system"] == "S"
     assert body["messages"] == [{"role": "user", "content": "U"}]
-    assert body["temperature"] == 0.3
-    assert "seed" not in body  # Anthropic has no seed parameter — recorded, not sent
+    # current Claude models accept only default sampling: never send temperature
+    assert "temperature" not in body and "seed" not in body
+    assert body["max_tokens"] >= 16_000  # room for (default-on) thinking
+    assert "output_config" not in body  # effort unset: the model's default
 
 
 def test_agent_cli_prompt_on_stdin(monkeypatch):
