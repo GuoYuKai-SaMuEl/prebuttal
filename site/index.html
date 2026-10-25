@@ -79,6 +79,12 @@
     background: var(--code-bg); border-radius: 5px; padding: 1px 6px;
     font: 13px ui-monospace, Consolas, monospace;
   }
+  .term {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; margin: 0 0 20px;
+    font: 13px/1.7 ui-monospace, Consolas, monospace;
+  }
+  .term a, .term span { color: inherit; }
   .note {
     border-left: 3px solid var(--accent2); background: var(--bg2);
     padding: 12px 18px; border-radius: 0 8px 8px 0; font-size: 14px; color: var(--muted);
@@ -143,17 +149,18 @@
   Unofficial demos — not written or endorsed by the papers' authors.</p>
   <div class="card paper">
     <div class="left">
-      <h3>Mamba: Linear-Time Sequence Modeling with Selective State Spaces</h3>
-      <div class="venue">ICLR 2024 · <a href="reports/mamba.html">full report →</a></div>
-      <p>Ours praised the efficiency results and flagged scaling beyond 2.8B and the
-      continuous-modality trade-off — but no reviewer played the lone confident
-      skeptic. Real ICLR: 8 / 8 / 6 / <strong>3</strong> (confidence 5) → rejected;
-      later accepted at COLM 2024.</p>
+      <h3>Mamba — one paper, two rounds: the rejected v1 vs the revised v2</h3>
+      <div class="venue">ICLR 2024 → COLM 2024 · <a href="reports/mamba-revision.html">full comparison →</a></div>
+      <p>The same cross-model panel (claude sonnet · codex · gemini-3.8-flash, AC
+      opus) reviewed both arXiv versions of Mamba. Only the adversarial reviewer
+      moved (5 → 6) and the disagreement narrowed — the same direction as the real
+      outcome. Weaknesses the revision actually fixed disappeared from the panel's
+      list; the ones the real reviewers hammered on persisted.</p>
     </div>
     <div class="score">
-      <div class="num">8<span style="font-size:18px;color:var(--muted)">/10</span></div>
-      <div class="cap">3 reviewers, unanimous</div>
-      <div class="real">real panel: 8/8/6/3 · rejected</div>
+      <div class="num">7.0 → 7.3<span style="font-size:18px;color:var(--muted)">/10</span></div>
+      <div class="cap">v1 → v2 · same panel, same seed</div>
+      <div class="real">real: rejected → accepted</div>
     </div>
   </div>
   <div class="card paper">
@@ -187,9 +194,51 @@
   </div>
   <div class="note">
     Calibration caveats, stated plainly: frontier models have almost certainly seen
-    these papers in training (contamination); the flash-lite panel skewed lenient on
-    Mamba and produced no dissenter. These comparisons illustrate the workflow, not a
-    validated predictor. A stress test, not a prophecy.
+    these papers in training (contamination), which pushes scores toward the lenient
+    side — an earlier single-model panel rated Mamba 8/8/8 with no dissenter at all.
+    The revision-round demo above shows a directionally-correct but modest response.
+    These comparisons illustrate the workflow, not a validated predictor.
+    A stress test, not a prophecy.
+  </div>
+
+  <h2 id="revision-loop">The revision loop</h2>
+  <p class="sub">Every paper is a project; every run lines up as revision history —
+  and two runs can be diffed. New in v0.2.</p>
+  <pre class="term">$ prebuttal run 2312.00752v1 --note "v1 — rejected at ICLR 2024"
+  R1 claude/sonnet 8 · R2 codex 5 · R3 gemini-3.8-flash 8
+  Predicted: 7/10 (σ 1.41)          → saved as mamba-revision#1
+
+$ prebuttal run 2312.00752 --note "v2 — revised, accepted at COLM 2024"
+  Predicted: 7.33/10 (σ 0.94)       → saved as mamba-revision#2
+
+$ prebuttal diff
+  panel        7/10 → 7.33/10   (Δ +0.33) · σ 1.41 → 0.94
+  adversarial  5 → 6            (Δ +1)
+  gone:        "Mamba-3B vs 2.8B naming inconsistency"   — fixed by the revision
+  persists:    "no variance / error bars reported"       — the real reviewers' complaint too</pre>
+  <div class="grid">
+    <div class="card">
+      <h3>Projects &amp; run history</h3>
+      <p>Each paper gets a project found from its source — the same PDF, LaTeX
+      folder or arXiv id always lands in the same project, even after a title
+      change. Runs are numbered (<code>mamba#3</code>) and carry your
+      <code>--note "what changed"</code>.</p>
+    </div>
+    <div class="card">
+      <h3>A local dashboard</h3>
+      <p><code>prebuttal dashboard</code> writes one offline HTML page with every
+      project, score trends and links to each report — no server, no network,
+      nothing leaves your machine. The archive itself is user-only
+      (<code>0700</code>).</p>
+    </div>
+    <div class="card">
+      <h3>Reports that never overwrite</h3>
+      <p>Every run writes its own folder —
+      <code>prebuttal-reports/&lt;project&gt;/&lt;date&gt;_&lt;venue&gt;/</code> —
+      plus <code>latest.md</code> / <code>latest.html</code>, with a built-in
+      <code>.gitignore</code> so reviews of unpublished work stay out of version
+      control.</p>
+    </div>
   </div>
 
   <h2>Bring your own backend</h2>
@@ -212,7 +261,7 @@
 
   <footer>
     MIT License · Prebuttal is not affiliated with NeurIPS, ICLR, ICML or ARR ·
-    Reports on this page were generated by Prebuttal v0.1.0 from the public arXiv
+    Reports on this page were generated by Prebuttal from the public arXiv
     versions of the papers · <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">Source</a><br>
     This site counts anonymous page views with <a href="https://www.goatcounter.com/">GoatCounter</a>
     (no cookies, no personal data). The <code>prebuttal</code> tool itself sends no analytics.
