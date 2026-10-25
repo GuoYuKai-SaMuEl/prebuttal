@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "prebuttal"
 dynamic = ["version"]
-description = "Pre-submission review stress test: three independent AI reviewers + area chair, real conference review forms, OpenReview calibration pipeline."
+description = "Pre-submission review stress test for ML papers: three independent AI reviewers + an area chair, real conference review forms, measured disagreement."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

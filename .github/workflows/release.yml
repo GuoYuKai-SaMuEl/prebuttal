@@ -3,7 +3,7 @@
 #
 # Uses PyPI Trusted Publishing (OIDC) — no API token is stored anywhere.
 # One-time setup on pypi.org: Account → Publishing → "Add a new pending
-# publisher" with owner GuoYuKai-SaMuEl, repository Prebuttal, workflow
+# publisher" with owner GuoYuKai-SaMuEl, repository prebuttal, workflow
 # release.yml, environment pypi. Then create the `pypi` environment in the
 # GitHub repo (Settings → Environments) — optionally with required reviewers
 # so every upload needs a click.
@@ -84,4 +84,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
-            --notes "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/main/CHANGELOG.md) for details. Install: \`pipx install prebuttal\`"
+            --notes "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/main/CHANGELOG.md) for details. Install: \`pip install prebuttal\`"

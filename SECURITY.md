@@ -41,14 +41,19 @@ Know what is intentional behavior before reporting it:
   you may review papers you did not write (any arXiv id). Mitigations:
   - the built-in agent backends are locked down: `claude -p` runs with all
     tools disabled (`--tools ""`) and no MCP servers (`--strict-mcp-config`);
-    `codex exec` runs in its `--sandbox read-only` mode; both start in an
-    empty temporary directory instead of your project;
+    `codex exec` runs in its `--sandbox read-only` mode, without your
+    `~/.codex/config.toml` (`--ignore-user-config`, so none of your MCP
+    servers are reachable) and without saving the session — and with it the
+    paper — to disk (`--ephemeral`); both start in an empty temporary
+    directory instead of your project;
   - every prompt fences the paper inside `<submission>…</submission>` as
     untrusted data, strips forged fence tags, and tells reviewers to report
     embedded instructions as a weakness instead of following them.
   Residual risk: a model can still be *persuaded* to skew its own score or
   text, and Codex's read-only sandbox can still read files outside the temp
-  directory. Custom `[agents.*]` commands get the fence but none of the CLI
+  directory. The Codex lock-down flags were verified against codex-cli
+  0.164 (argument parsing and sandbox mode); a full Codex review run was not
+  part of the release testing. Custom `[agents.*]` commands get the fence but none of the CLI
   lock-down — restrict their tools yourself. Read reports before sharing them.
 - **No telemetry.** Prebuttal makes network calls only to the backend you
   configured and (for arXiv input) to arxiv.org to download the paper.

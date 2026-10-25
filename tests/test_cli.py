@@ -83,7 +83,7 @@ def test_run_end_to_end_with_fake_backend(tmp_path, monkeypatch, latex_project, 
     assert data["run"]["seed"] == 7
 
     html = (tmp_path / "report.html").read_text(encoding="utf-8")
-    assert "pipx install prebuttal" in html
+    assert "pip install prebuttal" in html
 
 
 def test_run_creates_missing_output_dirs(tmp_path, monkeypatch, latex_project, fake_statuses):

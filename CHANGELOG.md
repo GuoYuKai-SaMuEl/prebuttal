@@ -18,8 +18,9 @@ First public release.
 
 - Prompt-injection hardening — the paper is untrusted input. `agent-claude`
   now runs `claude -p --tools "" --strict-mcp-config` (no tools, no MCP),
-  `agent-codex` runs `codex exec --sandbox read-only`, and both start in an
-  empty temporary directory instead of your project. Every prompt fences the
+  `agent-codex` runs `codex exec --sandbox read-only --ignore-user-config
+  --ephemeral` (no user MCP servers, no session files holding the paper),
+  and both start in an empty temporary directory instead of your project. Every prompt fences the
   paper in `<submission>…</submission>` as data and asks reviewers to report
   embedded instructions as a weakness. An outdated CLI that rejects the new
   flags fails fast with an "update the CLI" message. See SECURITY.md.
@@ -135,6 +136,8 @@ First public release.
   LaTeX regression fixture are covered by tests.
 - Wording: scores are no longer described as "calibrated" — the calibration
   pipeline ships, published results are pending.
+- README installs with plain `pip install prebuttal` (pipx / `uv tool` as
+  the isolated alternative); share pages and the site say the same.
 - Classifier `Development Status :: 3 - Alpha` (was Beta) to match pre-release.
 - Machine-specific scripts moved to the gitignored `scripts/dev/`.
 - Default models brought up to the current mid-tier generation (verified

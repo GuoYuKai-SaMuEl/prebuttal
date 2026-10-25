@@ -41,12 +41,16 @@ That is the main competitor. It loses, four ways:
 ## Quickstart
 
 ```bash
-pipx install prebuttal          # or: uvx prebuttal ...
+pip install prebuttal
 
 prebuttal run paper.pdf --venue iclr
 prebuttal run https://arxiv.org/abs/2510.12345 --venue neurips
 prebuttal run ./latex-src/ --venue acl
 ```
+
+Prefer an isolated install for command-line tools? `pipx install prebuttal`
+or `uv tool install prebuttal` work the same way (or `uvx prebuttal ...` to
+run without installing). Requires Python 3.11+.
 
 The first run costs **zero setup** if you already have a subscription CLI or
 Ollama — Prebuttal auto-detects the cheapest path at startup and prints what it
@@ -55,7 +59,7 @@ chose (`prebuttal backends` to inspect):
 | Backend | Auth | Notes |
 |---|---|---|
 | `agent-claude` (`claude -p`) | your Claude subscription, **zero API key** | preferred reviewer |
-| `agent-codex` (`codex exec`) | your Codex subscription, **zero API key** | gives cross-model reviews together with claude |
+| `agent-codex` (`codex exec`) | your Codex subscription, **zero API key** | gives cross-model reviews together with claude; runs locked down, ignoring `~/.codex/config.toml` (see [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md)) |
 | `api-gemini` | GEMINI_API_KEY | **free tier** — the cheapest "first key" path |
 | `api-openai` / `api-anthropic` | OPENAI_API_KEY / ANTHROPIC_API_KEY | BYO key |
 | `api-openrouter` | OPENROUTER_API_KEY | one key, hundreds of models — **`:free` ids cost nothing** (default is one); prices shown live in `prebuttal models` |
@@ -206,7 +210,7 @@ Install it into your agent's skills directory — for Claude Code:
 
 ```bash
 mkdir -p ~/.claude/skills/prebuttal && curl -fsSL -o ~/.claude/skills/prebuttal/SKILL.md \
-  https://raw.githubusercontent.com/GuoYuKai-SaMuEl/Prebuttal/main/skills/prebuttal/SKILL.md
+  https://raw.githubusercontent.com/GuoYuKai-SaMuEl/prebuttal/main/skills/prebuttal/SKILL.md
 # or, from a clone: cp -r skills/prebuttal ~/.claude/skills/
 ```
 

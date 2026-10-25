@@ -28,7 +28,7 @@ exactly what this tool exists to avoid.
 ## How to run it
 
 1. Check the CLI is installed: `prebuttal --version`.
-   If missing: `pipx install prebuttal` (or `uvx prebuttal ...` one-shot).
+   If missing: `pip install prebuttal` (or `pipx install prebuttal`; `uvx prebuttal ...` for a one-shot run).
 2. Identify the paper source and target venue:
    - source: a PDF path, a LaTeX project directory, or an arXiv link/id
    - venue: `neurips` | `iclr` | `icml` | `acl` (ask if unclear; default neurips)

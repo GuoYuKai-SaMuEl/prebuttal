@@ -10,6 +10,9 @@ venv/
 htmlcov/
 
 # Prebuttal run artifacts
+*-or.md
+*-or.json
+*-or.html
 prebuttal-report.md
 prebuttal-report.html
 prebuttal-report.json
@@ -30,3 +33,5 @@ docs/internal/
 # Machine-specific dev scripts (local paths, personal tooling) — keep them
 # here, outside version control, so they never land in the public repo again
 scripts/dev/
+# old location of the ZCode bridge (now under scripts/dev/), incl. its prompts/answers
+scripts/zcode_bridge/

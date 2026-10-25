@@ -10,8 +10,9 @@ Temperature/seed are *recorded* in the report — agent CLIs do not expose them.
 
 The paper is untrusted input (any arXiv id can be reviewed), so the built-in
 backends are locked down against prompt injection: ``claude`` runs with every
-tool disabled and no MCP servers, ``codex`` in its read-only sandbox, and both
-in an empty temporary working directory instead of the user's project.
+tool disabled and no MCP servers, ``codex`` in its read-only sandbox without
+the user's config.toml (so no MCP servers) and without persisting the session,
+and both in an empty temporary working directory instead of the user's project.
 """
 
 from __future__ import annotations
@@ -157,7 +158,18 @@ def claude_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIPro
 def codex_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProvider:
     return AgentCLIProvider(
         "agent-codex",
-        ["codex", "exec", "--skip-git-repo-check", "--sandbox", "read-only", "-"],
+        # read-only sandbox for shell commands; no user config (= no MCP servers
+        # an injected prompt could call); no session files with the paper on disk
+        [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--ignore-user-config",
+            "--ephemeral",
+            "-",
+        ],
         model=model,
         timeout_s=timeout_s,
         detail="Codex CLI headless (`codex exec`), subscription auth, zero API key",

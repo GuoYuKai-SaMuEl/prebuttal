@@ -142,7 +142,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   </div>
   {meta_html}
   <footer>
-    Generated with <b>Prebuttal</b> — <code>pipx install prebuttal</code> ·
+    Generated with <b>Prebuttal</b> — <code>pip install prebuttal</code> ·
     <a href="{_e(repo_url)}">{_e(repo_url)}</a><br>
     Simulated reviews by LLMs as listed; scores are not predictions of real reviewer behavior.
   </footer>

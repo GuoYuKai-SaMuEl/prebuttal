@@ -56,7 +56,7 @@ def test_share_html(latex_project):
     html = render_share_html(report, venue, "https://github.com/x/prebuttal")
 
     assert report.paper.title in html
-    assert "pipx install prebuttal" in html
+    assert "pip install prebuttal" in html
     assert "https://github.com/x/prebuttal" in html
     assert "6/10" in html  # per-reviewer chips
     assert "Meta-review" in html

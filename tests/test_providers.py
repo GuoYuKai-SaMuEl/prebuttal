@@ -461,6 +461,8 @@ def test_agent_cli_forwards_model_flag(monkeypatch):
         "--skip-git-repo-check",
         "--sandbox",
         "read-only",
+        "--ignore-user-config",
+        "--ephemeral",
         "--model",
         "gpt-5.1",
         "-",
@@ -498,6 +500,7 @@ def test_builtin_agents_run_locked_down_in_empty_cwd(monkeypatch, tmp_path):
         assert not os.path.exists(cwd)  # cleaned up afterwards
     assert seen[0][0][2:5] == ["--tools", "", "--strict-mcp-config"]
     assert "read-only" in seen[1][0]
+    assert "--ignore-user-config" in seen[1][0] and "--ephemeral" in seen[1][0]
 
 
 def test_agent_cli_outdated_flag_is_not_retried(monkeypatch):
