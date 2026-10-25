@@ -61,7 +61,7 @@ class BaseProvider(ABC):
         temperature: float = 0.4,
         seed: int | None = None,
         max_tokens: int = 4000,
-        retries: int = 2,
+        retries: int = 3,
     ) -> Completion:
         last: Exception | None = None
         for attempt in range(retries + 1):
@@ -79,7 +79,9 @@ class BaseProvider(ABC):
             except TransientProviderError as e:
                 last = e
                 if attempt < retries:
-                    time.sleep(min(2**attempt * 2, 20))
+                    # Free-tier pools (":free" models) saturate in waves of tens
+                    # of seconds; short 1-2s backoffs just burn the request quota.
+                    time.sleep(min(2**attempt * 6, 45))
         raise ProviderError(f"[{self.backend}] {last}")
 
     def describe(self) -> str:

@@ -242,7 +242,10 @@ def run_one_reviewer(
     provider: BaseProvider,
     cfg: RunConfig,
     log: Log,
+    delay_s: float = 0.0,
 ) -> Review:
+    if delay_s:
+        time.sleep(delay_s)
     seed = reviewer_seed(cfg, rcfg, index)
     review = Review(
         reviewer_id=rcfg.id,
@@ -324,11 +327,19 @@ def run_reviews(
     log: Log,
 ) -> list[Review]:
     reviews: list[Review] = [None] * len(cfg.reviewers)  # type: ignore[list-item]
+    # ":free" models draw from a shared, burst-hostile upstream pool: dispatch
+    # them a few seconds apart instead of all in the same instant.
+    free_seen = 0
     with ThreadPoolExecutor(max_workers=max(1, len(cfg.reviewers))) as pool:
         futures = {}
         for idx, rcfg in enumerate(cfg.reviewers):
             provider = providers[rcfg.id]
-            futures[pool.submit(run_one_reviewer, rcfg, idx, venue, pack, provider, cfg, log)] = idx
+            delay = 0.0
+            if provider.model.endswith(":free"):
+                delay = free_seen * 6.0
+                free_seen += 1
+            fut = pool.submit(run_one_reviewer, rcfg, idx, venue, pack, provider, cfg, log, delay)
+            futures[fut] = idx
         for fut in as_completed(futures):
             idx = futures[fut]
             reviews[idx] = fut.result()
