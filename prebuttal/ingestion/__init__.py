@@ -14,8 +14,34 @@ class IngestError(Exception):
     pass
 
 
+def display_path(p: Path) -> str:
+    """How a local source appears in reports, JSON and run history.
+
+    Reports get shared; an absolute path leaks the user name and directory
+    layout (``C:\\Users\\<name>\\...``).  Keep it relative to the working
+    directory, else to ``~``, else just the file/directory name.
+    """
+    full = p.resolve()
+    try:
+        rel = full.relative_to(Path.cwd().resolve())
+        return str(rel) if str(rel) != "." else full.name
+    except ValueError:
+        pass
+    try:
+        return "~/" + full.relative_to(Path.home().resolve()).as_posix()
+    except (ValueError, RuntimeError):  # RuntimeError: no resolvable home
+        return full.name
+
+
 def ingest(source: str) -> StructuredPaper:
     """Route ``source`` (path or arXiv URL/id) to the right parser."""
+    paper = _ingest(source)
+    if paper.source_type != "arxiv":
+        paper.source_path = display_path(Path(source.strip()))
+    return paper
+
+
+def _ingest(source: str) -> StructuredPaper:
     s = source.strip()
 
     if s.startswith(("http://", "https://")) or parse_arxiv_id(s):

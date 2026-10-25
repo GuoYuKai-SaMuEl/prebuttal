@@ -1,0 +1,78 @@
+% SYNTHETIC PAPER — written for Prebuttal's examples to show what a weak
+% submission's report looks like. The method, numbers and citations are
+% fictional; the flaws (overclaiming, single seed, test-set tuning, missing
+% baselines and ablations) are deliberate.
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\title{GlobalGate: A Universal Attention Mechanism That Solves Long-Context Reasoning}
+\author{Anonymous}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Long-context reasoning remains unsolved. We introduce GlobalGate, a gating
+layer that multiplies every attention head by a learned scalar. GlobalGate
+solves long-context reasoning, outperforming all existing methods on every
+benchmark. On our new dataset, LongQA-Mini, it improves accuracy from 61.0\%
+to 74.0\%. GlobalGate is universal: it works for any architecture, task and
+modality.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+Transformers struggle with long inputs. Many methods have been proposed, but
+none of them work in practice. GlobalGate is the first method to truly solve
+the problem. Our contributions:
+\begin{itemize}
+\item GlobalGate, a universal attention mechanism (Section~\ref{sec:method});
+\item state-of-the-art results on all benchmarks (Section~\ref{sec:exp});
+\item LongQA-Mini, a new benchmark for long-context reasoning.
+\end{itemize}
+
+\section{Method}\label{sec:method}
+For each head $h$ we learn a scalar $g_h$ and compute
+\begin{equation}
+\mathrm{head}'_h = \sigma(g_h)\,\mathrm{head}_h .
+\label{eq:gate}
+\end{equation}
+Because Eq.~\eqref{eq:gate} can suppress irrelevant heads, the model can
+focus on relevant context at any length. We do not analyse why this helps
+beyond 2k tokens; we believe it is self-evident.
+
+\section{Experiments}\label{sec:exp}
+\subsection{Setup}
+LongQA-Mini contains 200 questions written by the authors; we use the same
+200 questions to select hyperparameters and to report results. Each model is
+trained once (seed 0). Context length is 2k tokens. The baseline is a vanilla
+Transformer trained by us for 1 epoch; GlobalGate is trained for 5 epochs.
+
+\subsection{Main results}
+\begin{table}[t]
+\centering
+\caption{Accuracy (\%) on LongQA-Mini (200 questions, single run).}
+\label{tab:main}
+\begin{tabular}{lcc}
+\toprule
+Model & Accuracy & Params \\
+\midrule
+Transformer (ours, 1 epoch) & 61.0 & 125M \\
+\textbf{GlobalGate (5 epochs)} & \textbf{74.0} & 125M \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:main} shows GlobalGate is 13 points better, confirming that it
+outperforms all existing methods. We did not compare against other
+long-context methods because they are known to be worse.
+
+\section{Conclusion}
+GlobalGate solves long-context reasoning for every architecture, task and
+modality. Future work is unnecessary.
+
+\begin{thebibliography}{1}
+\bibitem{vaswani2017attention}
+Ashish Vaswani et al.
+\newblock Attention is all you need.
+\newblock In \emph{NeurIPS}, 2017.
+\end{thebibliography}
+\end{document}

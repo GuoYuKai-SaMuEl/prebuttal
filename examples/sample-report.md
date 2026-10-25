@@ -1,7 +1,7 @@
 # Prebuttal Report — Latent Bottleneck Transformers for Efficient Long-Context Modeling
 
-> **Venue:** ICLR (iclr) · **Generated:** 2026-10-24T16:13:47+00:00 · **Source:** latex `D:\Prebuttal\examples\demo-paper`
-> prebuttal v0.1.0 · seed 42 · pack 2,935 chars (sha256/cbb388be3d538fe9)
+> **Venue:** ICLR (iclr) · **Generated:** 2026-10-25T09:39:47+00:00 · **Source:** latex `examples/demo-paper`
+> prebuttal v0.1.0 · seed 42 · pack 2,927 chars (sha256/51293925002719c9)
 
 ## Predicted outcome
 

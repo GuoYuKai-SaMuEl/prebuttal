@@ -237,3 +237,19 @@ def test_ingest_error_exit_code(tmp_path, monkeypatch, fake_statuses):
     monkeypatch.chdir(tmp_path)
     rc = cli.main(["run", str(tmp_path / "no-such-paper.pdf")])
     assert rc == cli.EXIT_USAGE
+
+
+def test_reports_do_not_leak_absolute_paths(tmp_path_factory, monkeypatch, latex_project):
+    from pathlib import Path
+
+    from prebuttal.ingestion import display_path, ingest
+
+    monkeypatch.chdir(latex_project.parent)
+    paper = ingest(str(latex_project.resolve()))
+    assert paper.source_path == latex_project.name  # relative to cwd
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: latex_project.parent))
+    monkeypatch.chdir(tmp_path_factory.mktemp("unrelated-cwd"))
+    assert display_path(latex_project) == f"~/{latex_project.name}"
+    elsewhere = tmp_path_factory.mktemp("unrelated-home")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: elsewhere))
+    assert display_path(latex_project) == latex_project.name

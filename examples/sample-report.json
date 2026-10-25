@@ -1,6 +1,6 @@
 {
   "prebuttal_version": "0.1.0",
-  "generated_at": "2026-10-24T16:13:47+00:00",
+  "generated_at": "2026-10-25T09:39:47+00:00",
   "venue": {
     "key": "iclr",
     "name": "ICLR"
@@ -8,20 +8,20 @@
   "run": {
     "venue": "iclr",
     "seed": 42,
-    "generated_at": "2026-10-24T16:13:47+00:00",
+    "generated_at": "2026-10-25T09:39:47+00:00",
     "prebuttal_version": "0.1.0",
-    "python_version": "3.13.1",
-    "platform": "Windows-10-10.0.19045-SP0",
-    "source": "D:\\Prebuttal\\examples\\demo-paper",
+    "python_version": "3.13.17",
+    "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+    "source": "examples/demo-paper",
     "source_type": "latex",
-    "pack_chars": 2935,
-    "pack_sha256": "cbb388be3d538fe9",
+    "pack_chars": 2927,
+    "pack_sha256": "51293925002719c9",
     "config_path": null
   },
   "paper": {
     "title": "Latent Bottleneck Transformers for Efficient Long-Context Modeling",
     "source_type": "latex",
-    "source_path": "D:\\Prebuttal\\examples\\demo-paper",
+    "source_path": "examples/demo-paper",
     "sections": 10,
     "tables": 1,
     "figures": 1,
@@ -73,8 +73,8 @@
         "prompt_tokens": 1000,
         "completion_tokens": 200
       },
-      "duration_s": 0.00019130000146105886,
-      "started_at": "2026-10-24T16:13:47+00:00",
+      "duration_s": 0.00025676200016278017,
+      "started_at": "2026-10-25T09:39:47+00:00",
       "rating_label": "Accept — good paper"
     },
     {
@@ -109,8 +109,8 @@
         "prompt_tokens": 1000,
         "completion_tokens": 200
       },
-      "duration_s": 8.369999704882503e-05,
-      "started_at": "2026-10-24T16:13:47+00:00",
+      "duration_s": 0.00041528899987497425,
+      "started_at": "2026-10-25T09:39:47+00:00",
       "rating_label": "Reject — not good enough"
     },
     {
@@ -145,8 +145,8 @@
         "prompt_tokens": 1000,
         "completion_tokens": 200
       },
-      "duration_s": 6.910000229254365e-05,
-      "started_at": "2026-10-24T16:13:47+00:00",
+      "duration_s": 0.00028705399995487824,
+      "started_at": "2026-10-25T09:39:47+00:00",
       "rating_label": "Marginally above acceptance threshold"
     }
   ],
@@ -166,7 +166,7 @@
       "prompt_tokens": 1000,
       "completion_tokens": 200
     },
-    "duration_s": 0.00027080002473667264
+    "duration_s": 0.00028156899998066365
   },
   "usage_total": {
     "prompt_tokens": 4000,
