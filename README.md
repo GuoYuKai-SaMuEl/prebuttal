@@ -52,6 +52,7 @@ chose (`prebuttal backends` to inspect):
 | `agent-codex` (`codex exec`) | your Codex subscription, **zero API key** | gives cross-model reviews together with claude |
 | `api-gemini` | GEMINI_API_KEY | **free tier** — the cheapest "first key" path |
 | `api-openai` / `api-anthropic` | OPENAI_API_KEY / ANTHROPIC_API_KEY | BYO key |
+| `api-openrouter` | OPENROUTER_API_KEY | one key, hundreds of models — **`:free` ids cost nothing** (default is one); prices shown live in `prebuttal models` |
 | `ollama` | none | local & private — *unpublished papers never leave your machine* |
 | `relay` | none | file protocol: prompts spool to disk and **you, your agent's subagents, or any system** write the answers — zero key, explicit only (`--backend relay`; never picked by auto) |
 
@@ -202,9 +203,9 @@ CI setups are unaffected. `prebuttal key status` shows what's set (masked),
 
 | Variable | Purpose |
 |---|---|
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | enable the matching API backend |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) / `OPENROUTER_API_KEY` | enable the matching API backend |
 | `OPENAI_BASE_URL` | point `api-openai` at an OpenAI-compatible proxy |
-| `PREBUTTAL_OPENAI_MODEL` / `PREBUTTAL_ANTHROPIC_MODEL` / `PREBUTTAL_GEMINI_MODEL` | override each backend's default model |
+| `PREBUTTAL_OPENAI_MODEL` / `PREBUTTAL_ANTHROPIC_MODEL` / `PREBUTTAL_GEMINI_MODEL` / `PREBUTTAL_OPENROUTER_MODEL` | override each backend's default model |
 | `PREBUTTAL_OLLAMA_HOST` (or `OLLAMA_HOST`) | Ollama base URL (default `http://localhost:11434`) |
 | `PREBUTTAL_BACKEND` | force one backend for every reviewer + the AC (e.g. `relay`); `--backend` still wins, `prebuttal.toml` loses |
 | `PREBUTTAL_HOME` | run-history and key storage location (default `~/.prebuttal`) |

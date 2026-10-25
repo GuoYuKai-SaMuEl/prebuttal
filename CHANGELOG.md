@@ -12,6 +12,14 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Added
 
+- `api-openrouter` backend: one OPENROUTER_API_KEY, hundreds of models,
+  OpenAI-compatible wire format (attribution headers sent; JSON mode not
+  forced since many OpenRouter models reject it). Default is a `:free` model
+  (nvidia/nemotron-3.5-lightning:free) so the zero-cost story holds; `:free`
+  ids show as $0 in `--dry-run`. `prebuttal key set openrouter` stores the
+  key. `prebuttal models` scans OpenRouter's public catalog with no key at
+  all — free ids first with live per-1M prices, then curated notables — and
+  the reviewer wizard accepts typing any custom model id.
 - Interactive plan confirmation for auto mode: on a terminal, `prebuttal run`
   shows the full review plan (personas, backends, models, cost) before calling
   anything — `[Enter]` runs, `[e]` opens a numbered-menu wizard (persona →

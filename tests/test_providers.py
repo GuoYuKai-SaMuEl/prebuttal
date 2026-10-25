@@ -211,6 +211,45 @@ def test_openai_provider_request_shape(monkeypatch):
     assert body["messages"][1] == {"role": "user", "content": "U"}
 
 
+def test_openrouter_provider_request_shape(monkeypatch):
+    import httpx
+
+    from prebuttal.providers.api import OpenRouterProvider
+
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["auth"] = request.headers.get("Authorization")
+        captured["referer"] = request.headers.get("HTTP-Referer")
+        captured["title"] = request.headers.get("X-Title")
+        captured["json"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": '{"rating": 9}'}}],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 8},
+            },
+        )
+
+    _install_mock_http(monkeypatch, handler)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-test")
+
+    provider = OpenRouterProvider()  # default model is a :free id
+    assert provider.model.endswith(":free")
+    comp = provider.complete(
+        system="S", user="U", temperature=0.6, seed=3, max_tokens=700, retries=0
+    )
+    assert comp.text == '{"rating": 9}'
+    assert comp.usage.prompt_tokens == 20 and comp.usage.completion_tokens == 8
+    assert captured["url"] == "https://openrouter.ai/api/v1/chat/completions"
+    assert captured["auth"] == "Bearer or-test"
+    assert captured["referer"] and captured["title"] == "prebuttal"
+    body = captured["json"]
+    assert body["seed"] == 3 and body["temperature"] == 0.6
+    assert "response_format" not in body  # many OpenRouter models reject JSON mode
+
+
 def test_anthropic_provider_request_shape(monkeypatch):
     import httpx
 

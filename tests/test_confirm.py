@@ -113,8 +113,25 @@ def test_interactive_edit_then_run(tmp_path, monkeypatch, latex_project, capsys)
     monkeypatch.chdir(tmp_path)
     _auto_statuses(monkeypatch)
     monkeypatch.setattr(cli, "_is_interactive", lambda: True)
-    # confirm: e(dit) → R1 persona keep, R1 backend pick 2 (fake), R2/R3/AC keep defaults → run
-    answers = iter(["e", "", "2", "", "", "", "", "", ""])
+    # confirm: e(dit) → per reviewer: persona, backend, model (each now always
+    # asks, with "(type a custom model id)" as the last model option) → run
+    answers = iter(
+        [
+            "e",  # confirm → edit
+            "",
+            "2",
+            "",  # R1: persona keep, backend → fake, model default
+            "",
+            "",
+            "",  # R2: keep defaults
+            "",
+            "",
+            "",  # R3: keep defaults
+            "",
+            "",  # AC: backend, model
+            "",  # confirm → run
+        ]
+    )
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
 
     rc = cli.main(["run", str(latex_project), "--config", str(_config(tmp_path)), "--out", "r.md"])

@@ -81,11 +81,18 @@ def test_scan_without_keys_is_graceful(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr("prebuttal.providers.ollama.ollama_models", lambda base: [])
+    # scan() hits OpenRouter's public catalog — keep the test offline
+    monkeypatch.setattr(
+        "prebuttal.modelscan.openrouter_catalog",
+        lambda max_rows=40: (["some/model:free"], {"some/model:free": "(free)"}),
+    )
     listings = {x.backend: x for x in scan()}
     assert listings["api-gemini"].note.startswith("(no key")
     assert listings["ollama"].note == "(not running)"
     assert listings["agent-claude"].models == ["opus", "sonnet", "haiku"]
     assert listings["agent-codex"].note.startswith("the codex CLI picks")
+    orl = listings["api-openrouter"]
+    assert orl.models == ["some/model:free"] and orl.prices["some/model:free"] == "(free)"
 
 
 def test_render_marks_default_and_shows_toml_hint():
@@ -104,8 +111,59 @@ def test_cli_models_command(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr("prebuttal.providers.ollama.ollama_models", lambda base: [])
+    monkeypatch.setattr("prebuttal.modelscan.openrouter_catalog", lambda max_rows=40: None)
     rc = cli.main(["models"])
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK
-    for backend in ("api-gemini", "api-openai", "api-anthropic", "ollama", "agent-claude", "relay"):
+    for backend in (
+        "api-gemini",
+        "api-openai",
+        "api-anthropic",
+        "api-openrouter",
+        "ollama",
+        "agent-claude",
+        "relay",
+    ):
         assert backend in out
+
+
+def test_openrouter_catalog_filters_and_prices(monkeypatch):
+    import prebuttal.modelscan as ms
+
+    payload = {
+        "data": [
+            {  # free text model — listed with (free)
+                "id": "acme/tiny:free",
+                "architecture": {"output_modalities": ["text"]},
+                "pricing": {"prompt": "0", "completion": "0"},
+            },
+            {  # notable paid model — listed with per-1M price
+                "id": "acme/llama-big",
+                "architecture": {"output_modalities": ["text"]},
+                "pricing": {"prompt": "0.0000015", "completion": "0.000006"},
+            },
+            {  # image-only — dropped
+                "id": "acme/imagen-ish",
+                "architecture": {"output_modalities": ["image"]},
+                "pricing": {"prompt": "0.0001", "completion": "0"},
+            },
+            {  # music model — dropped by noise filter
+                "id": "google/lyria-3-clip",
+                "architecture": {"output_modalities": ["text", "audio"]},
+                "pricing": {"prompt": "0", "completion": "0"},
+            },
+            {  # non-notable paid — kept out (not free, no notable family)
+                "id": "acme/other-model",
+                "architecture": {"output_modalities": ["text"]},
+                "pricing": {"prompt": "0.000002", "completion": "0.000004"},
+            },
+        ]
+    }
+    monkeypatch.setattr(ms, "_get", lambda url, headers=None: payload)
+    result = ms.openrouter_catalog()
+    assert result is not None
+    ids, prices = result
+    assert ids == ["acme/tiny:free", "acme/llama-big"]  # free ids first
+    assert prices["acme/tiny:free"] == "(free)"
+    assert prices["acme/llama-big"] == "($1.50/$6.00 per 1M)"
+    assert all("imagen" not in i and "lyria" not in i and "other-model" not in i for i in ids)

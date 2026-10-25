@@ -31,6 +31,19 @@ _GEMINI_DROP = re.compile(
 # `claude -p --model` accepts stable aliases (plus full model ids).
 _CLAUDE_ALIASES = ["opus", "sonnet", "haiku"]
 
+# OpenRouter carries ~470 ids; keep the ones a reviewer backend can use.
+_OR_NOISE = re.compile(
+    r"embed|rerank|guard|whisper|-vl$|video|image|tts|lyria|veo|banana|"
+    r"diffusion|sora|online|sora|voice",
+    re.I,
+)
+# No popularity field on the endpoint — curate by known family names instead.
+_OR_NOTABLE = re.compile(
+    r"(^|/)(llama|qwen|deepseek|gemini|gpt|claude|kimi|glm|minimax|mistral|"
+    r"gemma|phi|nemotron|grok)",
+    re.I,
+)
+
 
 @dataclass
 class ModelListing:
@@ -38,6 +51,7 @@ class ModelListing:
     models: list[str]
     default: str
     note: str = ""
+    prices: dict[str, str] | None = None  # id -> price label (OpenRouter live)
 
     def render(self, max_rows: int = 25) -> str:
         head = f"{self.backend}  (default: {self.default or 'CLI decides'})"
@@ -48,7 +62,8 @@ class ModelListing:
             shown = self.models[:max_rows]
             for m in shown:
                 mark = " *" if m == self.default else ""
-                lines.append(f"  - {m}{mark}")
+                price = f"  {self.prices[m]}" if self.prices and m in self.prices else ""
+                lines.append(f"  - {m}{mark}{price}")
             hidden = len(self.models) - len(shown)
             if hidden > 0:
                 lines.append(f"  … and {hidden} more")
@@ -109,6 +124,38 @@ def anthropic_models(api_key: str) -> list[str] | None:
     return sorted(m.get("id", "") for m in data.get("data", []) if m.get("id"))
 
 
+def openrouter_catalog(max_rows: int = 40) -> tuple[list[str], dict[str, str]] | None:
+    """OpenRouter's /models endpoint is public (no key): free models first,
+    then a curated notable set, each with a live per-1M price label."""
+    data = _get("https://openrouter.ai/api/v1/models", headers={})
+    if data is None:
+        return None
+    free: list[str] = []
+    notable: list[str] = []
+    prices: dict[str, str] = {}
+    for m in data.get("data", []):
+        mid = m.get("id", "")
+        if not mid or _OR_NOISE.search(mid):
+            continue
+        arch = m.get("architecture") or {}
+        if "text" not in (arch.get("output_modalities") or []):
+            continue
+        if mid.endswith(":free"):
+            prices[mid] = "(free)"
+            free.append(mid)
+            continue
+        pin, pout = m.get("pricing", {}).get("prompt"), m.get("pricing", {}).get("completion")
+        try:
+            per_in, per_out = float(pin) * 1e6, float(pout) * 1e6
+        except (TypeError, ValueError):
+            continue
+        prices[mid] = f"(${per_in:.2f}/${per_out:.2f} per 1M)"
+        if _OR_NOTABLE.search(mid):
+            notable.append(mid)
+    ids = sorted(free) + sorted(notable)
+    return ids[:max_rows], {k: prices[k] for k in ids[:max_rows]}
+
+
 def scan() -> list[ModelListing]:
     """Build listings for every known backend, scanning where possible."""
     from .providers.api import AnthropicProvider, GeminiProvider, OpenAIProvider
@@ -164,6 +211,32 @@ def scan() -> list[ModelListing]:
         )
     else:
         out.append(ModelListing("api-anthropic", [], AnthropicProvider.default_model(), "(no key)"))
+
+    # OpenRouter's catalog is public — show it even without a key.
+    from .providers.api import OpenRouterProvider
+
+    cat = openrouter_catalog()
+    if cat is None:
+        out.append(
+            ModelListing(
+                "api-openrouter",
+                [],
+                OpenRouterProvider.default_model(),
+                "(could not reach openrouter.ai)",
+            )
+        )
+    else:
+        ids, or_prices = cat
+        out.append(
+            ModelListing(
+                "api-openrouter",
+                ids,
+                OpenRouterProvider.default_model(),
+                "free ids first; any id from openrouter.ai/models works — "
+                "set OPENROUTER_API_KEY (or `prebuttal key set openrouter`) to use",
+                prices=or_prices,
+            )
+        )
 
     from .providers.ollama import ollama_base_url, ollama_models
 

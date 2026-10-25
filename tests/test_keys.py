@@ -46,6 +46,7 @@ def test_unset(isolated_prebuttal_home, monkeypatch):
 def test_resolve_name_friendly_and_env(isolated_prebuttal_home):
     assert resolve_name("gemini") == "GEMINI_API_KEY"
     assert resolve_name("OpenAI") == "OPENAI_API_KEY"
+    assert resolve_name("openrouter") == "OPENROUTER_API_KEY"
     assert resolve_name("GEMINI_API_KEY") == "GEMINI_API_KEY"
     try:
         resolve_name("groq")

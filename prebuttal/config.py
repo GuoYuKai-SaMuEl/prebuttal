@@ -43,7 +43,8 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 
 # backend = "auto" (default) picks the best available backends at startup:
 #   agent-claude / agent-codex  (subscription CLIs, zero API key)
-#   api-gemini / api-openai / api-anthropic  (BYO key; Gemini has a free tier)
+#   api-gemini / api-openai / api-anthropic / api-openrouter  (BYO key;
+#   Gemini has a free tier, OpenRouter has :free models)
 #   ollama (local) / relay (you or your agent answer by hand)
 # Force one backend for every role without editing this file:
 #   PREBUTTAL_BACKEND=relay   (the --backend flag still wins)

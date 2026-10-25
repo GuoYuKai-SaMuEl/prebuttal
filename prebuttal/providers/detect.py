@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from ..config import RunConfig
 from ..keys import KEY_MAP
-from .api import AnthropicProvider, GeminiProvider, OpenAIProvider
+from .api import AnthropicProvider, GeminiProvider, OpenAIProvider, OpenRouterProvider
 from .ollama import ollama_base_url, ollama_models
 
 _PREFERENCE = [
@@ -22,6 +22,7 @@ _PREFERENCE = [
     "api-gemini",
     "api-openai",
     "api-anthropic",
+    "api-openrouter",
     "ollama",
 ]
 
@@ -73,6 +74,7 @@ class NoBackendError(Exception):
             "  - Codex CLI        (npm i -g @openai/codex)              -> agent-codex\n"
             "  - set GEMINI_API_KEY (free tier)                         -> api-gemini\n"
             "  - set OPENAI_API_KEY / ANTHROPIC_API_KEY                 -> api-openai/-anthropic\n"
+            "  - set OPENROUTER_API_KEY (has :free models)              -> api-openrouter\n"
             "  - run Ollama locally (ollama pull llama3.1)               -> ollama\n"
             "Or answer the reviews yourself / via your agent: --backend relay\n"
             "See `prebuttal backends`."
@@ -99,6 +101,7 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
         ("api-gemini", "GEMINI_API_KEY", GeminiProvider),
         ("api-openai", "OPENAI_API_KEY", OpenAIProvider),
         ("api-anthropic", "ANTHROPIC_API_KEY", AnthropicProvider),
+        ("api-openrouter", "OPENROUTER_API_KEY", OpenRouterProvider),
     ):
         has = bool(os.environ.get(env))
         note = f"{env} set"
@@ -107,6 +110,7 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
                 "GEMINI_API_KEY": "free key: aistudio.google.com/apikey",
                 "OPENAI_API_KEY": "platform.openai.com",
                 "ANTHROPIC_API_KEY": "console.anthropic.com",
+                "OPENROUTER_API_KEY": "openrouter.ai/keys — has :free models",
             }[env]
             friendly = next(k for k, v in KEY_MAP.items() if v == env)
             note = f"{env} not set ({where}; `prebuttal key set {friendly}`)"

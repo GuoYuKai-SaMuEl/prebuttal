@@ -16,6 +16,8 @@ def _cost_line(model: str, kind: str, in_tok: int, out_tok: int, cfg: RunConfig)
         return "answered by you / your agent — no model cost"
     if kind == "ollama":
         return "local model — free"
+    if model.endswith(":free"):
+        return "OpenRouter :free tier — $0 (rate-limited)"
     price = cfg.pricing.get(model)
     if not price:
         return 'unknown price — add [pricing."' + model + '"] in prebuttal.toml'

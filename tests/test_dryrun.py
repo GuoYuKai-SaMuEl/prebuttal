@@ -36,3 +36,13 @@ def test_dry_run_unknown_model_pricing_hint():
     text = render_dry_run(cfg, resolved, ("api-openai", "gpt-99"), 10_000, statuses)
     assert "unknown price" in text
     assert "[pricing." in text  # tells the user how to add pricing
+
+
+def test_dry_run_openrouter_free_is_zero_cost():
+    cfg = load_config(None)
+    statuses = [BackendStatus("api-openrouter", "api", True, "key")]
+    free_id = "acme/model:free"
+    resolved = [("R1", "api-openrouter", free_id)]
+    text = render_dry_run(cfg, resolved, ("api-openrouter", free_id), 10_000, statuses)
+    assert ":free tier — $0" in text
+    assert "unknown price" not in text

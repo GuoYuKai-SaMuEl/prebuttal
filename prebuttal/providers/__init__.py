@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from ..config import RunConfig
 from .agent_cli import AgentCLIProvider, claude_provider, codex_provider
-from .api import AnthropicProvider, GeminiProvider, OpenAIProvider
+from .api import AnthropicProvider, GeminiProvider, OpenAIProvider, OpenRouterProvider
 from .base import BaseProvider, Completion, ProviderError, TransientProviderError
 from .detect import (
     RELAY_AGENT_HINT,
@@ -35,6 +35,7 @@ _FACTORIES: dict[str, Factory] = {
     "api-openai": _factory(OpenAIProvider),
     "api-anthropic": _factory(AnthropicProvider),
     "api-gemini": _factory(GeminiProvider),
+    "api-openrouter": _factory(OpenRouterProvider),
     "ollama": _factory(OllamaProvider),
     "agent-claude": lambda model, cfg, t: claude_provider(model, timeout_s=t),
     "agent-codex": lambda model, cfg, t: codex_provider(model, timeout_s=t),
@@ -80,6 +81,7 @@ __all__ = [
     "NoBackendError",
     "OllamaProvider",
     "OpenAIProvider",
+    "OpenRouterProvider",
     "ProviderError",
     "RelayProvider",
     "TransientProviderError",

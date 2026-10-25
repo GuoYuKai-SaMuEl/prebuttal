@@ -79,6 +79,64 @@ class OpenAIProvider(_HTTPProvider):
         return text, usage
 
 
+class OpenRouterProvider(_HTTPProvider):
+    """OpenRouter — one key, hundreds of models, OpenAI-compatible wire format.
+
+    The default model is a ``:free`` id so the zero-cost story holds out of the
+    box (free models are rate-limited by OpenRouter; 3 reviewers + AC fits).
+    ``response_format`` is deliberately NOT forced: many models behind OpenRouter
+    reject JSON mode, and the orchestrator's extractor tolerates prose anyway.
+    """
+
+    DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
+    BASE_URL = "https://openrouter.ai/api/v1"
+
+    def __init__(self, backend: str = "api-openrouter", model: str = "", **kw):
+        key = os.environ.get("OPENROUTER_API_KEY")
+        if not key:
+            raise ProviderError(
+                "OPENROUTER_API_KEY is not set (get one at openrouter.ai/keys; "
+                "free models available)"
+            )
+        super().__init__(backend, model or _env_default("OPENROUTER", self.DEFAULT_MODEL), **kw)
+        self.api_key = key
+
+    @classmethod
+    def default_model(cls) -> str:
+        return _env_default("OPENROUTER", cls.DEFAULT_MODEL)
+
+    def _complete(self, *, system, user, temperature, seed, max_tokens):
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if seed is not None:
+            payload["seed"] = seed
+        data = self._post_json(
+            f"{self.BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                # OpenRouter's suggested app attribution headers
+                "HTTP-Referer": "https://github.com/GuoYuKai-SaMuEl/prebuttal",
+                "X-Title": "prebuttal",
+            },
+            payload=payload,
+        )
+        try:
+            text = data["choices"][0]["message"]["content"] or ""
+            u = data.get("usage", {})
+            usage = Usage(u.get("prompt_tokens", 0), u.get("completion_tokens", 0))
+        except (KeyError, IndexError, TypeError) as e:
+            raise ProviderError(f"unexpected OpenRouter response shape: {str(data)[:300]}") from e
+        return text, usage
+        return text, usage
+
+
 class AnthropicProvider(_HTTPProvider):
     DEFAULT_MODEL = "claude-sonnet-5-5"
 

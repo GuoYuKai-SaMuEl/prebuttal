@@ -277,6 +277,11 @@ def _model_options(backend: str) -> list[str]:
         return _with_default(anthropic_models(key) if key else None)
     if backend == "ollama":
         return ["(first installed)", *ollama_models(ollama_base_url())]
+    if backend == "api-openrouter":
+        from .modelscan import openrouter_catalog
+
+        cat = openrouter_catalog()
+        return ["(backend default)", *(cat[0] if cat else [])]
     return []
 
 
@@ -292,11 +297,16 @@ def _edit_reviewers(cfg, statuses) -> None:
         return backend_options[_menu("  backend", backend_options, default) - 1]
 
     def _pick_model(current: str, backend: str) -> str:
-        models = _model_options(backend)
-        if len(models) < 2:
-            return current  # nothing to choose — keep whatever was pinned
-        pick = _menu("  model", models, 1)
-        return "" if pick == 1 else models[pick - 1]
+        choices = _model_options(backend)
+        if not choices:
+            choices = ["(no model — backend default)"]
+        models = [*choices, "(type a custom model id)"]
+        default_idx = models.index(current) + 1 if current in models else 1
+        pick = _menu("  model", models, default_idx)
+        if pick == len(models):
+            return input("  model id: ").strip()
+        chosen = models[pick - 1]
+        return "" if chosen.startswith("(") else chosen
 
     for r in cfg.reviewers:
         print(f"\n== {r.id} — persona {r.persona}, backend {r.backend} ==")
