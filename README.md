@@ -7,6 +7,9 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 
+[![View a sample report](https://img.shields.io/badge/%E2%96%B6_View_sample-report-2ea44f?style=for-the-badge)](examples/sample-report.md)
+[![Share page](https://img.shields.io/badge/Share_page-5087d2?style=for-the-badge)](examples/sample-report.html)
+
 **Purpose-built for ML conferences: real NeurIPS / ICLR / ICML / ARR review-form
 output, three reviewers running in fully independent contexts (optionally
 cross-model), and scoring calibrated against real OpenReview distributions.**
