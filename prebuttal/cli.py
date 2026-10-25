@@ -15,10 +15,12 @@ from pathlib import Path
 from . import __version__
 from . import keys as key_store
 from .config import (
+    BACKEND_ENV,
     CONFIG_FILENAME,
     DEFAULT_CONFIG_TOML,
     ConfigError,
     apply_overrides,
+    env_backend,
     load_config,
 )
 from .dryrun import render_dry_run
@@ -26,10 +28,12 @@ from .ingestion import IngestError, ingest
 from .orchestrator import run_report
 from .pack import render_pack
 from .providers import (
+    RELAY_AGENT_HINT,
     NoBackendError,
     ProviderError,
     auto_candidates,
     build_provider,
+    detect_host_agent,
     resolve_backends,
     scan_backends,
 )
@@ -108,6 +112,8 @@ def build_parser() -> argparse.ArgumentParser:
     key_unset = key_sub.add_parser("unset", help="remove a stored key")
     key_unset.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
 
+    sub.add_parser("models", help="list available models per backend (* = current default)")
+
     return parser
 
 
@@ -119,9 +125,13 @@ def cmd_backends(args) -> int:
     print("Detected review backends:")
     for s in statuses:
         print("  " + s.line())
+    host_agent = detect_host_agent()
+    if host_agent:
+        print("\nHint: " + RELAY_AGENT_HINT.format(agent=host_agent))
     avail = auto_candidates(statuses, None)
     if avail:
         print(f"\nAuto mode will draw from: {', '.join(s.backend for s in avail)}")
+        print("Run `prebuttal models` to see each backend's model choices.")
         return EXIT_OK
     print("\nNo automatic backend available. Install one of:")
     print("  npm i -g @anthropic-ai/claude-code   -> agent-claude (subscription)")
@@ -199,6 +209,13 @@ def cmd_diff(args) -> int:
     return EXIT_OK
 
 
+def cmd_models(args) -> int:
+    from .modelscan import render, scan
+
+    print(render(scan()))
+    return EXIT_OK
+
+
 def cmd_key(args) -> int:
     import getpass
 
@@ -244,11 +261,14 @@ def cmd_key(args) -> int:
 
 def cmd_run(args) -> int:
     cfg = load_config(args.config)
+    backend = args.backend
+    if backend is None and (backend := env_backend()) is not None:
+        _log(f"[prebuttal] backend '{backend}' for all roles (from ${BACKEND_ENV})")
     cfg = apply_overrides(
         cfg,
         venue=args.venue,
         seed=args.seed,
-        backend=args.backend,
+        backend=backend,
         model=args.model,
         reviewers_count=args.reviewers,
     )
@@ -275,6 +295,11 @@ def cmd_run(args) -> int:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_NO_BACKEND
 
+    uses_relay = any(b == "relay" for (_r, b, _m) in resolved) or ac[0] == "relay"
+    host_agent = detect_host_agent()
+    if host_agent and not uses_relay:
+        _log("[prebuttal] hint: " + RELAY_AGENT_HINT.format(agent=host_agent))
+
     pack = render_pack(paper, budget_chars=cfg.budget_chars)
 
     if args.dry_run:
@@ -290,7 +315,7 @@ def cmd_run(args) -> int:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_NO_BACKEND
 
-    if any(b == "relay" for (_r, b, _m) in resolved) or ac[0] == "relay":
+    if uses_relay:
         _log(
             f"[prebuttal] relay mode: review requests are spooled to '{cfg.relay_dir}/' — "
             f"answer each <stem>.req.md by writing JSON to <stem>.ans.md "
@@ -370,6 +395,8 @@ def main(argv=None) -> int:
             return cmd_diff(args)
         if args.cmd == "key":
             return cmd_key(args)
+        if args.cmd == "models":
+            return cmd_models(args)
         return cmd_run(args)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)

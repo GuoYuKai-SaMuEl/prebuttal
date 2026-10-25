@@ -50,8 +50,14 @@ When the user has no API key and no agent CLI, the reviewers can be YOUR OWN
 subagents — the CLI still orchestrates (persona prompts, venue forms, parsing,
 aggregation) but dispatches through a file protocol:
 
-1. Start the run in the background:
+1. Start the run in the background — it blocks until every answer exists, so
+   a foreground run deadlocks you (you can't write answers while waiting):
    `prebuttal run <paper> --venue <venue> --backend relay --json out.json`
+   If your environment should always work this way, set
+   `PREBUTTAL_BACKEND=relay` once instead of passing `--backend relay` each
+   time (an explicit `--backend` flag still overrides it). Relay is never
+   picked automatically; the CLI's "running inside <agent>" hint is just a
+   reminder that this mode exists.
 2. Watch the spool directory (default `relay/`). For every `<stem>.req.md`
    that has no matching `<stem>.ans.md`: read it, spawn ONE subagent whose
    entire instructions are that file's content, and have the subagent return

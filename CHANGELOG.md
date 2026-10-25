@@ -12,6 +12,15 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Added
 
+- `PREBUTTAL_BACKEND` environment variable: force one backend for every
+  reviewer and the AC (e.g. `relay` for agent-subagent reviewing);
+  precedence `--backend` > `PREBUTTAL_BACKEND` > `prebuttal.toml`.
+- Inside a coding agent (Claude Code, Gemini CLI), `prebuttal run` and
+  `prebuttal backends` print a hint pointing at relay mode.
+- `prebuttal models` — live model discovery per backend: scans the Gemini /
+  OpenAI / Anthropic model-list endpoints and Ollama's installed models
+  (non-chat ids filtered out), shows the claude CLI aliases, marks the current
+  default with `*`, and prints a copy-paste `model = "..."` toml example.
 - `prebuttal key set/status/unset` — quick API-key setup: hidden-input prompt,
   stored in `~/.prebuttal/keys.env` (user-only, env vars take precedence);
   `prebuttal backends` and runs pick stored keys up automatically.

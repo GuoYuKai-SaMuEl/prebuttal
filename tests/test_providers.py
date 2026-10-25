@@ -86,6 +86,16 @@ def test_explicit_relay_needs_no_auto_candidate():
     assert ac[0] == "relay"
 
 
+def test_detect_host_agent(monkeypatch):
+    from prebuttal.providers.detect import detect_host_agent
+
+    assert detect_host_agent() is None
+    monkeypatch.setenv("CLAUDECODE", "0")  # explicitly off
+    assert detect_host_agent() is None
+    monkeypatch.setenv("CLAUDECODE", "1")
+    assert detect_host_agent() == "Claude Code"
+
+
 def test_no_backend_raises_with_guidance(monkeypatch):
     cfg = load_config(None)
     monkeypatch.setattr("prebuttal.providers.detect.scan_backends", lambda c: [])

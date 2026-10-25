@@ -1,11 +1,13 @@
 """prebuttal.toml parsing, defaults and CLI overrides.
 
-Resolution order (highest wins): CLI flags > prebuttal.toml > built-in defaults.
+Resolution order (highest wins): CLI flags > PREBUTTAL_BACKEND (backend only)
+> prebuttal.toml > built-in defaults.
 Run ``prebuttal init`` to write a commented sample config.
 """
 
 from __future__ import annotations
 
+import os
 import shlex
 import tomllib
 from dataclasses import dataclass, field, replace
@@ -40,6 +42,8 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 #   agent-claude / agent-codex  (subscription CLIs, zero API key)
 #   api-gemini / api-openai / api-anthropic  (BYO key; Gemini has a free tier)
 #   ollama (local) / relay (you or your agent answer by hand)
+# Force one backend for every role without editing this file:
+#   PREBUTTAL_BACKEND=relay   (the --backend flag still wins)
 # Pin one per reviewer for a fixed setup, e.g.
 #   backend = "api-gemini"   model = "gemini-2.5-flash"
 # (model works for every backend; agent CLIs get it as `--model X`,
@@ -250,6 +254,19 @@ def load_config(path: str | Path | None = None) -> RunConfig:
 
 def reviewer_seed(cfg: RunConfig, rcfg: ReviewerConfig, index: int) -> int:
     return rcfg.seed if rcfg.seed is not None else cfg.seed + index + 1
+
+
+BACKEND_ENV = "PREBUTTAL_BACKEND"
+
+
+def env_backend() -> str | None:
+    """Backend forced for all roles via $PREBUTTAL_BACKEND (empty = unset).
+
+    Precedence: --backend flag > PREBUTTAL_BACKEND > prebuttal.toml > auto.
+    Lets a host agent pin e.g. ``relay`` once for its whole environment.
+    """
+    value = os.environ.get(BACKEND_ENV, "").strip()
+    return value or None
 
 
 def apply_overrides(

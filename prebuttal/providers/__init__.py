@@ -9,10 +9,12 @@ from .agent_cli import AgentCLIProvider, claude_provider, codex_provider
 from .api import AnthropicProvider, GeminiProvider, OpenAIProvider
 from .base import BaseProvider, Completion, ProviderError, TransientProviderError
 from .detect import (
+    RELAY_AGENT_HINT,
     BackendStatus,
     NoBackendError,
     auto_candidates,
     default_model_for,
+    detect_host_agent,
     resolve_backends,
     scan_backends,
 )
@@ -68,6 +70,7 @@ def build_provider(
 
 
 __all__ = [
+    "RELAY_AGENT_HINT",
     "AgentCLIProvider",
     "AnthropicProvider",
     "BackendStatus",
@@ -83,6 +86,7 @@ __all__ = [
     "auto_candidates",
     "build_provider",
     "default_model_for",
+    "detect_host_agent",
     "ollama_models",
     "register_backend",
     "resolve_backends",

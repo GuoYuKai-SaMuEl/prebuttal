@@ -58,10 +58,14 @@ chose (`prebuttal backends` to inspect):
 Useful flags:
 
 ```bash
-prebuttal run paper.pdf --venue neurips --dry-run   # cost + backend matrix, calls nothing
+prebuttal run paper.pdf --venue neurips --dry-run   # cost + plan preview, calls nothing
 prebuttal run paper.pdf --venue iclr --json out.json --share   # machine output + share page
 prebuttal run paper.pdf --seed 42                   # reproducible
 ```
+
+`prebuttal models` lists every backend's actually-available models (live API
+scan + installed Ollama models + claude aliases) with the current default
+marked — pick one and set `model = "..."` per reviewer in prebuttal.toml.
 
 ## The reviewers
 
@@ -157,6 +161,13 @@ the agent's own subagents) and the `runs`/`diff` revision loop. The skill file
 is explicit about the one rule that matters: the agent must **run the CLI**,
 never role-play the reviewers itself.
 
+When the CLI detects it is running inside a coding agent (currently Claude
+Code and Gemini CLI), `prebuttal run` and `prebuttal backends` print a one-line
+hint pointing at relay mode. An agent environment that should always use its
+own subagents can pin it once with `PREBUTTAL_BACKEND=relay`. Relay is never
+chosen automatically: the CLI has to run in the background while the agent
+answers the requests, or both sides wait on each other.
+
 Install it into your agent's skills directory — for Claude Code:
 
 ```bash
@@ -189,6 +200,7 @@ CI setups are unaffected. `prebuttal key status` shows what's set (masked),
 | `OPENAI_BASE_URL` | point `api-openai` at an OpenAI-compatible proxy |
 | `PREBUTTAL_OPENAI_MODEL` / `PREBUTTAL_ANTHROPIC_MODEL` / `PREBUTTAL_GEMINI_MODEL` | override each backend's default model |
 | `PREBUTTAL_OLLAMA_HOST` (or `OLLAMA_HOST`) | Ollama base URL (default `http://localhost:11434`) |
+| `PREBUTTAL_BACKEND` | force one backend for every reviewer + the AC (e.g. `relay`); `--backend` still wins, `prebuttal.toml` loses |
 | `PREBUTTAL_HOME` | run-history and key storage location (default `~/.prebuttal`) |
 
 API keys are only read from the environment or `keys.env` — never written to

@@ -29,6 +29,27 @@ _PREFERENCE = [
 # human/agent to write answers, so it must be an explicit choice.
 EXPLICIT_ONLY = frozenset({"relay"})
 
+# Env vars coding agents set in the shells they spawn (best-effort detection;
+# only markers the agents document/emit themselves).
+_HOST_AGENT_MARKERS = (
+    ("CLAUDECODE", "Claude Code"),
+    ("GEMINI_CLI", "Gemini CLI"),
+)
+
+RELAY_AGENT_HINT = (
+    "running inside {agent}. To have YOUR OWN subagents act as the reviewers, "
+    "re-run with --backend relay (or set PREBUTTAL_BACKEND=relay) in the "
+    'background and answer the relay/*.req.md files — see SKILL.md "Relay mode".'
+)
+
+
+def detect_host_agent() -> str | None:
+    """Name of the coding agent this process runs under, if recognizable."""
+    for var, name in _HOST_AGENT_MARKERS:
+        if os.environ.get(var, "").strip() not in ("", "0"):
+            return name
+    return None
+
 
 @dataclass(frozen=True)
 class BackendStatus:

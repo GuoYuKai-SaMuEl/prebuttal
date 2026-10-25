@@ -20,6 +20,13 @@ def isolated_prebuttal_home(tmp_path, monkeypatch):
     return tmp_path / "prebuttal-home"
 
 
+@pytest.fixture(autouse=True)
+def neutral_host_env(monkeypatch):
+    """Same results whether the suite runs in CI, a terminal or a coding agent."""
+    for var in ("PREBUTTAL_BACKEND", "CLAUDECODE", "GEMINI_CLI"):
+        monkeypatch.delenv(var, raising=False)
+
+
 def make_report(latex_project, *, venue_key: str = "iclr", rating_shift: int = 0):
     """Full fake-backend report for output-layer tests (also used by run tests)."""
     cfg = load_config(None)

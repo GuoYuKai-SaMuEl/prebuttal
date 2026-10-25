@@ -120,6 +120,68 @@ def test_backends_command(tmp_path, monkeypatch, capsys, fake_statuses):
     assert "Auto mode will draw from: agent-claude\n" in out
 
 
+def _dry_run(tmp_path, latex_project, *extra):
+    cfg_path = tmp_path / "prebuttal.toml"
+    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
+    return cli.main(["run", str(latex_project), "--config", str(cfg_path), "--dry-run", *extra])
+
+
+def test_env_backend_applies_to_all_roles(
+    tmp_path, monkeypatch, capsys, latex_project, fake_statuses
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "relay")
+    assert _dry_run(tmp_path, latex_project) == cli.EXIT_OK
+    out, err = capsys.readouterr()
+    assert out.count("→ relay") == 4  # R1-R3 + AC override the toml's "fake"
+    assert "PREBUTTAL_BACKEND" in err  # the override is announced, not silent
+
+
+def test_backend_flag_beats_env(tmp_path, monkeypatch, capsys, latex_project, fake_statuses):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "relay")
+    assert _dry_run(tmp_path, latex_project, "--backend", "fake") == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "→ relay" not in out
+    assert out.count("→ fake") == 4
+
+
+def test_empty_env_backend_is_ignored(tmp_path, monkeypatch, capsys, latex_project, fake_statuses):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "  ")
+    assert _dry_run(tmp_path, latex_project) == cli.EXIT_OK
+    assert capsys.readouterr().out.count("→ fake") == 4
+
+
+def test_relay_hint_inside_coding_agent(
+    tmp_path, monkeypatch, capsys, latex_project, fake_statuses
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    assert _dry_run(tmp_path, latex_project) == cli.EXIT_OK
+    err = capsys.readouterr().err
+    assert "hint: running inside Claude Code" in err
+    assert "--backend relay" in err
+
+
+def test_no_relay_hint_outside_agent_or_when_relay_used(
+    tmp_path, monkeypatch, capsys, latex_project, fake_statuses
+):
+    monkeypatch.chdir(tmp_path)
+    assert _dry_run(tmp_path, latex_project) == cli.EXIT_OK
+    assert "hint:" not in capsys.readouterr().err
+
+    monkeypatch.setenv("CLAUDECODE", "1")
+    assert _dry_run(tmp_path, latex_project, "--backend", "relay") == cli.EXIT_OK
+    assert "hint:" not in capsys.readouterr().err  # already in relay mode
+
+
+def test_backends_command_relay_hint_inside_agent(monkeypatch, capsys, fake_statuses):
+    monkeypatch.setenv("GEMINI_CLI", "1")
+    assert cli.main(["backends"]) == cli.EXIT_OK
+    assert "Hint: running inside Gemini CLI" in capsys.readouterr().out
+
+
 def test_backends_command_only_relay(monkeypatch, capsys):
     from prebuttal.providers.detect import BackendStatus
 
