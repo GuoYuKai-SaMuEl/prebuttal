@@ -453,9 +453,77 @@ def test_agent_cli_forwards_model_flag(monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: None)  # keep the bare name
     claude_provider(model="opus").complete(system="s", user="u", retries=0)
     codex_provider(model="gpt-5.1").complete(system="s", user="u", retries=0)
-    assert cmds[0] == ["claude", "-p", "--model", "opus"]
+    assert cmds[0] == ["claude", "-p", "--tools", "", "--strict-mcp-config", "--model", "opus"]
     # codex's stdin marker "-" must stay the FINAL argument
-    assert cmds[1] == ["codex", "exec", "--skip-git-repo-check", "--model", "gpt-5.1", "-"]
+    assert cmds[1] == [
+        "codex",
+        "exec",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "read-only",
+        "--model",
+        "gpt-5.1",
+        "-",
+    ]
+
+
+def test_builtin_agents_run_locked_down_in_empty_cwd(monkeypatch, tmp_path):
+    """Prompt-injection guard: a paper must not be able to steer the agent into
+    the user's files — no tools for claude, read-only sandbox for codex, and an
+    empty temp working directory for both."""
+    import os
+    import subprocess as sp
+
+    from prebuttal.providers.agent_cli import claude_provider, codex_provider
+
+    seen: list[tuple[list[str], str, list[str]]] = []
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "{}"
+        stderr = ""
+
+    def fake_run(cmd, input=None, cwd=None, **kw):
+        seen.append((list(cmd), cwd, os.listdir(cwd)))
+        return FakeCompleted()
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.chdir(tmp_path)
+    for provider in (claude_provider(), codex_provider()):
+        provider.complete(system="s", user="u", retries=0)
+    for _cmd, cwd, listing in seen:
+        assert cwd and os.path.abspath(cwd) != str(tmp_path)
+        assert listing == []
+        assert not os.path.exists(cwd)  # cleaned up afterwards
+    assert seen[0][0][2:5] == ["--tools", "", "--strict-mcp-config"]
+    assert "read-only" in seen[1][0]
+
+
+def test_agent_cli_outdated_flag_is_not_retried(monkeypatch):
+    import subprocess as sp
+
+    from prebuttal.providers.agent_cli import claude_provider
+    from prebuttal.providers.base import ProviderError, TransientProviderError
+
+    calls = []
+
+    class FakeCompleted:
+        returncode = 1
+        stdout = ""
+        stderr = "error: unknown option '--tools'"
+
+    def fake_run(cmd, input=None, **kw):
+        calls.append(cmd)
+        return FakeCompleted()
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(ProviderError) as exc:
+        claude_provider().complete(system="s", user="u", retries=2)
+    assert not isinstance(exc.value, TransientProviderError)
+    assert "update claude" in str(exc.value)
+    assert len(calls) == 1
 
 
 def test_agent_cli_windows_cmd_fallback(monkeypatch):
@@ -509,7 +577,7 @@ def test_agent_cli_runs_resolved_path(monkeypatch):
     monkeypatch.setattr(sp, "run", fake_run)
     monkeypatch.setattr("shutil.which", lambda name: resolved if name == "claude" else None)
     claude_provider().complete(system="s", user="u", retries=0)
-    assert cmds == [[resolved, "-p"]]
+    assert cmds == [[resolved, "-p", "--tools", "", "--strict-mcp-config"]]
 
 
 def test_agent_cli_does_not_inherit_stored_keys(monkeypatch, isolated_prebuttal_home):
