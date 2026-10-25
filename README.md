@@ -82,7 +82,8 @@ Useful flags:
 
 ```bash
 prebuttal run paper.pdf --venue neurips --dry-run   # cost + plan preview, calls nothing
-prebuttal run paper.pdf --venue iclr --json out.json --share   # machine output + share page
+prebuttal run paper.pdf --venue iclr --json out.json  # also write machine-readable JSON
+prebuttal run paper.pdf --note "added ablation"     # label this revision
 prebuttal run paper.pdf --seed 42                   # reproducible (API / Ollama backends)
 prebuttal run paper.pdf -y                          # skip the plan confirmation
 ```
@@ -175,21 +176,46 @@ and deliberate: *this tool was measured* — unlike role-play prompts. It is
 other by more than this tool's error. Disagreement (σ) is reported with every
 aggregate for exactly that reason.
 
-## Run history & revision diffing
+## Projects, reports & revision history
 
-Every run is archived automatically (best-effort, never blocks a review) under
-`~/.prebuttal/` — reports, JSON, and the resolved config (backends, models,
-seeds) for exact reproduction:
+Each paper gets a **project**, found from where it came from: the same PDF
+path, LaTeX folder or arXiv id always lands in the same project, even when the
+title changes between revisions (`--project NAME` to pick one yourself). Every
+run gets a number within it — `mamba-linear-time-sequence#3` — and its own
+report folder, so nothing is ever overwritten:
 
-```bash
-prebuttal runs                       # list archived runs
-prebuttal show <run-id-prefix>       # re-read a report (--json for the data)
-prebuttal diff <old> <new>           # ratings A→B + weakness movement
+```
+prebuttal-reports/                    (has a .gitignore: reviews stay out of git)
+└── mamba-linear-time-sequence/
+    ├── latest.md / latest.html       ← always the newest run
+    ├── 2026-10-25_1530_iclr/report.md, report.html
+    └── 2026-10-26_0910_iclr/report.md, report.html
 ```
 
-`diff` is the revision loop: fix what the reviewers flagged, re-run with the
-same `--seed`, and see which weaknesses went away, persisted, or appeared.
-Basic usage is unchanged — archiving is silent, `--no-save` opts out.
+The complete record (Markdown, HTML, JSON and the resolved config — backends,
+models, seeds) is also archived under `~/.prebuttal/` (`--no-save` opts out),
+so everything below works from any directory:
+
+```bash
+prebuttal projects                   # one line per paper: runs, latest score, trend
+prebuttal runs [project]             # its runs, newest first, with notes
+prebuttal open                       # newest report in the browser (HTML)
+prebuttal diff                       # newest run vs the one before: ratings + weakness movement
+prebuttal dashboard                  # local HTML overview: every project, score trends, links
+prebuttal show / export / note / rm  # print, copy out, annotate, delete runs
+prebuttal projects rename|rm         # tidy up
+```
+
+Runs are referenced as `latest` (the default), `mamba` (newest run of a
+project), `mamba#3` (run 3), `mamba~1` (one before the newest) or by id
+prefix.
+
+The revision loop: fix what the reviewers flagged, re-run with the same
+`--seed` and a `--note "what changed"`, then `prebuttal diff` shows which
+weaknesses went away, persisted, or appeared. Report location and formats
+are configurable: `--out-dir`, `--format md,html,json`, or an `[output]`
+section in `prebuttal.toml` (`dir = ""` keeps reports in the archive only;
+`--out FILE.md` writes one exact file as before).
 
 ## Skill package
 
@@ -279,7 +305,7 @@ PDF / LaTeX dir / arXiv link
              ├─ R2 adversarial ──┤ parallel fan-out, venue form + JSON schema
              ├─ R3 detail_obsessive ─┤
              └─ AC area chair ◄──┘ meta-review + estimated rating + disagreement
-                  └─ Markdown report · --json · --share page
+                  └─ Markdown + HTML report per run · JSON · project history
 ```
 
 Orchestration lives in the CLI, not the host agent — the same pipeline runs

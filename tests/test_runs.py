@@ -115,7 +115,8 @@ def test_cli_full_flow_run_runs_show_diff(
     rc = cli.main(["runs"])
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK
-    assert hist[0].id in out and hist[1].id in out
+    assert hist[0].label in out and hist[1].label in out
+    assert hist[0].label.endswith("#2") and hist[1].label.endswith("#1")
 
     rc = cli.main(["runs", "--json"])
     data = json.loads(capsys.readouterr().out)

@@ -1,9 +1,15 @@
 """Prebuttal CLI.
 
 Commands:
-  prebuttal run <paper>   review a PDF / LaTeX project / arXiv link
-  prebuttal backends      show detected backends
-  prebuttal init          write a sample prebuttal.toml
+  prebuttal run <paper>       review a PDF / LaTeX project / arXiv link
+  prebuttal projects          list papers (one project per paper, runs grouped)
+  prebuttal runs [project]    list runs; show / open / diff / note / rm / export them
+  prebuttal dashboard         local HTML overview of every project and run
+  prebuttal backends          show detected backends
+  prebuttal init              write a sample prebuttal.toml
+
+Runs are referenced as ``latest`` (default), ``<project>`` (its newest run),
+``<project>#3`` (run 3), ``<project>~1`` (one before the newest) or by id prefix.
 """
 
 from __future__ import annotations
@@ -24,10 +30,21 @@ from .config import (
     env_backend,
     load_config,
 )
+from .dashboard import dashboard_path, ensure_html, render_dashboard
 from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
 from .orchestrator import run_report
+from .outputs import parse_formats, write_local
 from .pack import render_pack
+from .projects import (
+    ProjectError,
+    assign_project,
+    forget_project,
+    load_projects,
+    normalize_key,
+    rename_project,
+    slugify,
+)
 from .providers import (
     RELAY_AGENT_HINT,
     NoBackendError,
@@ -39,7 +56,20 @@ from .providers import (
     scan_backends,
 )
 from .report import dumps_json, render_markdown
-from .runs import find_run, load_history, render_diff, render_runs_table, save_run
+from .runs import (
+    delete_runs,
+    load_history,
+    make_private_dir,
+    previous_run,
+    project_summaries,
+    rename_in_history,
+    render_diff,
+    render_projects_table,
+    render_runs_table,
+    resolve_ref,
+    save_run,
+    set_note,
+)
 from .share import render_share_html
 from .venues import VENUE_KEYS, get_venue
 
@@ -79,10 +109,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip the plan confirmation prompt (auto mode; non-interactive never prompts)",
     )
     run.add_argument(
-        "--json", metavar="PATH", default=None, help="also write machine-readable JSON"
+        "--project",
+        default=None,
+        help="project name (default: one per paper, found from its path / arXiv id)",
     )
-    run.add_argument("--share", action="store_true", help="also write a shareable HTML page")
-    run.add_argument("--out", default="prebuttal-report.md", help="markdown output path")
+    run.add_argument(
+        "--note", default="", help='what changed in this revision, e.g. "added ablation"'
+    )
+    run.add_argument(
+        "--format",
+        default=None,
+        help="report formats to write: md,html,json (default md,html; see [output])",
+    )
+    run.add_argument(
+        "--out-dir",
+        default=None,
+        help="reports folder (default ./prebuttal-reports; one subfolder per run)",
+    )
+    run.add_argument(
+        "--out",
+        default=None,
+        metavar="PATH",
+        help="write the Markdown report to exactly this file instead (other formats beside it)",
+    )
+    run.add_argument(
+        "--json", metavar="PATH", default=None, help="also write machine-readable JSON here"
+    )
+    run.add_argument("--share", action="store_true", help=argparse.SUPPRESS)  # html is default now
     run.add_argument("--stdout", action="store_true", help="print the full report to stdout")
     run.add_argument(
         "--no-save",
@@ -95,20 +148,55 @@ def build_parser() -> argparse.ArgumentParser:
     init = sub.add_parser("init", help="write a sample prebuttal.toml")
     init.add_argument("--force", action="store_true", help="overwrite existing file")
 
+    proj_p = sub.add_parser("projects", help="list projects (one per paper)")
+    proj_sub = proj_p.add_subparsers(dest="proj_cmd")
+    proj_sub.add_parser("list", help="list projects (default)")
+    ren = proj_sub.add_parser("rename", help="rename a project")
+    ren.add_argument("old")
+    ren.add_argument("new")
+    prm = proj_sub.add_parser("rm", help="delete a project and all its archived runs")
+    prm.add_argument("name")
+    prm.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
+    proj_p.add_argument("--json", action="store_true", help="machine-readable list")
+
     runs_p = sub.add_parser("runs", help="list archived review runs")
+    runs_p.add_argument("project", nargs="?", default=None, help="only this project's runs")
     runs_p.add_argument("--paper", default=None, help="filter by paper title or id substring")
-    runs_p.add_argument("-n", "--limit", type=int, default=15, help="show the N most recent runs")
+    runs_p.add_argument("-n", "--limit", type=int, default=20, help="show the N most recent runs")
     runs_p.add_argument("--json", action="store_true", help="machine-readable history")
 
-    show_p = sub.add_parser("show", help="re-display an archived run (id prefix is enough)")
-    show_p.add_argument("run_id")
+    show_p = sub.add_parser("show", help="print an archived report (default: latest)")
+    show_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
     show_p.add_argument("--json", action="store_true", help="print the stored report.json")
 
+    open_p = sub.add_parser("open", help="open a run's HTML report in the browser")
+    open_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
+    open_p.add_argument("--md", action="store_true", help="open the Markdown file instead")
+
     diff_p = sub.add_parser(
-        "diff", help="compare two archived runs of a paper (ratings + weakness movement)"
+        "diff",
+        help="compare two runs (default: latest vs the run before it, same project)",
     )
-    diff_p.add_argument("run_a")
-    diff_p.add_argument("run_b")
+    diff_p.add_argument("run_a", nargs="?", default=None)
+    diff_p.add_argument("run_b", nargs="?", default=None)
+
+    note_p = sub.add_parser("note", help="attach a note to a run (shown in lists and dashboard)")
+    note_p.add_argument("run", help="run reference")
+    note_p.add_argument("text", help='e.g. "after adding the Perceiver baseline"')
+
+    rm_p = sub.add_parser("rm", help="delete archived runs")
+    rm_p.add_argument("runs", nargs="+", help="run references")
+    rm_p.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
+
+    exp_p = sub.add_parser("export", help="copy a run's report out of the archive")
+    exp_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
+    exp_p.add_argument("-f", "--format", default="html", choices=["md", "html", "json"])
+    exp_p.add_argument(
+        "-o", "--output", default=None, help="file path (default: ./<project>-<n>.<ext>)"
+    )
+
+    dash_p = sub.add_parser("dashboard", help="write and open a local HTML overview of all runs")
+    dash_p.add_argument("--no-open", action="store_true", help="write the file, don't open it")
 
     key_p = sub.add_parser("key", help="store API keys for quick setup")
     key_sub = key_p.add_subparsers(dest="key_cmd", required=True)
@@ -160,8 +248,66 @@ def cmd_init(args) -> int:
     return EXIT_OK
 
 
+def cmd_projects(args) -> int:
+    action = args.proj_cmd or "list"
+    if action == "rename":
+        known = {p.key for p in project_summaries()} | set(load_projects())
+        if args.old not in known:
+            print(f"error: no project '{args.old}' — see `prebuttal projects`", file=sys.stderr)
+            return EXIT_USAGE
+        try:
+            new = rename_project(args.old, args.new)
+        except (ProjectError, OSError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return EXIT_USAGE
+        n = rename_in_history(args.old, new)
+        print(f"renamed {args.old} → {new} ({n} run{'s' if n != 1 else ''})")
+        print("Existing report folders keep their old name; new runs use the new one.")
+        return EXIT_OK
+    if action == "rm":
+        runs = [r for r in load_history() if r.project == args.name]
+        if not runs and args.name not in load_projects():
+            print(f"error: no project '{args.name}'", file=sys.stderr)
+            return EXIT_USAGE
+        what = f"project '{args.name}' and its {len(runs)} archived run(s)"
+        if not _confirm(f"Delete {what}?", args.yes):
+            return EXIT_USAGE
+        delete_runs({r.id for r in runs})
+        forget_project(args.name)
+        print(f"deleted {what} (files under ./prebuttal-reports are left alone)")
+        return EXIT_OK
+
+    projects = project_summaries()
+    if args.json:
+        import json as jsonlib
+
+        data = [
+            {
+                "project": p.key,
+                "title": p.title,
+                "runs": len(p.runs),
+                "latest": p.latest.label,
+                "latest_mean": p.latest.mean,
+                "scale": p.latest.scale,
+                "last_run": p.latest.ts,
+            }
+            for p in projects
+        ]
+        print(jsonlib.dumps(data, indent=2, ensure_ascii=False))
+        return EXIT_OK
+    print(render_projects_table(projects))
+    if projects:
+        print("\nRuns of one project: prebuttal runs <project> · overview: prebuttal dashboard")
+    return EXIT_OK
+
+
 def cmd_runs(args) -> int:
     records = load_history()
+    if args.project:
+        records = [r for r in records if r.project == args.project]
+        if not records:
+            print(f"error: no runs in project '{args.project}'", file=sys.stderr)
+            return EXIT_USAGE
     if args.paper:
         q = args.paper.lower()
         records = [
@@ -179,9 +325,12 @@ def cmd_runs(args) -> int:
     return EXIT_OK
 
 
-def _resolve_run_or_exit(query: str):
-    match, candidates = find_run(query)
+def _resolve_run_or_exit(query: str | None):
+    match, candidates = resolve_ref(query)
     if match is None:
+        if query is None and not candidates:
+            print("error: no saved runs yet — `prebuttal run <paper>` first", file=sys.stderr)
+            return None
         print(f"error: no unique run matches '{query}'", file=sys.stderr)
         if candidates:
             print("candidates:", file=sys.stderr)
@@ -191,28 +340,143 @@ def _resolve_run_or_exit(query: str):
 
 
 def cmd_show(args) -> int:
-    rec = _resolve_run_or_exit(args.run_id)
+    rec = _resolve_run_or_exit(args.run)
     if rec is None:
         return EXIT_USAGE
-    if args.json:
-        print((Path(rec.dir) / "report.json").read_text(encoding="utf-8"))
-    else:
-        print((Path(rec.dir) / "report.md").read_text(encoding="utf-8"))
+    name = "report.json" if args.json else "report.md"
+    try:
+        print((rec.dir_path / name).read_text(encoding="utf-8"))
+    except OSError as e:
+        print(f"error: archived {name} for {rec.label} is missing ({e})", file=sys.stderr)
+        return EXIT_USAGE
+    return EXIT_OK
+
+
+def _open_in_browser(path: Path) -> None:
+    import webbrowser
+
+    opened = False
+    with contextlib.suppress(Exception):
+        opened = webbrowser.open(path.resolve().as_uri())
+    if not opened:
+        print("(could not open a browser here — open the file above yourself)")
+
+
+def cmd_open(args) -> int:
+    rec = _resolve_run_or_exit(args.run)
+    if rec is None:
+        return EXIT_USAGE
+    try:
+        path = rec.dir_path / "report.md" if args.md else ensure_html(rec)
+    except (OSError, ValueError, KeyError) as e:
+        print(f"error: cannot open {rec.label}: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"{rec.label}: {path}")
+    _open_in_browser(path)
     return EXIT_OK
 
 
 def cmd_diff(args) -> int:
-    a = _resolve_run_or_exit(args.run_a)
-    if a is None:
-        return EXIT_USAGE
-    b = _resolve_run_or_exit(args.run_b)
-    if b is None:
-        return EXIT_USAGE
+    if args.run_b is None:  # one or no ref: compare it with the run before it
+        b = _resolve_run_or_exit(args.run_a)
+        if b is None:
+            return EXIT_USAGE
+        a = previous_run(b)
+        if a is None:
+            print(
+                f"error: {b.label} is the first run of '{b.project}' — nothing to compare yet. "
+                "Revise the paper and run it again.",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
+    else:
+        a = _resolve_run_or_exit(args.run_a)
+        if a is None:
+            return EXIT_USAGE
+        b = _resolve_run_or_exit(args.run_b)
+        if b is None:
+            return EXIT_USAGE
     try:
         print(render_diff(a, b))
     except (FileNotFoundError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_USAGE
+    return EXIT_OK
+
+
+def cmd_note(args) -> int:
+    rec = _resolve_run_or_exit(args.run)
+    if rec is None:
+        return EXIT_USAGE
+    set_note(rec.id, args.text.strip())
+    print(f"{rec.label}: note {'set' if args.text.strip() else 'cleared'}")
+    return EXIT_OK
+
+
+def _confirm(question: str, yes: bool) -> bool:
+    if yes:
+        return True
+    if not _is_interactive():
+        print(f"error: {question} — pass -y to confirm non-interactively", file=sys.stderr)
+        return False
+    try:
+        ok = input(f"{question} [y/N]: ").strip().lower() in ("y", "yes")
+    except EOFError:
+        ok = False
+    if not ok:
+        _log("aborted")
+    return ok
+
+
+def cmd_rm(args) -> int:
+    recs = []
+    for ref in args.runs:
+        rec = _resolve_run_or_exit(ref)
+        if rec is None:
+            return EXIT_USAGE
+        recs.append(rec)
+    labels = ", ".join(r.label for r in recs)
+    if not _confirm(f"Delete {labels} from the archive?", args.yes):
+        return EXIT_USAGE
+    n = delete_runs({r.id for r in recs})
+    print(f"deleted {n} run{'s' if n != 1 else ''}: {labels}")
+    return EXIT_OK
+
+
+def cmd_export(args) -> int:
+    import shutil
+
+    rec = _resolve_run_or_exit(args.run)
+    if rec is None:
+        return EXIT_USAGE
+    try:
+        src = ensure_html(rec) if args.format == "html" else rec.dir_path / f"report.{args.format}"
+        dest = Path(args.output or f"{rec.project}-{rec.run_no}.{args.format}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dest)
+    except (OSError, ValueError, KeyError) as e:
+        print(f"error: cannot export {rec.label}: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"{rec.label} → {dest}")
+    return EXIT_OK
+
+
+def cmd_dashboard(args) -> int:
+    projects = project_summaries()
+    for p in projects:  # older runs have no report.html yet
+        for r in p.runs:
+            with contextlib.suppress(OSError, ValueError, KeyError):
+                ensure_html(r)
+    path = dashboard_path()
+    try:
+        make_private_dir(path.parent)
+        path.write_text(render_dashboard(projects), encoding="utf-8")
+    except OSError as e:
+        print(f"error: cannot write the dashboard: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"Dashboard: {path}")
+    if not args.no_open:
+        _open_in_browser(path)
     return EXIT_OK
 
 
@@ -415,6 +679,16 @@ def cmd_run(args) -> int:
         reviewers_count=args.reviewers,
     )
     venue = get_venue(cfg.venue)
+    # validate output choices before any (possibly paid) review runs
+    try:
+        formats = parse_formats(args.format) if args.format else cfg.output_formats
+        if args.share and "html" not in formats:
+            formats = (*formats, "html")
+        if args.project:
+            normalize_key(args.project)
+    except (ValueError, ProjectError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return EXIT_USAGE
 
     _log(f"[prebuttal] ingesting {args.paper} ...")
     try:
@@ -509,46 +783,81 @@ def cmd_run(args) -> int:
 
     md = render_markdown(report, venue)
     json_str = dumps_json(report, venue)
-    html_str = render_share_html(report, venue, cfg.repo_url) if args.share else None
+    html_str = render_share_html(report, venue, cfg.repo_url)
+    texts = {"md": md, "html": html_str, "json": json_str}
 
-    # Advanced feature, zero footprint on basic usage: archive best-effort,
-    # and a failure to archive must never fail the review run itself.  It
-    # runs before the output files so a bad --out path can't lose the review.
+    # Archive first, best-effort: a failure to archive never fails the
+    # review, and a bad output path afterwards can't lose a (paid) review.
+    project = slugify(paper.title)
+    with contextlib.suppress(OSError, ProjectError):
+        project = assign_project(args.paper, paper.title, args.project, register=not args.no_save)
     rec = None
     if not args.no_save:
         try:
-            rec = save_run(report, venue, cfg, md=md, json_str=json_str, html=html_str)
-            print(f"Saved:    {rec.id}  (`prebuttal show {rec.id}`)")
+            prev = next((r for r in load_history() if r.project == project), None)
+            rec = save_run(
+                report,
+                venue,
+                cfg,
+                md=md,
+                json_str=json_str,
+                html=html_str,
+                project=project,
+                note=args.note.strip(),
+            )
         except OSError as e:
             _log(f"[prebuttal] warning: could not archive this run ({e})")
 
-    out_path = Path(args.out)
-    json_path = Path(args.json) if args.json else None
-    share_path = out_path.with_suffix(".html") if html_str else None
+    written: list[Path] = []
     try:
-        for path, text in ((out_path, md), (json_path, json_str), (share_path, html_str)):
-            if path is not None and text is not None:
+        if args.out:  # exact file: Markdown there, other formats beside it
+            out_path = Path(args.out)
+            for fmt in formats:
+                path = out_path if fmt == "md" else out_path.with_suffix(f".{fmt}")
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(text, encoding="utf-8")
+                path.write_text(texts[fmt], encoding="utf-8")
+                written.append(path)
+        elif args.out_dir if args.out_dir is not None else cfg.output_dir:
+            root = Path(args.out_dir if args.out_dir is not None else cfg.output_dir)
+            _dir, written = write_local(root, project, venue.key, {f: texts[f] for f in formats})
+        if args.json:
+            json_path = Path(args.json)
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            json_path.write_text(json_str, encoding="utf-8")
+            written.append(json_path)
     except OSError as e:
         print(f"error: cannot write report: {e}", file=sys.stderr)
         if rec is not None:
-            print(f"The review is archived: `prebuttal show {rec.id}`", file=sys.stderr)
+            print(f"The review is archived: `prebuttal open {rec.label}`", file=sys.stderr)
         return EXIT_USAGE
 
     agg = report.aggregate
+    scale = venue.rating_field.max
     if agg.mean is not None:
         print(
-            f"\nPredicted: {agg.mean:g}/{venue.rating_field.max:g} "
-            f"(σ {agg.std:g}, range {agg.min:g}–{agg.max:g})"  # noqa: RUF001
+            f"\nPredicted: {agg.mean:g}/{scale:g} (σ {agg.std:g}, range {agg.min:g}–{agg.max:g})"  # noqa: RUF001
         )
     else:
         print("\nPredicted: n/a (no parseable ratings)")
-    print(f"Report:   {out_path}")
-    if json_path:
-        print(f"JSON:     {json_path}")
-    if share_path:
-        print(f"Share:    {share_path}")
+    if rec is not None:
+        if (
+            prev is not None
+            and prev.mean is not None
+            and agg.mean is not None
+            and prev.scale == scale
+        ):
+            print(
+                f"Change:   {agg.mean - prev.mean:+g} vs {prev.label} "
+                f"({prev.mean:g} → {agg.mean:g})"
+            )
+        print(f"Saved:    {rec.label}")
+    for i, path in enumerate(written):
+        print(f"{'Report:' if i == 0 else '':<10}{path}")
+    if rec is not None:
+        nxt = "prebuttal open · prebuttal dashboard"
+        if rec.run_no > 1:
+            nxt = "prebuttal diff · " + nxt
+        print(f"Next:     {nxt}")
     if args.stdout:
         print()
         print(md)
@@ -583,12 +892,19 @@ def main(argv=None) -> int:
             return cmd_init(args)
         if args.cmd == "backends":
             return cmd_backends(args)
-        if args.cmd == "runs":
-            return cmd_runs(args)
-        if args.cmd == "show":
-            return cmd_show(args)
-        if args.cmd == "diff":
-            return cmd_diff(args)
+        commands = {
+            "projects": cmd_projects,
+            "runs": cmd_runs,
+            "show": cmd_show,
+            "open": cmd_open,
+            "diff": cmd_diff,
+            "note": cmd_note,
+            "rm": cmd_rm,
+            "export": cmd_export,
+            "dashboard": cmd_dashboard,
+        }
+        if args.cmd in commands:
+            return commands[args.cmd](args)
         if args.cmd == "key":
             return cmd_key(args)
         if args.cmd == "models":

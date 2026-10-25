@@ -18,22 +18,12 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import MISSING
-from dataclasses import fields as dc_fields
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from prebuttal.models import (
-    Aggregate,
-    MetaReview,
-    Review,
-    ReviewReport,
-    RunInfo,
-    StructuredPaper,
-    Usage,
-)
+from prebuttal.report import report_from_dict
 from prebuttal.share import render_share_html
 from prebuttal.venues import get_venue
 
@@ -114,37 +104,6 @@ def with_analytics(html: str) -> str:
     return html.replace("</body>", block + "</body>", 1)
 
 
-def _dataclass_from(cls, data: dict):  # type: ignore[no-untyped-def]
-    known = {f.name: f for f in dc_fields(cls)}
-    kwargs = {k: v for k, v in data.items() if k in known and k != "usage"}
-    if "usage" in known and isinstance(data.get("usage"), dict):
-        kwargs["usage"] = Usage(**data["usage"])
-    # stored summaries may omit fields (e.g. paper.abstract) — fill required
-    # gaps with empty values; the share page only reads what matters.
-    for name, f in known.items():
-        if name in kwargs or f.default is not MISSING or f.default_factory is not MISSING:
-            continue
-        ann = str(f.type)
-        kwargs[name] = [] if "list" in ann else ("" if "str" in ann else 0)
-    return cls(**kwargs)
-
-
-def report_from_json(d: dict) -> ReviewReport:  # type: ignore[type-arg]
-    paper = _dataclass_from(StructuredPaper, d["paper"])
-    reviews = [_dataclass_from(Review, r) for r in d["reviewers"]]
-    meta = _dataclass_from(MetaReview, d["meta"])
-    agg = _dataclass_from(Aggregate, d["aggregate"])
-    run = _dataclass_from(RunInfo, d["run"])
-    return ReviewReport(
-        paper=paper,
-        venue_key=venue_key(d),
-        reviews=reviews,
-        meta=meta,
-        aggregate=agg,
-        run=run,
-    )
-
-
 def find_report(runs_dir: Path, pattern: str) -> dict | None:  # type: ignore[type-arg]
     candidates = sorted(p for p in runs_dir.glob(pattern) if (p / "report.json").exists())
     for run_dir in reversed(candidates):  # newest first
@@ -177,7 +136,7 @@ def main() -> int:
                 print(f"[site] no usable run for {pattern} — skipping {name}")
             continue
         venue = get_venue(venue_key(d))
-        html = render_share_html(report_from_json(d), venue, REPO_URL)
+        html = render_share_html(report_from_dict(d), venue, REPO_URL)
         target.write_text(with_analytics(with_banner(html, banner)), encoding="utf-8")
         title = d["paper"]["title"][:60]
         print(f"[site] {name} <- {title!r} ({d['venue']})")

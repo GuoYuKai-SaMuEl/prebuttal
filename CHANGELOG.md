@@ -10,6 +10,33 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Added
+- **Projects.** Every paper gets a project, found from its source (PDF path,
+  LaTeX folder or arXiv id — stable across title changes; `--project NAME`
+  to choose), and every run a number within it (`mamba#3`).
+- **Report folders that never overwrite.** By default each run writes
+  `prebuttal-reports/<project>/<date>_<time>_<venue>/report.md` and
+  `report.html`, plus `latest.md` / `latest.html`; the folder gets a
+  `.gitignore` so reviews of unpublished work stay out of git. Configure with
+  `--out-dir`, `--format md,html,json` or an `[output]` section.
+- `prebuttal projects` (list / `rename` / `rm`), `prebuttal open` (HTML report
+  in the browser), `prebuttal note`, `prebuttal rm`, `prebuttal export`, and
+  `prebuttal dashboard` — a local, offline HTML overview of every project
+  with score trends and links to each report.
+- Run references everywhere: `latest`, `<project>`, `<project>#N`,
+  `<project>~N`, or an id prefix. `show`, `open`, `export` and `diff` default
+  to the newest run; `diff` with no arguments compares it with the run before.
+- `run --note "what changed"`; `run` prints the change against the previous
+  run of the same paper.
+
+### Changed
+- `run` no longer writes `prebuttal-report.md` into the current directory
+  (each run overwrote the last). `--out FILE.md` still writes one exact file.
+  HTML is produced by default, so `--share` is no longer needed (still
+  accepted). Archived runs always include `report.html`.
+- `prebuttal runs` shows `<project>#N` labels, dates and notes, and takes an
+  optional project name.
+
 ### Fixed
 - Reports no longer show a temperature or seed the backend never applied.
   Agent CLIs (`claude`, `codex`, custom `[agents.*]`) and relay expose

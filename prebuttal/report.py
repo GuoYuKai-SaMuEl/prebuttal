@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 import json
+from dataclasses import MISSING
+from dataclasses import fields as dc_fields
 from typing import Any
 
 from . import __version__
-from .models import Aggregate, Review, ReviewReport, dataclass_to_dict, param_support
+from .models import (
+    Aggregate,
+    MetaReview,
+    Review,
+    ReviewReport,
+    RunInfo,
+    StructuredPaper,
+    Usage,
+    dataclass_to_dict,
+    param_support,
+)
 from .venues import Venue
 
 HONESTY_NOTE = (
@@ -254,3 +266,31 @@ def to_json(report: ReviewReport, venue: Venue) -> dict[str, Any]:
 
 def dumps_json(report: ReviewReport, venue: Venue) -> str:
     return json.dumps(to_json(report, venue), indent=2, ensure_ascii=False)
+
+
+def _dataclass_from(cls: Any, data: dict[str, Any]) -> Any:
+    known = {f.name: f for f in dc_fields(cls)}
+    kwargs = {k: v for k, v in data.items() if k in known and k != "usage"}
+    if "usage" in known and isinstance(data.get("usage"), dict):
+        kwargs["usage"] = Usage(**data["usage"])
+    # stored summaries omit some fields (e.g. paper.abstract): fill required
+    # gaps with empty values; renderers only read what the JSON carries.
+    for name, f in known.items():
+        if name in kwargs or f.default is not MISSING or f.default_factory is not MISSING:
+            continue
+        ann = str(f.type)
+        kwargs[name] = [] if "list" in ann else ("" if "str" in ann else 0)
+    return cls(**kwargs)
+
+
+def report_from_dict(d: dict[str, Any]) -> ReviewReport:
+    """Rebuild a report from its ``report.json`` (enough to re-render HTML)."""
+    venue = d.get("venue")
+    return ReviewReport(
+        paper=_dataclass_from(StructuredPaper, d["paper"]),
+        venue_key=venue.get("key", "") if isinstance(venue, dict) else str(venue or ""),
+        reviews=[_dataclass_from(Review, r) for r in d["reviewers"]],
+        meta=_dataclass_from(MetaReview, d["meta"]),
+        aggregate=_dataclass_from(Aggregate, d["aggregate"]),
+        run=_dataclass_from(RunInfo, d["run"]),
+    )

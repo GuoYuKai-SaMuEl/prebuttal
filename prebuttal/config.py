@@ -96,6 +96,13 @@ temperature = 0.3
 # dir = "relay"
 # timeout_s = 1800
 
+# Where reports go. Each run gets its own folder, nothing is overwritten:
+#   prebuttal-reports/<project>/<date>_<time>_<venue>/report.md|html
+# (dir = "" keeps them only in the run archive, ~/.prebuttal)
+# [output]
+# dir = "prebuttal-reports"
+# formats = ["md", "html"]      # any of md, html, json
+
 # Pricing overrides, USD per 1M tokens:
 # [pricing."gemini-9-pro"]
 # in = 1.25
@@ -151,6 +158,8 @@ class RunConfig:
     relay_timeout_s: int = 1800
     pricing: dict[str, tuple[float, float]] = field(default_factory=lambda: dict(DEFAULT_PRICING))
     repo_url: str = "https://github.com/GuoYuKai-SaMuEl/prebuttal"
+    output_dir: str = "prebuttal-reports"
+    output_formats: tuple[str, ...] = ("md", "html")
     config_path: str | None = None
     # True when prebuttal.toml was picked up from the cwd rather than passed
     # with --config: its [agents.*] commands then need the user's consent.
@@ -258,6 +267,17 @@ def load_config(path: str | Path | None = None) -> RunConfig:
             float(prices.get("in", 0.0)),
             float(prices.get("out", 0.0)),
         )
+
+    output = raw.get("output", {})
+    if "dir" in output:
+        cfg.output_dir = str(output["dir"])
+    if "formats" in output:
+        from .outputs import parse_formats
+
+        try:
+            cfg.output_formats = parse_formats(output["formats"])
+        except ValueError as e:
+            raise ConfigError(f"[output] formats in {path}: {e}") from e
 
     share = raw.get("share", {})
     if "repo_url" in share:

@@ -35,10 +35,12 @@ exactly what this tool exists to avoid.
 3. Run:
 
    ```bash
-   prebuttal run <paper> --venue <venue> --json prebuttal-report.json --share
+   prebuttal run <paper> --venue <venue> --json prebuttal-report.json
    ```
 
-   The JSON output is the source of truth for interpreting results.
+   The JSON output is the source of truth for interpreting results. The
+   human-readable report (Markdown + HTML) lands in its own folder under
+   `prebuttal-reports/<project>/`; the CLI prints the paths.
 4. If the user has no API keys: Prebuttal auto-detects subscription CLIs
    (`claude -p`, `codex exec`) and local Ollama — zero-key paths. Check
    `prebuttal backends`. For unpublished work, suggest Ollama (nothing leaves
@@ -73,11 +75,16 @@ Human-in-the-loop works the same way: a human can fill the `.ans.md` files.
 Every run is archived automatically (`~/.prebuttal`; `--no-save` to skip).
 After the user revises the paper:
 
-1. Re-run with the same `--venue` and `--seed` so results are comparable.
-2. `prebuttal runs` — list archived runs (id prefix is enough to reference one).
-3. `prebuttal diff <old-run-id> <new-run-id>` — score deltas per reviewer plus
-   weakness movement (gone / persists / new, heuristic word-overlap matching).
-   Present the "gone" list as wins and "persists" as the user's TODO.
+1. Re-run with the same `--venue` and `--seed` so results are comparable, and
+   label the revision: `--note "what changed"`. The same paper source lands
+   in the same project automatically.
+2. `prebuttal diff` — the newest run vs the one before it in the same project:
+   score deltas per reviewer plus weakness movement (gone / persists / new,
+   heuristic word-overlap matching). Present the "gone" list as wins and
+   "persists" as the user's TODO.
+3. `prebuttal runs <project>` lists a paper's runs; reference one as
+   `<project>#3`, `<project>~1` (one before the newest) or by id prefix.
+   `prebuttal projects` lists every paper.
 
 ## Interpreting `--json`
 
@@ -98,7 +105,8 @@ After the user revises the paper:
 3. Pull out the questions reviewers would ask in rebuttal.
 4. Give the AC recommendation verbatim.
 5. Offer next steps: fix specific weaknesses, re-run after revision with the
-   same `--seed` to compare, or generate the shareable HTML page.
+   same `--seed` to compare, or open the HTML report (`prebuttal open`) /
+   the overview of every run (`prebuttal dashboard`).
 
 ## Honesty rules
 

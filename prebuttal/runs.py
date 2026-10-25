@@ -12,6 +12,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import time
 import uuid
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .projects import atomic_write, load_projects, slugify
 
 
 def runs_root() -> Path:
@@ -47,14 +49,9 @@ def runs_dir() -> Path:
     return runs_root() / "runs"
 
 
-def _slugify(text: str, limit: int = 32) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", (text or "paper").lower()).strip("-")
-    return s[:limit].rstrip("-") or "paper"
-
-
 def new_run_id(paper_title: str) -> str:
     # uuid tail keeps two runs of the same paper within one second distinct
-    return f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4]}-{_slugify(paper_title)}"
+    return f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4]}-{slugify(paper_title, 32)}"
 
 
 @dataclass
@@ -69,10 +66,33 @@ class RunRecord:
     std: float | None
     n: int
     dir: str
+    project: str = ""
+    run_no: int = 0  # 1, 2, 3 ... within the project; stable after deletions
+    note: str = ""
+    scale: float | None = None  # venue rating maximum, for trend charts
 
     @property
     def dir_path(self) -> Path:
         return Path(self.dir)
+
+    @property
+    def label(self) -> str:
+        return f"{self.project}#{self.run_no}"
+
+    @property
+    def when(self) -> str:
+        """``2026-10-25 15:30`` from the id's timestamp prefix."""
+        m = re.match(r"(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})", self.id)
+        return f"{m[1]}-{m[2]}-{m[3]} {m[4]}:{m[5]}" if m else self.ts[:16]
+
+
+_FIELDS = set(RunRecord.__dataclass_fields__)
+
+
+def _order(r: RunRecord) -> tuple[str, int, str]:
+    """Chronological order. Ids carry whole seconds plus a random tail, so two
+    runs within one second are ordered by their (increasing) run number."""
+    return (r.id[:15], r.run_no, r.id)
 
 
 def save_run(
@@ -83,10 +103,14 @@ def save_run(
     md: str,
     json_str: str,
     html: str | None,
+    project: str = "",
+    note: str = "",
 ) -> RunRecord:
     """Archive one run. Raises OSError on failure; the caller treats it as non-fatal."""
     run_id = new_run_id(report.paper.title)
     make_private_dir(runs_root())
+    project = project or slugify(report.paper.title)
+    run_no = 1 + max((r.run_no for r in load_history() if r.project == project), default=0)
     out_dir = runs_dir() / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(md, encoding="utf-8")
@@ -128,6 +152,10 @@ def save_run(
         std=report.aggregate.std,
         n=report.aggregate.n,
         dir=str(out_dir),
+        project=project,
+        run_no=run_no,
+        note=note,
+        scale=venue.rating_field.max,
     )
     with history_path().open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
@@ -135,6 +163,11 @@ def save_run(
 
 
 def load_history() -> list[RunRecord]:
+    """All archived runs, newest first.
+
+    Records written before projects existed get one derived from the title
+    and are numbered in date order, so old archives keep working unchanged.
+    """
     p = history_path()
     if not p.is_file():
         return []
@@ -144,19 +177,129 @@ def load_history() -> list[RunRecord]:
         if not line:
             continue
         try:
-            out.append(RunRecord(**json.loads(line)))
+            data = json.loads(line)
+            out.append(RunRecord(**{k: v for k, v in data.items() if k in _FIELDS}))
         except (ValueError, TypeError):
             continue  # skip corrupt lines, never crash history reads
-    out.sort(key=lambda r: r.id, reverse=True)
+    out.sort(key=_order)
+    counters: dict[str, int] = {}
+    for r in out:
+        if not r.project:
+            r.project = slugify(r.paper_title)
+        if not r.run_no:
+            r.run_no = counters.get(r.project, 0) + 1
+        counters[r.project] = max(counters.get(r.project, 0), r.run_no)
+    out.reverse()
     return out
 
 
-def find_run(query: str) -> tuple[RunRecord | None, list[RunRecord]]:
-    """Resolve a run by exact id, unique id prefix, or unique title/id substring.
+def _rewrite_history(records: list[RunRecord]) -> None:
+    ordered = sorted(records, key=_order)
+    lines = [json.dumps(r.__dict__, ensure_ascii=False) for r in ordered]
+    atomic_write(history_path(), "".join(line + "\n" for line in lines))
+
+
+def set_note(run_id: str, note: str) -> None:
+    records = load_history()
+    for r in records:
+        if r.id == run_id:
+            r.note = note
+    _rewrite_history(records)
+
+
+def delete_runs(run_ids: set[str]) -> int:
+    """Remove runs from the history and delete their archived files."""
+    records = load_history()
+    keep = [r for r in records if r.id not in run_ids]
+    for r in records:
+        if r.id in run_ids and r.dir_path.parent == runs_dir():
+            shutil.rmtree(r.dir_path, ignore_errors=True)
+    _rewrite_history(keep)
+    return len(records) - len(keep)
+
+
+def rename_in_history(old: str, new: str) -> int:
+    records = load_history()
+    n = 0
+    for r in records:
+        if r.project == old:
+            r.project = new
+            n += 1
+    _rewrite_history(records)
+    return n
+
+
+# ------------------------------------------------------------- run references
+
+
+@dataclass
+class ProjectSummary:
+    key: str
+    title: str
+    runs: list[RunRecord]  # newest first
+
+    @property
+    def latest(self) -> RunRecord:
+        return self.runs[0]
+
+
+def project_summaries(records: list[RunRecord] | None = None) -> list[ProjectSummary]:
+    """Projects with at least one run, most recently active first."""
+    records = load_history() if records is None else records
+    titles = {k: p.title for k, p in load_projects().items()}
+    groups: dict[str, list[RunRecord]] = {}
+    for r in records:  # newest first, so each group is too
+        groups.setdefault(r.project, []).append(r)
+    return [
+        ProjectSummary(key=k, title=titles.get(k) or runs[0].paper_title, runs=runs)
+        for k, runs in groups.items()
+    ]
+
+
+_REF_RE = re.compile(r"^(?P<project>[^#~]*)(?:(?P<op>[#~])(?P<num>\d+))?$")
+
+
+def resolve_ref(ref: str | None) -> tuple[RunRecord | None, list[RunRecord]]:
+    """Find a run from what a person would type.
+
+    ``latest`` (or nothing)    newest run of any project
+    ``mamba``                  newest run of project *mamba*
+    ``mamba#3``                run 3 of *mamba*
+    ``mamba~1``                one before the newest of *mamba*
+    ``~1``                     one before the newest run of the newest project
+    ``20261025-1530``          run id or unique id prefix; else a unique title/id substring
 
     Returns (match, candidates): candidates is non-empty when ambiguous.
     """
     hist = load_history()
+    if not hist:
+        return None, []
+    ref = (ref or "latest").strip()
+    if ref == "latest":
+        return hist[0], []
+    m = _REF_RE.match(ref)
+    if m:
+        project = m["project"] or (hist[0].project if m["op"] else "")
+        runs = [r for r in hist if r.project == project]
+        if runs:
+            if m["op"] is None:
+                return runs[0], []
+            num = int(m["num"])
+            if m["op"] == "#":
+                hit = next((r for r in runs if r.run_no == num), None)
+                return hit, ([] if hit else runs[:10])
+            return (runs[num], []) if num < len(runs) else (None, runs[:10])
+    return find_run(ref, hist)
+
+
+def find_run(
+    query: str, hist: list[RunRecord] | None = None
+) -> tuple[RunRecord | None, list[RunRecord]]:
+    """Resolve a run by exact id, unique id prefix, or unique title/id substring.
+
+    Returns (match, candidates): candidates is non-empty when ambiguous.
+    """
+    hist = load_history() if hist is None else hist
     for r in hist:
         if r.id == query:
             return r, []
@@ -171,7 +314,32 @@ def find_run(query: str) -> tuple[RunRecord | None, list[RunRecord]]:
     return None, (pref or sub)[:10]
 
 
+def previous_run(rec: RunRecord) -> RunRecord | None:
+    """The run before ``rec`` in the same project, if any."""
+    runs = [r for r in load_history() if r.project == rec.project]
+    idx = next(i for i, r in enumerate(runs) if r.id == rec.id)
+    return runs[idx + 1] if idx + 1 < len(runs) else None
+
+
 # ------------------------------------------------------------------ rendering
+
+
+def _score(r: RunRecord) -> str:
+    if r.mean is None:
+        return "n/a"
+    return f"{r.mean:g}/{r.scale:g}" if r.scale else f"{r.mean:g}"
+
+
+def _table(rows: list[tuple[str, ...]]) -> str:
+    """Left-aligned columns; the last column is free text and not padded."""
+    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]) - 1)]
+    lines = []
+    for i, row in enumerate(rows):
+        cells = [c.ljust(w) for c, w in zip(row, widths, strict=False)]
+        lines.append("  ".join([*cells, row[-1]]).rstrip())
+        if i == 0:
+            lines.append("-" * min(sum(widths) + 2 * len(widths) + 24, 100))
+    return "\n".join(lines)
 
 
 def render_runs_table(records: list[RunRecord]) -> str:
@@ -180,13 +348,24 @@ def render_runs_table(records: list[RunRecord]) -> str:
             "No saved runs yet. Runs are archived automatically under "
             f"{runs_root()} — see `prebuttal run`."
         )
-    header = f"{'run id':<40} {'venue':<8} {'mean':>6} {'sd':>5} {'n':>2}  title"
-    lines = [header, "-" * min(len(header) + 48, 110)]
+    rows: list[tuple[str, ...]] = [("run", "date", "venue", "score", "σ", "note / title")]  # noqa: RUF001
     for r in records:
-        mean = f"{r.mean:g}" if r.mean is not None else "n/a"
         std = f"{r.std:g}" if r.std is not None else "-"
-        lines.append(f"{r.id:<40} {r.venue:<8} {mean:>6} {std:>5} {r.n:>2}  {r.paper_title[:48]}")
-    return "\n".join(lines)
+        rows.append((r.label, r.when, r.venue, _score(r), std, (r.note or r.paper_title)[:50]))
+    return _table(rows)
+
+
+def render_projects_table(projects: list[ProjectSummary]) -> str:
+    if not projects:
+        return "No projects yet — `prebuttal run <paper>` creates one per paper."
+    rows: list[tuple[str, ...]] = [("project", "runs", "latest", "trend", "last run", "title")]
+    for p in projects:
+        first, last = p.runs[-1], p.latest
+        trend = "-"
+        if len(p.runs) > 1 and first.mean is not None and last.mean is not None:
+            trend = f"{first.mean:g} → {last.mean:g} ({last.mean - first.mean:+g})"
+        rows.append((p.key, str(len(p.runs)), _score(last), trend, last.when, p.title[:48]))
+    return _table(rows)
 
 
 def _weak_sim(a: str, b: str) -> float:
