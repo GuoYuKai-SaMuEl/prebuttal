@@ -3,7 +3,8 @@
 The landing page (``site/index.html``) is hand-written; this script only
 re-renders the share pages for curated sample runs from their stored
 ``report.json`` and copies the synthetic sample report in, so the site
-matches whatever the tool actually produced.
+matches whatever the tool actually produced. Site pages get the GoatCounter
+snippet; the tool's own share output never does.
 
 Usage::
 
@@ -16,7 +17,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sys
 from dataclasses import MISSING
 from dataclasses import fields as dc_fields
@@ -95,6 +95,25 @@ def with_banner(html: str, banner: str) -> str:
     return html.replace("</header>", "</header>\n  " + block, 1)
 
 
+# Cookieless page-view counter for the published site only. The tool's own
+# share pages (prebuttal/share.py) must never carry it: those are the user's.
+_ANALYTICS_START = "<!-- site-analytics -->"
+_ANALYTICS_END = "<!-- /site-analytics -->"
+ANALYTICS = (
+    '<script data-goatcounter="https://prebuttal.goatcounter.com/count"\n'
+    '        async src="//gc.zgo.at/count.js"></script>'
+)
+
+
+def with_analytics(html: str) -> str:
+    """Insert (or refresh) the site's GoatCounter snippet before ``</body>``."""
+    if _ANALYTICS_START in html:
+        head, rest = html.split(_ANALYTICS_START, 1)
+        html = head.rstrip(" ") + rest.split(_ANALYTICS_END, 1)[1].lstrip("\n")
+    block = f"{_ANALYTICS_START}\n{ANALYTICS}\n{_ANALYTICS_END}\n"
+    return html.replace("</body>", block + "</body>", 1)
+
+
 def _dataclass_from(cls, data: dict):  # type: ignore[no-untyped-def]
     known = {f.name: f for f in dc_fields(cls)}
     kwargs = {k: v for k, v in data.items() if k in known and k != "usage"}
@@ -152,20 +171,21 @@ def main() -> int:
         if d is None:
             if target.exists():  # keep the published page, refresh its banner
                 old = target.read_text(encoding="utf-8")
-                target.write_text(with_banner(old, banner), encoding="utf-8")
+                target.write_text(with_analytics(with_banner(old, banner)), encoding="utf-8")
                 print(f"[site] no run for {pattern} — kept {name}, banner refreshed")
             else:
                 print(f"[site] no usable run for {pattern} — skipping {name}")
             continue
         venue = get_venue(venue_key(d))
         html = render_share_html(report_from_json(d), venue, REPO_URL)
-        target.write_text(with_banner(html, banner), encoding="utf-8")
+        target.write_text(with_analytics(with_banner(html, banner)), encoding="utf-8")
         title = d["paper"]["title"][:60]
         print(f"[site] {name} <- {title!r} ({d['venue']})")
 
     sample = REPO / "examples" / "sample-report.html"
     if sample.exists():
-        shutil.copy2(sample, out_dir / "sample.html")
+        html = sample.read_text(encoding="utf-8")
+        (out_dir / "sample.html").write_text(with_analytics(html), encoding="utf-8")
         print("[site] sample.html <- examples/sample-report.html")
     return 0
 

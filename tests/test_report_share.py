@@ -60,6 +60,7 @@ def test_share_html(latex_project):
     assert "https://github.com/x/prebuttal" in html
     assert "6/10" in html  # per-reviewer chips
     assert "Meta-review" in html
+    assert "goatcounter" not in html.lower()  # analytics belong to the site only
 
 
 def test_share_html_escapes_malicious_title():
