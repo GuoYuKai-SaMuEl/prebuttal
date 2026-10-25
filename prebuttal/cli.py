@@ -36,7 +36,7 @@ from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
 from .models import EFFORT_LEVELS
 from .orchestrator import run_report
-from .outputs import parse_formats, write_local
+from .outputs import FORMATS, parse_formats, write_local
 from .pack import render_pack
 from .projects import (
     ProjectError,
@@ -194,7 +194,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     exp_p = sub.add_parser("export", help="copy a run's report out of the archive")
     exp_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
-    exp_p.add_argument("-f", "--format", default="html", choices=["md", "html", "json"])
+    exp_p.add_argument(
+        "-f",
+        "--format",
+        default=None,
+        choices=["md", "html", "json"],
+        help="report format (default: the -o file's extension, else html)",
+    )
     exp_p.add_argument(
         "-o", "--output", default=None, help="file path (default: ./<project>-<n>.<ext>)"
     )
@@ -453,9 +459,15 @@ def cmd_export(args) -> int:
     rec = _resolve_run_or_exit(args.run)
     if rec is None:
         return EXIT_USAGE
+    # --format wins; without it, the -o extension picks (a .md path must not
+    # receive HTML), and html is the fallback default.
+    fmt = args.format
+    if fmt is None:
+        ext = Path(args.output or "").suffix.lstrip(".").lower()
+        fmt = ext if ext in FORMATS else "html"
     try:
-        src = ensure_html(rec) if args.format == "html" else rec.dir_path / f"report.{args.format}"
-        dest = Path(args.output or f"{rec.project}-{rec.run_no}.{args.format}")
+        src = ensure_html(rec) if fmt == "html" else rec.dir_path / f"report.{fmt}"
+        dest = Path(args.output or f"{rec.project}-{rec.run_no}.{fmt}")
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dest)
     except (OSError, ValueError, KeyError) as e:

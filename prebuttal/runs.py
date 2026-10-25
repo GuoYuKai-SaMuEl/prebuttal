@@ -88,6 +88,23 @@ class RunRecord:
 
 _FIELDS = set(RunRecord.__dataclass_fields__)
 
+_VENUE_SCALES: dict[str, float | None] = {}
+
+
+def _venue_scale(venue: str) -> float | None:
+    """Rating maximum of ``venue``, so runs archived before 0.2.0 (no
+    ``scale`` field) still join score displays, trends and dashboards."""
+    if not venue:
+        return None
+    if venue not in _VENUE_SCALES:
+        try:
+            from .venues import get_venue  # local import: keys.py pulls in this module
+
+            _VENUE_SCALES[venue] = get_venue(venue).rating_field.max
+        except Exception:
+            _VENUE_SCALES[venue] = None
+    return _VENUE_SCALES[venue]
+
 
 def _order(r: RunRecord) -> tuple[str, int, str]:
     """Chronological order. Ids carry whole seconds plus a random tail, so two
@@ -178,9 +195,12 @@ def load_history() -> list[RunRecord]:
             continue
         try:
             data = json.loads(line)
-            out.append(RunRecord(**{k: v for k, v in data.items() if k in _FIELDS}))
+            rec = RunRecord(**{k: v for k, v in data.items() if k in _FIELDS})
         except (ValueError, TypeError):
             continue  # skip corrupt lines, never crash history reads
+        if rec.scale is None:  # runs archived before 0.2.0 have no scale
+            rec.scale = _venue_scale(rec.venue)
+        out.append(rec)
     out.sort(key=_order)
     counters: dict[str, int] = {}
     for r in out:
@@ -362,7 +382,14 @@ def render_projects_table(projects: list[ProjectSummary]) -> str:
     for p in projects:
         first, last = p.runs[-1], p.latest
         trend = "-"
-        if len(p.runs) > 1 and first.mean is not None and last.mean is not None:
+        # a raw-mean trend across different rating scales (iclr /10 vs
+        # neurips /6) compares incomparable numbers — skip it
+        if (
+            len(p.runs) > 1
+            and first.mean is not None
+            and last.mean is not None
+            and first.scale == last.scale
+        ):
             trend = f"{first.mean:g} → {last.mean:g} ({last.mean - first.mean:+g})"
         rows.append((p.key, str(len(p.runs)), _score(last), trend, last.when, p.title[:48]))
     return _table(rows)

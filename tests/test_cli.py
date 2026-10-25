@@ -342,3 +342,35 @@ def test_non_utf8_redirected_output_does_not_crash(tmp_path):
         env=env,
     )
     assert proc.returncode == 0 and proc.stdout.decode("utf-8").strip() == "\u2192 \u03c3"
+
+
+def test_cli_export_follows_output_extension(latex_project, tmp_path, monkeypatch):
+    from conftest import make_report
+
+    from prebuttal.config import load_config
+    from prebuttal.report import dumps_json
+    from prebuttal.runs import save_run
+
+    monkeypatch.chdir(tmp_path)
+    report, venue = make_report(latex_project)
+    save_run(
+        report,
+        venue,
+        load_config(None),
+        md="# Prebuttal Report — md",
+        json_str=dumps_json(report, venue),
+        html=None,
+    )
+
+    md = tmp_path / "exported.md"
+    assert cli.main(["export", "-o", str(md)]) == cli.EXIT_OK
+    assert md.read_text(encoding="utf-8").startswith("# Prebuttal Report")
+
+    js = tmp_path / "exported.json"
+    assert cli.main(["export", "-o", str(js)]) == cli.EXIT_OK
+    assert js.read_text(encoding="utf-8").lstrip().startswith("{")
+
+    # an explicit --format still wins over the extension
+    htm = tmp_path / "forced.md"
+    assert cli.main(["export", "-o", str(htm), "--format", "html"]) == cli.EXIT_OK
+    assert htm.read_text(encoding="utf-8").lstrip().startswith("<!doctype html>")

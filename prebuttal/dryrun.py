@@ -5,7 +5,7 @@ from __future__ import annotations
 from .config import RunConfig, role_effort
 from .models import effort_support, param_support
 from .pack import estimate_tokens
-from .providers.detect import BackendStatus
+from .providers.detect import BackendStatus, default_model_for
 
 _PROMPT_OVERHEAD_CHARS = 3500  # persona + venue form + instructions
 
@@ -19,6 +19,8 @@ def _cost_line(model: str, kind: str, in_tok: int, out_tok: int, cfg: RunConfig)
         return "local model — free"
     if model.endswith(":free"):
         return "OpenRouter :free tier — $0 (rate-limited)"
+    if not model:
+        return "no price table entry for this backend's default model"
     price = cfg.pricing.get(model)
     if not price:
         return 'unknown price — add [pricing."' + model + '"] in prebuttal.toml'
@@ -78,7 +80,8 @@ def render_dry_run(
     entries = [(rid, b, m) for (rid, b, m) in resolved] + [("AC", ac[0], ac[1])]
     for rid, backend, model in entries:
         kind = kind_by_backend.get(backend, "api")
-        note = _cost_line(model or "", kind, in_tok, out_tok, cfg)
+        # model "" = the CLI default: price what will actually run
+        note = _cost_line(model or default_model_for(backend, statuses), kind, in_tok, out_tok, cfg)
         if note.startswith("~$"):
             total += float(note[2:].split(" ")[0].strip("$"))
         lines.append(f"  {rid:<4} {backend:<14} {note}")

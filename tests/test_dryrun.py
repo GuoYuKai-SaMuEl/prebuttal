@@ -46,3 +46,13 @@ def test_dry_run_openrouter_free_is_zero_cost():
     text = render_dry_run(cfg, resolved, ("api-openrouter", free_id), 10_000, statuses)
     assert ":free tier — $0" in text
     assert "unknown price" not in text
+
+
+def test_dry_run_prices_default_model_when_unset():
+    cfg = load_config(None)
+    statuses = [BackendStatus("api-gemini", "api", True, "key", "gemini-3.5-flash-lite")]
+    resolved = [("R1", "api-gemini", "")]
+    text = render_dry_run(cfg, resolved, ("api-gemini", ""), 10_000, statuses)
+    assert '[pricing.""]' not in text
+    assert "unknown price" not in text
+    assert "~$" in text  # priced via the backend's default model

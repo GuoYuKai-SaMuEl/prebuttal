@@ -21,6 +21,7 @@ CONFIG_FILENAME = "prebuttal.toml"
 # Indicative pricing, USD per 1M tokens (input, output).  Drift is real:
 # override per-model in prebuttal.toml with [pricing."model-id"] in=.. out=..
 DEFAULT_PRICING: dict[str, tuple[float, float]] = {
+    "gemini-3.5-flash-lite": (0.10, 0.40),
     "gemini-2.5-flash": (0.30, 2.50),
     "gemini-2.0-flash": (0.10, 0.40),
     "gpt-4.1-mini": (0.40, 1.60),

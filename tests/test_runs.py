@@ -10,8 +10,11 @@ from prebuttal.config import load_config
 from prebuttal.report import dumps_json
 from prebuttal.runs import (
     find_run,
+    history_path,
     load_history,
+    project_summaries,
     render_diff,
+    render_projects_table,
     render_runs_table,
     save_run,
 )
@@ -172,3 +175,32 @@ def test_store_is_private_to_the_user(tmp_path, monkeypatch):
     home.mkdir(mode=0o755)
     make_private_dir(home)
     assert stat.S_IMODE(home.stat().st_mode) == 0o700
+
+
+def test_scale_backfill_for_pre_020_records(latex_project):
+    cfg = load_config(None)
+    report, venue = make_report(latex_project, venue_key="iclr")
+    rec1 = save_run(report, venue, cfg, md="# r1", json_str=dumps_json(report, venue), html=None)
+    report2, venue2 = make_report(latex_project, venue_key="neurips", rating_shift=1)
+    rec2 = save_run(
+        report2, venue2, cfg, md="# r2", json_str=dumps_json(report2, venue2), html=None
+    )
+
+    # strip scale to simulate records written before 0.2.0
+    lines = history_path().read_text(encoding="utf-8").splitlines()
+    stripped = [
+        json.dumps({k: v for k, v in json.loads(line).items() if k != "scale"}) for line in lines
+    ]
+    history_path().write_text("\n".join(stripped) + "\n", encoding="utf-8")
+
+    recs = {r.id: r for r in load_history()}
+    assert recs[rec1.id].scale == 10  # iclr, back-filled from the venue
+    assert recs[rec2.id].scale == 6  # neurips
+
+    text = render_runs_table(list(recs.values()))
+    assert "/10" in text and "/6" in text
+
+    # a raw-mean trend across different rating scales must not be shown
+    projects = render_projects_table(project_summaries(list(recs.values())))
+    row = next(line for line in projects.splitlines() if line.startswith(rec1.project))
+    assert " → " not in row
