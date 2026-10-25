@@ -12,6 +12,12 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Added
 
+- GitHub Pages site (`site/`): landing page + curated sample reports (the
+  Mamba and DPO full runs, regenerated from run history by
+  `scripts/build_site.py`), deployed by the standard `pages` workflow —
+  enable once in repo Settings → Pages → Source: GitHub Actions. The web
+  quick-scan (drag-drop PDF + BYOK key, browser-only) is a v0.2+ roadmap
+  item; hosted/public review services are explicitly out of scope.
 - Privacy & data-custody disclaimer (README "Honesty & policy" + SECURITY.md):
   manuscript text sent to a backend is governed solely by that provider's
   terms; Prebuttal is an integration layer, not a data custodian. Local-only

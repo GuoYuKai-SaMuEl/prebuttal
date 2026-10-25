@@ -9,6 +9,7 @@
 
 [![View a sample report](https://img.shields.io/badge/%E2%96%B6_View_sample-report-2ea44f?style=for-the-badge)](examples/sample-report.md)
 [![Share page](https://img.shields.io/badge/Share_page-5087d2?style=for-the-badge)](examples/sample-report.html)
+[![Website](https://img.shields.io/badge/Website-5087d2?style=for-the-badge&logo=github&logoColor=white)](https://guoyukai-samuel.github.io/prebuttal/)
 
 **Purpose-built for ML conferences: real NeurIPS / ICLR / ICML / ARR review-form
 output, three reviewers running in fully independent contexts (optionally
@@ -275,7 +276,9 @@ is **hardening the core on real papers**, not adding features:
    per-model calibration notes, provider-reliability UX (free-pool reality,
    retry transparency), relay UX
 3. **Next (v0.2+)** — more venues, community personas, OpenReview
-   submission integration; then the rebuttal workbench (reviews →
+   submission integration, and a browser-only web quick-scan (GitHub Pages:
+   drag-drop a PDF + your own OpenRouter/Gemini key — no server, we stay a
+   non-custodian); then the rebuttal workbench (reviews →
    point-by-point response letter) and "CI for papers" (GitHub Action:
    \ref/\label checks, citation sanity)
 4. **Eventually** — the calibration script becomes a public benchmark /

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prebuttal — Direct Preference Optimization: Your Language Model is Secretly a Reward Model</title>
+<style>
+  :root { --ink:#1a1d23; --mut:#6b7280; --line:#e5e7eb; --accent:#4f46e5; --bg:#f8fafc; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  .wrap { max-width:880px; margin:0 auto; padding:32px 20px 56px; }
+  header { border-bottom:2px solid var(--ink); padding-bottom:16px; margin-bottom:20px; }
+  .brand { font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  h1 { font-size:26px; margin:6px 0 4px; line-height:1.25; }
+  .meta-line { color:var(--mut); font-size:14px; }
+  .hero { display:flex; gap:24px; align-items:center; background:#fff; border:1px solid var(--line);
+          border-radius:12px; padding:20px 24px; margin:18px 0; }
+  .score-num { font-size:44px; font-weight:800; line-height:1; }
+  .score-max { font-size:20px; color:var(--mut); font-weight:600; }
+  .score-sub { color:var(--mut); font-size:13px; margin-top:6px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .card-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .rid { font-weight:800; }
+  .persona { color:var(--mut); font-size:13px; font-family:ui-monospace,Consolas,monospace; }
+  .chip { margin-left:auto; font-weight:700; font-size:13px; border-radius:999px; padding:2px 10px; }
+  .chip-score { background:#eef2ff; color:var(--accent); }
+  .chip-fail { background:#fef2f2; color:#b91c1c; }
+  .backend { color:var(--mut); font-size:12px; margin:4px 0 10px; }
+  .card ul { margin:6px 0 0; padding-left:18px; }
+  .card-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
+  .meta { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }
+  .meta h2 { font-size:16px; margin:0 0 8px; }
+  .est { font-weight:700; margin-bottom:6px; }
+  footer { margin-top:28px; padding-top:16px; border-top:1px solid var(--line);
+           color:var(--mut); font-size:13px; }
+  code { background:#eef2ff; border-radius:6px; padding:2px 8px; font-size:13px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Prebuttal</div>
+    <h1>Direct Preference Optimization: Your Language Model is Secretly a Reward Model</h1>
+    <div class="meta-line">NeurIPS · simulated review · 2026-10-25T08:31:20+00:00 · seed 42</div>
+    <div class="meta-line">backends: R1: api-gemini · R2: api-gemini · R3: api-gemini</div>
+  </header>
+  <div class="hero">
+    <div class="score">
+      <div class="score-num">4.67<span class="score-max">/6</span></div>
+      <div class="score-sub">estimated · σ 0.47 · range 4–5 · n=3</div>
+    </div>
+    <div class="hero-note">Three independent AI reviewers, isolated contexts, plus an
+    area chair. This is a <b>pre-submission stress test</b>, not a prediction.</div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R1</span>
+        <span class="persona">senior_kind</span>
+        <span class="chip chip-score">5/6</span>
+      </div>
+      <div class="backend">api-gemini · gemini-3.5-flash-lite · conf 5</div>
+      <p>This paper introduces Direct Preference Optimization (DPO), a novel algorithm for aligning language models with human preferences without requiring reinforcement learning or explicit reward modeling. By leveraging an analytical mapping from reward functions to optimal policies under a KL-constrained objective, the authors reparameterize the Bradley-Terry preference loss directly in terms of the policy itself. This transforms the complex RLHF pipeline into a simple binary cross-entropy loss over pairs of preferred…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>The analysis of out-of-distribution generalization is somewhat preliminary, relying on a single transfer experiment to CNN/DailyMail (Section 6.3, Table 1), leaving open questions about how DPO models perform under…</li><li>While DPO avoids RL instability, the choice of the hyperparameter $\beta$ (controlling the KL penalty strength) still requires tuning across different tasks (e.g., $\beta=0.1$ for sentiment/dialogue vs. $\beta=0.5$ for…</li></ul></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R2</span>
+        <span class="persona">adversarial</span>
+        <span class="chip chip-score">4/6</span>
+      </div>
+      <div class="backend">api-gemini · gemini-3.5-flash-lite · conf 4</div>
+      <p>The paper introduces Direct Preference Optimization (DPO), a method for fine-tuning language models to align with human preferences without using reinforcement learning. By reparameterizing the Bradley-Terry preference model directly in terms of the policy, DPO transforms the standard RLHF objective into a simple binary cross-entropy classification loss. The authors present theoretical analyses showing that the reparameterization preserves the equivalence class of reward functions and optimal policies.…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>The evaluation of dialogue scaling relies heavily on proxy baselines (e.g., Best of 128) because the authors note they &quot;are unable to find a prompt or sampling temperature that gives performance better than the base…</li><li>While DPO avoids sampling during training, it requires storing and computing log-probabilities under both the policy model and a fixed reference model simultaneously, which can impose substantial memory overhead during…</li><li>The human evaluation study (Section 6.4 and Table 2) is limited to TL;DR summarization and relies on a relatively homogeneous pool of student annotators from a single institution (Appendix D.3), which may not reflect…</li></ul></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R3</span>
+        <span class="persona">detail_obsessive</span>
+        <span class="chip chip-score">5/6</span>
+      </div>
+      <div class="backend">api-gemini · gemini-3.5-flash-lite · conf 4</div>
+      <p>This paper introduces Direct Preference Optimization (DPO), a novel algorithm for fine-tuning language models to align with human preferences without requiring reinforcement learning or explicit reward modeling. By reparameterizing the reward function in terms of its optimal policy under a KL-constrained objective, the authors transform the standard RLHF loss into a simple binary cross-entropy loss over preference pairs. The method is evaluated on controlled sentiment generation, TL;DR summarization, and…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>Lack of variance reporting: None of the tables or experimental results report standard deviations, confidence intervals, or seeds across multiple training runs, making it difficult to assess the statistical…</li><li>Hyperparameter tuning details are sparse for baseline comparisons, particularly for PPO where implementation differences could account for performance discrepancies.</li></ul></div>
+    </div>
+  </div>
+  
+  <section class="meta">
+    <h2>Meta-review</h2>
+    <div class="est">AC estimate: 4.67/6</div>
+    <p>This paper presents Direct Preference Optimization (DPO), a significant methodological contribution to the alignment of large language models. By leveraging an analytical mapping from reward functions to optimal policies under a KL-constrained objective, the authors reparameterize the standard Bradley-Terry and Plackett-Luce preference losses directly in terms of the policy. This eliminates the complex and unstable RLHF pipeline—bypassing separate reward modeling and online reinforcement learning loops—in favor of a simple binary cross-entropy classification loss.
+
+All three reviewers (R1, R2, R3) found the theoretical formulation elegant and appreciated the extensive empirical evaluations across controlled sentiment modulation, TL;DR summarization, and single-turn dialogue using models up to 6B parameters. R1 and R3 rated the paper a strong Accept (5.0), praising its mathematical rigor and comprehensive validation, including a human study validating GPT-4 as an evaluator. R2 rated it a Borderline Accept (4.0), raising valid critical points regarding baseline implementation challenges on the dialogue task and training memory overhead.
+
+While R2 correctly noted that the PPO baseline on the Anthropic-HH dialogue task proved difficult to tune and required proxy evaluations (e.g., Best of 128), the reviewers generally agreed that DPO&#x27;s performance on summarization (Figure 2, where DPO achieves a 61% win rate at temperature 0.0 compared to PPO&#x27;s 57%) and its controlled sentiment reward-KL frontier (Section 6.1, Figure 2) provide compelling evidence of its effectiveness. Minor substantive concerns—such as the lack of explicit variance reporting across seeds (noted by R3) and memory overhead considerations—do not outweigh the core algorithmic innovation and its substantial…</p>
+  </section>
+  <footer>
+    Generated with <b>Prebuttal</b> — <code>pipx install prebuttal</code> ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">https://github.com/GuoYuKai-SaMuEl/prebuttal</a><br>
+    Simulated reviews by LLMs as listed; scores are not predictions of real reviewer behavior.
+  </footer>
+</div>
+</body>
+</html>

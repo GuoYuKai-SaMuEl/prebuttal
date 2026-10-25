@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prebuttal — Mamba: Linear-Time Sequence Modeling with Selective State Spaces</title>
+<style>
+  :root { --ink:#1a1d23; --mut:#6b7280; --line:#e5e7eb; --accent:#4f46e5; --bg:#f8fafc; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  .wrap { max-width:880px; margin:0 auto; padding:32px 20px 56px; }
+  header { border-bottom:2px solid var(--ink); padding-bottom:16px; margin-bottom:20px; }
+  .brand { font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  h1 { font-size:26px; margin:6px 0 4px; line-height:1.25; }
+  .meta-line { color:var(--mut); font-size:14px; }
+  .hero { display:flex; gap:24px; align-items:center; background:#fff; border:1px solid var(--line);
+          border-radius:12px; padding:20px 24px; margin:18px 0; }
+  .score-num { font-size:44px; font-weight:800; line-height:1; }
+  .score-max { font-size:20px; color:var(--mut); font-weight:600; }
+  .score-sub { color:var(--mut); font-size:13px; margin-top:6px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .card-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .rid { font-weight:800; }
+  .persona { color:var(--mut); font-size:13px; font-family:ui-monospace,Consolas,monospace; }
+  .chip { margin-left:auto; font-weight:700; font-size:13px; border-radius:999px; padding:2px 10px; }
+  .chip-score { background:#eef2ff; color:var(--accent); }
+  .chip-fail { background:#fef2f2; color:#b91c1c; }
+  .backend { color:var(--mut); font-size:12px; margin:4px 0 10px; }
+  .card ul { margin:6px 0 0; padding-left:18px; }
+  .card-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
+  .meta { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }
+  .meta h2 { font-size:16px; margin:0 0 8px; }
+  .est { font-weight:700; margin-bottom:6px; }
+  footer { margin-top:28px; padding-top:16px; border-top:1px solid var(--line);
+           color:var(--mut); font-size:13px; }
+  code { background:#eef2ff; border-radius:6px; padding:2px 8px; font-size:13px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Prebuttal</div>
+    <h1>Mamba: Linear-Time Sequence Modeling with Selective State Spaces</h1>
+    <div class="meta-line">ICLR · simulated review · 2026-10-25T08:30:38+00:00 · seed 42</div>
+    <div class="meta-line">backends: R1: api-gemini · R2: api-gemini · R3: api-gemini</div>
+  </header>
+  <div class="hero">
+    <div class="score">
+      <div class="score-num">8<span class="score-max">/10</span></div>
+      <div class="score-sub">estimated · σ 0 · range 8–8 · n=3</div>
+    </div>
+    <div class="hero-note">Three independent AI reviewers, isolated contexts, plus an
+    area chair. This is a <b>pre-submission stress test</b>, not a prediction.</div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R1</span>
+        <span class="persona">senior_kind</span>
+        <span class="chip chip-score">8/10</span>
+      </div>
+      <div class="backend">api-gemini · gemini-3.5-flash-lite · conf 5</div>
+      <p>This paper introduces Mamba, a new linear-time sequence modeling architecture based on selective structured state space models (SSMs). The authors identify that prior SSMs suffer from a fundamental limitation in content-based reasoning due to time-invariance, and propose making the SSM parameters input-dependent (selection mechanism). To overcome the resulting loss of convolutional efficiency, they design a hardware-aware parallel scan algorithm that avoids materializing expanded states in high-level GPU memory.…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>The evaluation on language modeling (Section 4.2) is restricted to models up to 2.8B parameters, leaving open the question of whether Mamba&#x27;s scaling advantages persist at the 7B+ scale where architectural quirks and…</li><li>The continuous-discrete spectrum discussion (Section 5) indicates that selection can degrade performance on continuous modalities like audio waveforms, where LTI models retain a better inductive bias, as shown in…</li></ul></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R2</span>
+        <span class="persona">adversarial</span>
+        <span class="chip chip-score">8/10</span>
+      </div>
+      <div class="backend">api-gemini · gemini-3.5-flash-lite · conf 5</div>
+      <p>The submission introduces Mamba, a sequence model architecture combining structured state space models (SSMs) with an input-dependent selection mechanism and a hardware-aware parallel scan algorithm. By parameterizing the SSM matrices (Delta, B, C) as functions of the input, the authors address prior SSM limitations on content-based reasoning for discrete modalities like text and DNA. Experiments across language modeling (up to 2.8B parameters), DNA pretraining and classification, and audio waveform generation…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>While language model scaling laws are shown up to 1.3B parameters (Figure 4) and downstream evaluations reach 2.8B (Table 3), the evaluation stops short of the 7B+ parameter scale where modern open-source baselines…</li><li>The selection mechanism trades away the convolutional mode, which forces reliance on the recurrent scan path during training; while hardware-aware optimizations mitigate this, training wall-clock time comparisons…</li><li>In continuous signal modalities like audio pretraining, the selection mechanism can actively hurt performance unless carefully configured or restricted, as shown in the ablations of Figure 10 (e.g., audio waveforms…</li></ul></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="rid">R3</span>
+        <span class="persona">detail_obsessive</span>
+        <span class="chip chip-score">8/10</span>
+      </div>
+      <div class="backend">api-gemini · gemini-3.5-flash-lite · conf 4</div>
+      <p>The paper introduces Mamba, a sequence modeling architecture based on structured state space models (SSMs) that incorporates a novel input-dependent selection mechanism and a hardware-aware parallel scan algorithm. By making SSM parameters ($\Delta, B, C$) functions of the input, Mamba overcomes the limitations of prior linear time-invariant (LTI) SSMs in handling discrete modalities like language and DNA while retaining linear-time complexity and constant-time autoregressive inference. Empirical evaluations…</p>
+      <div class="weak"><div class="card-label">Top weaknesses</div><ul><li>Lack of reported variance, standard deviations, or error bars across all main empirical evaluations (e.g., zero-shot downstream tasks in Table 3, scaling curves in Figure 4 and Figure 5, and speech generation in Table…</li><li>Certain tables are malformed or missing their verbatim text in the provided source (e.g., Table 1 and Table 2 captions lack data cells, and Table 7 formatting is split across environments).</li><li>The selection mechanism hurts performance on continuous, uniformly-sampled signal modalities like audio waveforms, demonstrating a trade-off that limits its universality without architecture tuning (Appendix E.4.1).</li></ul></div>
+    </div>
+  </div>
+  
+  <section class="meta">
+    <h2>Meta-review</h2>
+    <div class="est">AC estimate: 8/10</div>
+    <p>The submission introduces Mamba, an attention-free sequence modeling architecture built upon structured state space models (SSMs) augmented with an input-dependent selection mechanism and a hardware-aware parallel scan algorithm. All three reviewers (R1, R2, R3) find the paper to be exceptionally strong, highlighting the principled formulation of the selection mechanism, the clever hardware-aware GPU memory optimization that avoids materializing large expanded states, and comprehensive empirical validations across language, DNA, and audio modalities.
+
+Reviewers uniformly praised Mamba&#x27;s ability to match or exceed Transformer performance (e.g., Mamba-2.8B outperforming Pythia-2.8B on zero-shot tasks in Table 3) while scaling linearly with sequence length and achieving up to 5× higher generation throughput (Figure 8). Substantive points raised include the &quot;No Free Lunch&quot; continuous-discrete spectrum—where the selection mechanism can degrade performance on continuous signals like audio waveforms unless restricted to LTI configurations (Figure 10)—and the lack of evaluation at the 7B+ parameter scale where modern open-source baselines are heavily tested. Additionally, R3 noted the absence of run-to-run variance or error bars across the empirical evaluations. However, these limitations do not detract from the core technical breakthrough.
+
+All reviewers recommend acceptance. The paper represents a major milestone in subquadratic sequence modeling.</p>
+  </section>
+  <footer>
+    Generated with <b>Prebuttal</b> — <code>pipx install prebuttal</code> ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">https://github.com/GuoYuKai-SaMuEl/prebuttal</a><br>
+    Simulated reviews by LLMs as listed; scores are not predictions of real reviewer behavior.
+  </footer>
+</div>
+</body>
+</html>
