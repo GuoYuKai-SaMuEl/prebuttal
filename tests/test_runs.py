@@ -1,6 +1,8 @@
 import json
+import sys
 from pathlib import Path
 
+import pytest
 from conftest import make_report
 
 from prebuttal import cli
@@ -156,3 +158,16 @@ def test_archive_failure_never_breaks_the_run(
     assert rc == cli.EXIT_OK  # the review itself succeeded
     assert "could not archive" in capsys.readouterr().err
     assert (tmp_path / "r.md").is_file()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_store_is_private_to_the_user(tmp_path, monkeypatch):
+    """Archived runs hold unpublished paper text: no other account may read them."""
+    import stat
+
+    from prebuttal.runs import make_private_dir
+
+    home = tmp_path / "home"
+    home.mkdir(mode=0o755)
+    make_private_dir(home)
+    assert stat.S_IMODE(home.stat().st_mode) == 0o700

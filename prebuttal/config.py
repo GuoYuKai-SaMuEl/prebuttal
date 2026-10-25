@@ -150,6 +150,9 @@ class RunConfig:
     pricing: dict[str, tuple[float, float]] = field(default_factory=lambda: dict(DEFAULT_PRICING))
     repo_url: str = "https://github.com/GuoYuKai-SaMuEl/prebuttal"
     config_path: str | None = None
+    # True when prebuttal.toml was picked up from the cwd rather than passed
+    # with --config: its [agents.*] commands then need the user's consent.
+    config_discovered: bool = False
 
 
 PERSONA_CYCLE = ["senior_kind", "adversarial", "detail_obsessive"]
@@ -183,6 +186,7 @@ def load_config(path: str | Path | None = None) -> RunConfig:
         if not candidate.is_file():
             return cfg
         path = candidate
+        cfg.config_discovered = True
     path = Path(path)
     if not path.is_file():
         raise ConfigError(f"config file not found: {path}")

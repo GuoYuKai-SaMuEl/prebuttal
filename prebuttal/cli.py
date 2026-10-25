@@ -9,6 +9,7 @@ Commands:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 from pathlib import Path
 
@@ -364,6 +365,42 @@ def cmd_key(args) -> int:
     return EXIT_OK
 
 
+def _agent_commands_trusted(cfg, backends: list[str]) -> bool:
+    """Consent gate for ``[agents.*]`` commands from an auto-discovered config.
+
+    A prebuttal.toml sitting in the current directory may come with someone
+    else's paper repo or an unpacked arXiv source tarball; running its
+    commands silently would be arbitrary code execution.  An explicit
+    ``--config`` counts as trust; otherwise ask, and refuse when we can't.
+    `-y` deliberately does not bypass this (scripts add -y routinely).
+    """
+    if not cfg.config_discovered:
+        return True
+    names = sorted({b[6:] for b in backends if b.startswith("agent-") and b[6:] in cfg.agents})
+    if not names:
+        return True
+    cmds = "\n".join(f"  agent-{n}: {cfg.agents[n].describe()}" for n in names)
+    _log(
+        f"[prebuttal] {cfg.config_path} (found in the current directory) will run "
+        f"these commands with your paper as input:\n{cmds}"
+    )
+    if _is_interactive():
+        try:
+            answer = input("Run them? Only say yes if you wrote or trust this file. [y/N]: ")
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() in ("y", "yes"):
+            return True
+        _log("aborted: commands not trusted")
+        return False
+    print(
+        "error: refusing to run commands from a config that was not passed explicitly. "
+        f"If you trust it, re-run with --config {cfg.config_path}",
+        file=sys.stderr,
+    )
+    return False
+
+
 def cmd_run(args) -> int:
     cfg = load_config(args.config)
     backend = args.backend
@@ -447,6 +484,9 @@ def cmd_run(args) -> int:
             )
             _log(plan)
 
+    if not _agent_commands_trusted(cfg, [b for (_r, b, _m) in resolved] + [ac[0]]):
+        return EXIT_USAGE
+
     providers = {}
     try:
         for rid, backend, model in resolved:
@@ -521,7 +561,18 @@ def cmd_run(args) -> int:
     return EXIT_OK
 
 
+def _utf8_stdio() -> None:
+    """Output contains → σ “ ” —; on Windows a redirected stdout/stderr (> log,
+    pipes, CI) defaults to the ANSI code page (cp1252) and would crash."""
+    for stream in (sys.stdout, sys.stderr):
+        enc = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if enc != "utf8" and hasattr(stream, "reconfigure"):
+            with contextlib.suppress(Exception):  # exotic replaced streams
+                stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv=None) -> int:
+    _utf8_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

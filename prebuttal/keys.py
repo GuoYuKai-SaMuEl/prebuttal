@@ -13,6 +13,8 @@ import os
 import stat
 from pathlib import Path
 
+from .runs import make_private_dir
+
 # friendly name -> environment variable (accept either, case-insensitively)
 KEY_MAP = {
     "gemini": "GEMINI_API_KEY",
@@ -66,7 +68,7 @@ def store_key(var: str, value: str) -> None:
     data = _read_all()
     data[var] = value
     p = keys_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
+    make_private_dir(p.parent)
     text = "# prebuttal API keys — loaded at startup; env vars take precedence\n"
     text += "".join(f"{k}={v}\n" for k, v in data.items())
     # O_CREAT with 0o600 (POSIX); on Windows the user profile already isolates it

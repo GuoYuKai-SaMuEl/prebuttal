@@ -8,6 +8,7 @@ to archive never fails the run.  Set ``PREBUTTAL_HOME`` to relocate the store
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -23,6 +24,19 @@ from . import __version__
 def runs_root() -> Path:
     base = os.environ.get("PREBUTTAL_HOME")
     return Path(base) if base else Path.home() / ".prebuttal"
+
+
+def make_private_dir(path: Path) -> None:
+    """Create ``path`` readable by the user only (0700 on POSIX).
+
+    The store holds unpublished paper text, reviews and API keys; on shared
+    machines (university clusters) the default 0755 would expose them to
+    every other account.  Re-applied on each use so existing stores created
+    by older versions get locked down too.  No-op where chmod can't apply.
+    """
+    path.mkdir(parents=True, exist_ok=True)
+    with contextlib.suppress(OSError):
+        os.chmod(path, 0o700)
 
 
 def history_path() -> Path:
@@ -72,6 +86,7 @@ def save_run(
 ) -> RunRecord:
     """Archive one run. Raises OSError on failure; the caller treats it as non-fatal."""
     run_id = new_run_id(report.paper.title)
+    make_private_dir(runs_root())
     out_dir = runs_dir() / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(md, encoding="utf-8")

@@ -253,3 +253,77 @@ def test_reports_do_not_leak_absolute_paths(tmp_path_factory, monkeypatch, latex
     elsewhere = tmp_path_factory.mktemp("unrelated-home")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: elsewhere))
     assert display_path(latex_project) == latex_project.name
+
+
+EVIL_TOML = """
+[agents.x]
+command = ["python", "-c", "open('ran.txt', 'w').write('x'); print('{}')"]
+
+[[reviewer]]
+id = "R1"
+backend = "agent-x"
+
+[ac]
+backend = "agent-x"
+"""
+
+
+def test_discovered_config_cannot_run_commands_silently(
+    tmp_path, monkeypatch, capsys, latex_project, fake_statuses
+):
+    """A prebuttal.toml shipped inside someone else's paper repo must not get
+    arbitrary command execution just because the user ran `prebuttal run .`."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "prebuttal.toml").write_text(EVIL_TOML, encoding="utf-8")
+    monkeypatch.setattr(cli, "_is_interactive", lambda: False)
+    rc = cli.main(["run", str(latex_project), "-y", "--no-save"])
+    assert rc == cli.EXIT_USAGE
+    assert not (tmp_path / "ran.txt").exists()
+    err = capsys.readouterr().err
+    assert "--config" in err and "python -c" in err
+
+
+def test_discovered_config_commands_need_a_yes(tmp_path, monkeypatch, latex_project, fake_statuses):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "prebuttal.toml").write_text(EVIL_TOML, encoding="utf-8")
+    monkeypatch.setattr(cli, "_is_interactive", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")  # default = No
+    assert cli.main(["run", str(latex_project), "--no-save"]) == cli.EXIT_USAGE
+    assert not (tmp_path / "ran.txt").exists()
+
+
+def test_explicit_config_is_trusted(tmp_path, monkeypatch, latex_project, fake_statuses):
+    monkeypatch.chdir(tmp_path)
+    cfg = tmp_path / "prebuttal.toml"
+    cfg.write_text(EVIL_TOML, encoding="utf-8")
+    monkeypatch.setattr(cli, "_is_interactive", lambda: False)
+    cli.main(["run", str(latex_project), "--config", str(cfg), "--no-save"])
+    assert (tmp_path / "ran.txt").exists()
+
+
+def test_non_utf8_redirected_output_does_not_crash(tmp_path):
+    """Windows redirects stdout with the ANSI code page (cp1252); the CLI prints
+    → and σ, which used to raise UnicodeEncodeError mid-run."""
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PREBUTTAL_HOME": str(tmp_path)}
+    proc = subprocess.run(
+        [sys.executable, "-m", "prebuttal", "run", "nope.pdf"],
+        capture_output=True,
+        env=env,
+        cwd=tmp_path,
+    )
+    assert proc.returncode == cli.EXIT_USAGE  # clean usage error, not a traceback
+    assert b"Traceback" not in proc.stderr
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from prebuttal.cli import main, _utf8_stdio; _utf8_stdio(); print('\\u2192 \\u03c3')",
+        ],
+        capture_output=True,
+        env=env,
+    )
+    assert proc.returncode == 0 and proc.stdout.decode("utf-8").strip() == "→ σ"
