@@ -24,8 +24,8 @@ releases (0.2, 0.3, …) are substantial new features.
   all — free ids first with live per-1M prices, then curated notables — and
   the reviewer wizard accepts typing any custom model id. Free-tier
   resilience: `:free` reviewers dispatch staggered a few seconds apart and
-  transient failures (429/5xx/empty) back off harder (6/12/24s, one more
-  retry) since shared free pools saturate in waves.
+  saturation-style throttling (HTTP 429) backs off on a long curve
+  (15/30/60s per call) since shared free pools stay closed for minutes.
 - Interactive plan confirmation for auto mode: on a terminal, `prebuttal run`
   shows the full review plan (personas, backends, models, cost) before calling
   anything — `[Enter]` runs, `[e]` opens a numbered-menu wizard (persona →

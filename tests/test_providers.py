@@ -250,6 +250,38 @@ def test_openrouter_provider_request_shape(monkeypatch):
     assert "response_format" not in body  # many OpenRouter models reject JSON mode
 
 
+def test_http_429_marks_slow_backoff(monkeypatch):
+    import httpx
+
+    from prebuttal.providers.api import GeminiProvider
+
+    codes = iter([429, 500, 200])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        code = next(codes)
+        if code == 200:
+            return httpx.Response(
+                200,
+                json={
+                    "candidates": [{"content": {"parts": [{"text": "ok"}]}}],
+                    "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1},
+                },
+            )
+        return httpx.Response(code, json={"error": "throttled"})
+
+    _install_mock_http(monkeypatch, handler)
+    monkeypatch.setenv("GEMINI_API_KEY", "g-test")
+    sleeps: list[float] = []
+    monkeypatch.setattr("prebuttal.providers.base.time.sleep", lambda s: sleeps.append(s))
+    provider = GeminiProvider(model="gemini-3.5-flash-lite")
+    comp = provider.complete(
+        system="S", user="U", temperature=0.4, seed=1, max_tokens=64, retries=2
+    )
+    assert comp.text == "ok"
+    # attempt 0: 429 slow curve 2^0*15=15; attempt 1: 5xx normal curve 2^1*3=6
+    assert sleeps == [15.0, 6.0]
+
+
 def test_openrouter_reasoning_model_burns_budget_no_retry(monkeypatch):
     import httpx
 

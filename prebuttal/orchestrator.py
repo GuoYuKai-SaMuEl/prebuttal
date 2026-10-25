@@ -234,6 +234,11 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def free_tier_retries(provider: BaseProvider, base: int) -> int:
+    """:free pools saturate in minutes-long waves; give them extra patience."""
+    return base + 3 if provider.model.endswith(":free") else base
+
+
 def run_one_reviewer(
     rcfg,
     index: int,
@@ -273,7 +278,7 @@ def run_one_reviewer(
             temperature=rcfg.temperature,
             seed=seed,
             max_tokens=cfg.max_tokens,
-            retries=cfg.retries,
+            retries=free_tier_retries(provider, cfg.retries),
         )
     except ProviderError as e:
         review.duration_s = time.monotonic() - t0
@@ -368,7 +373,7 @@ def run_meta(
             temperature=cfg.ac.temperature,
             seed=cfg.seed,
             max_tokens=min(cfg.max_tokens, 4000),
-            retries=cfg.retries,
+            retries=free_tier_retries(provider, cfg.retries),
         )
     except ProviderError as e:
         meta.error = str(e)

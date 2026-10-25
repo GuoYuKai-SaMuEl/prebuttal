@@ -15,7 +15,15 @@ class ProviderError(Exception):
 
 
 class TransientProviderError(Exception):
-    """Retryable failure (429, 5xx, network hiccup)."""
+    """Retryable failure (429, 5xx, network hiccup).
+
+    ``slow=True`` marks saturation-style failures (upstream 429) where the
+    pool can stay closed for minutes, so backoff should be much longer.
+    """
+
+    def __init__(self, message: str, *, slow: bool = False):
+        super().__init__(message)
+        self.slow = slow
 
 
 @dataclass
@@ -79,9 +87,8 @@ class BaseProvider(ABC):
             except TransientProviderError as e:
                 last = e
                 if attempt < retries:
-                    # Free-tier pools (":free" models) saturate in waves of tens
-                    # of seconds; short 1-2s backoffs just burn the request quota.
-                    time.sleep(min(2**attempt * 6, 45))
+                    step = 15 if e.slow else 3
+                    time.sleep(min(2**attempt * step, 90))
         raise ProviderError(f"[{self.backend}] {last}")
 
     def describe(self) -> str:

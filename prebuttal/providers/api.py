@@ -27,7 +27,11 @@ class _HTTPProvider(BaseProvider):
                 r = client.post(url, headers=headers, json=payload)
         except httpx.HTTPError as e:
             raise TransientProviderError(f"network error: {e}") from e
-        if r.status_code == 429 or r.status_code >= 500:
+        if r.status_code == 429:
+            # Saturation-style throttling: shared free pools stay closed for
+            # minutes, so mark slow for the long backoff curve.
+            raise TransientProviderError(f"HTTP {r.status_code}: {r.text[:200]}", slow=True)
+        if r.status_code >= 500:
             raise TransientProviderError(f"HTTP {r.status_code}: {r.text[:200]}")
         if r.status_code != 200:
             raise ProviderError(f"HTTP {r.status_code}: {r.text[:400]}")
