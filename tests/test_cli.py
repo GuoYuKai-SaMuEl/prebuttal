@@ -303,7 +303,7 @@ def test_explicit_config_is_trusted(tmp_path, monkeypatch, latex_project, fake_s
 
 def test_non_utf8_redirected_output_does_not_crash(tmp_path):
     """Windows redirects stdout with the ANSI code page (cp1252); the CLI prints
-    → and σ, which used to raise UnicodeEncodeError mid-run."""
+    arrows and sigma, which used to raise UnicodeEncodeError mid-run."""
     import os
     import subprocess
     import sys
@@ -326,4 +326,4 @@ def test_non_utf8_redirected_output_does_not_crash(tmp_path):
         capture_output=True,
         env=env,
     )
-    assert proc.returncode == 0 and proc.stdout.decode("utf-8").strip() == "→ σ"
+    assert proc.returncode == 0 and proc.stdout.decode("utf-8").strip() == "\u2192 \u03c3"

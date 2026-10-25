@@ -3,12 +3,12 @@
 > **Answer Reviewer 2 before Reviewer 2 exists.**
 
 [![CI](https://github.com/GuoYuKai-SaMuEl/prebuttal/actions/workflows/ci.yml/badge.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/pyproject.toml)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 
-[![View a sample report](https://img.shields.io/badge/%E2%96%B6_View_sample-report-2ea44f?style=for-the-badge)](examples/sample-report.md)
-[![Share page](https://img.shields.io/badge/Share_page-5087d2?style=for-the-badge)](examples/sample-report.html)
+[![View a sample report](https://img.shields.io/badge/%E2%96%B6_View_sample-report-2ea44f?style=for-the-badge)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/examples/sample-report.md)
+[![Share page](https://img.shields.io/badge/Share_page-5087d2?style=for-the-badge)](https://guoyukai-samuel.github.io/prebuttal/reports/sample.html)
 [![Website](https://img.shields.io/badge/Website-5087d2?style=for-the-badge&logo=github&logoColor=white)](https://guoyukai-samuel.github.io/prebuttal/)
 
 **Purpose-built for ML conferences: real NeurIPS / ICLR / ICML / ARR review-form
@@ -21,9 +21,9 @@ submission through three isolated AI reviewers with different temperaments
 plus an area chair, and hands you a conference-format review report — scores,
 disagreement, weaknesses with citations to your own tables — *before* the real
 Reviewers 1–3 see it. See a synthetic sample:
-[report](examples/sample-report.md) ·
-[share page](examples/sample-report.html) — or what a deliberately flawed
-(fictional) paper gets: [1/10 report](examples/weak-paper-report.md).
+[report](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/examples/sample-report.md) ·
+[share page](https://guoyukai-samuel.github.io/prebuttal/reports/sample.html) — or what a deliberately flawed
+(fictional) paper gets: [1/10 report](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/examples/weak-paper-report.md).
 
 ---
 
@@ -59,13 +59,20 @@ chose (`prebuttal backends` to inspect):
 | `api-gemini` | GEMINI_API_KEY | **free tier** — the cheapest "first key" path |
 | `api-openai` / `api-anthropic` | OPENAI_API_KEY / ANTHROPIC_API_KEY | BYO key |
 | `api-openrouter` | OPENROUTER_API_KEY | one key, hundreds of models — **`:free` ids cost nothing** (default is one); prices shown live in `prebuttal models` |
-| `ollama` | none | local & private — *unpublished papers never leave your machine* |
+| `ollama` | none | local & private — *unpublished papers never leave your machine* (with the default localhost host) |
 | `relay` | none | file protocol: prompts spool to disk and **you, your agent's subagents, or any system** write the answers — zero key, explicit only (`--backend relay`; never picked by auto) |
 
 **Unpublished manuscript?** The text is sent to the backend's provider, and
 what happens to it there is that provider's privacy policy, not ours — see
 [Privacy & data custody](#privacy--data-custody). For local-only review use
 `ollama` or `relay`.
+
+> ⚠️ **Free tiers are usually paid for with your data.** Free API tiers (the
+> Gemini free tier, OpenRouter `:free` models and their upstream providers)
+> may let the provider log, review or train on what you send. They are fine
+> for published papers and trying the tool out — for an unpublished
+> manuscript, check the provider's current terms, use a paid tier, or stay
+> local.
 
 Useful flags:
 
@@ -102,8 +109,8 @@ table, number) or the point doesn't count; use the full scale; JSON-only
 output. There is also an easter-egg roast persona (`persona = "paper_roast"`)
 for when you need the truth *fast*.
 
-Personas live in [`prebuttal/personas/`](prebuttal/personas/) and venue forms in
-[`prebuttal/venues/forms/`](prebuttal/venues/forms/) — plain text files, PRs
+Personas live in [`prebuttal/personas/`](https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/prebuttal/personas) and venue forms in
+[`prebuttal/venues/forms/`](https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/prebuttal/venues/forms) — plain text files, PRs
 welcome (scale wording drifts every year; keep it current).
 
 ## Configuration
@@ -146,8 +153,12 @@ Scores are meaningless unless measured. The calibration pipeline runs Prebuttal
 on papers that **already have real OpenReview reviews** and plots predicted vs
 true mean ratings:
 
+The script lives in the repository (it is not part of the pip package), so
+run it from a clone:
+
 ```bash
-pip install "prebuttal[calibration]"
+git clone https://github.com/GuoYuKai-SaMuEl/prebuttal && cd prebuttal
+pip install -e ".[calibration]"
 python scripts/calibration/calibrate.py \
     --venue-id ICLR.cc/2024/Conference --venue iclr -n 20 --out-dir calib_out
 ```
@@ -178,7 +189,7 @@ Basic usage is unchanged — archiving is silent, `--no-save` opts out.
 
 ## Skill package
 
-[`skills/prebuttal/SKILL.md`](skills/prebuttal/SKILL.md) teaches any agent to
+[`skills/prebuttal/SKILL.md`](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/skills/prebuttal/SKILL.md) teaches any agent to
 drive the CLI and interpret the JSON — including relay mode (the reviewers are
 the agent's own subagents) and the `runs`/`diff` revision loop. The skill file
 is explicit about the one rule that matters: the agent must **run the CLI**,
@@ -194,7 +205,9 @@ answers the requests, or both sides wait on each other.
 Install it into your agent's skills directory — for Claude Code:
 
 ```bash
-mkdir -p ~/.claude/skills && cp -r skills/prebuttal ~/.claude/skills/
+mkdir -p ~/.claude/skills/prebuttal && curl -fsSL -o ~/.claude/skills/prebuttal/SKILL.md \
+  https://raw.githubusercontent.com/GuoYuKai-SaMuEl/Prebuttal/main/skills/prebuttal/SKILL.md
+# or, from a clone: cp -r skills/prebuttal ~/.claude/skills/
 ```
 
 Other agents (ZCode, Codex, …): copy or symlink `skills/prebuttal/` wherever
@@ -303,9 +316,9 @@ pytest -q
 ```
 
 Contributions welcome — the easiest ones are venue forms, personas, and
-backends; see [CONTRIBUTING.md](CONTRIBUTING.md) for the three-step guide.
-Also read [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), and our
-[Code of Conduct](CODE_OF_CONDUCT.md).
+backends; see [CONTRIBUTING.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CONTRIBUTING.md) for the three-step guide.
+Also read [CHANGELOG.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CHANGELOG.md), [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md), and our
+[Code of Conduct](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CODE_OF_CONDUCT.md).
 
 ## Honesty & policy
 
@@ -330,14 +343,24 @@ Also read [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), and our
   unpublished results, check the backend provider's data-use terms before
   sending — provider-side handling of your data is the provider's
   responsibility, not this project's.
+- **Free tiers deserve extra care**: free API tiers (e.g. Gemini's free
+  tier, OpenRouter `:free` models) may allow logging or training on inputs;
+  paid tiers usually don't. Read the terms before sending unpublished work.
 - **Local-only is a first-class path**: `ollama` never sends text off your
-  machine, and `relay` leaves who answers entirely to you.
+  machine (as long as `PREBUTTAL_OLLAMA_HOST` / `OLLAMA_HOST` point at
+  localhost — a remote Ollama server receives the paper like any API), and
+  `relay` leaves who answers entirely to you.
 - **What Prebuttal itself stores stays on your disk**: run history (pack
   text, raw outputs, resolved config) under `~/.prebuttal/runs/` and keys in
   `~/.prebuttal/keys.env` (user-only). No telemetry. Note reports and share
   pages contain excerpts of your paper — sharing them publishes those
   excerpts.
 
-## License
+## License & trademarks
+
+Prebuttal is an independent project, not affiliated with or endorsed by
+NeurIPS, ICLR, ICML, ACL/ARR or any model provider. Venue names are used only
+to describe which review form a report follows; the forms are paraphrased
+summaries of the public reviewer guidelines.
 
 MIT

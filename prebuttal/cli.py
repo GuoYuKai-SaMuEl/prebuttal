@@ -156,7 +156,7 @@ def cmd_init(args) -> int:
         print(f"{path} already exists (use --force to overwrite)", file=sys.stderr)
         return EXIT_USAGE
     path.write_text(DEFAULT_CONFIG_TOML, encoding="utf-8")
-    print(f"wrote {path} — edit repo_url and backends to taste")
+    print(f"wrote {path} — edit reviewers and backends to taste")
     return EXIT_OK
 
 
@@ -562,7 +562,7 @@ def cmd_run(args) -> int:
 
 
 def _utf8_stdio() -> None:
-    """Output contains → σ “ ” —; on Windows a redirected stdout/stderr (> log,
+    """Output contains arrows, sigma and curly quotes; on Windows a redirected stdout/stderr (> log,
     pipes, CI) defaults to the ANSI code page (cp1252) and would crash."""
     for stream in (sys.stdout, sys.stderr):
         enc = (getattr(stream, "encoding", None) or "").lower().replace("-", "")

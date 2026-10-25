@@ -40,7 +40,7 @@ _HOST_AGENT_MARKERS = (
 RELAY_AGENT_HINT = (
     "running inside {agent}. To have YOUR OWN subagents act as the reviewers, "
     "re-run with --backend relay (or set PREBUTTAL_BACKEND=relay) in the "
-    'background and answer the relay/*.req.md files — see SKILL.md "Relay mode".'
+    "background and answer the relay/*.req.md files — see https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/skills/prebuttal/SKILL.md#relay-mode-zero-api-key-zero-cli-install"
 )
 
 
