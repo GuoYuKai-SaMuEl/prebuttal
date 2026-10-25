@@ -10,6 +10,10 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-25
+
+First public release.
+
 ### Security
 
 - Prompt-injection hardening — the paper is untrusted input. `agent-claude`
@@ -22,7 +26,23 @@ releases (0.2, 0.3, …) are substantial new features.
 - Reports, JSON, share pages and run history no longer record the paper's
   absolute local path (it leaked user names when shared); local sources are
   shown relative to the working directory, else `~`, else by name.
+- A `prebuttal.toml` merely found in the current directory can no longer run
+  its `[agents.*]` commands silently (it could, e.g. inside someone else's
+  paper repo): the commands are shown and need a yes; non-interactive runs
+  refuse unless the file is passed with `--config`.
+- `~/.prebuttal` (run history with paper text, `keys.env`) is user-only
+  (0700); it used to be world-readable on shared machines.
 
+### Added
+
+- Release workflow: pushing a `v*` tag builds, tests and publishes to PyPI
+  via Trusted Publishing (no API token stored anywhere).
+- Python 3.14 and 3.15 in the CI matrix and classifiers; a CI job tests the
+  oldest supported dependency versions.
+- Synthetic weak-paper example (`examples/weak-paper/`, fictional, deliberately
+  flawed) with a real 1/10 run, published on the site; real-paper sample pages
+  carry an "unofficial, not endorsed by the authors" banner with CC BY 4.0
+  attribution.
 - GitHub Pages site (`site/`): landing page + curated sample reports (the
   Mamba and DPO full runs, regenerated from run history by
   `scripts/build_site.py`), deployed by the standard `pages` workflow —
@@ -127,6 +147,10 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Fixed
 
+- Windows: redirected output (`> log.txt`, pipes, CI) no longer crashes with
+  `UnicodeEncodeError`; stdout/stderr are switched to UTF-8.
+- The sdist now carries `tests/conftest.py`, the PDF fixture and the
+  calibration script, so the test suite runs from the source tarball.
 - `--out` / `--json` in a directory that doesn't exist yet no longer crashes
   after the reviews ran; parent dirs are created, and the run is archived
   before the outputs are written so a write error can't lose a paid review.
@@ -152,4 +176,5 @@ releases (0.2, 0.3, …) are substantial new features.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/releases/tag/v0.1.0

@@ -1,0 +1,6 @@
+# sdist extras: everything the test suite needs, so packagers (conda-forge,
+# distros) can run `pytest` from the source tarball. The wheel is unaffected.
+include CHANGELOG.md SECURITY.md
+include tests/conftest.py
+recursive-include tests/fixtures *.pdf
+include scripts/calibration/calibrate.py

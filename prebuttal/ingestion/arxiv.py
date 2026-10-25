@@ -7,10 +7,14 @@ import xml.etree.ElementTree as ET
 
 import httpx
 
+from .. import __version__
 from ..models import StructuredPaper
 from .pdf import ingest_pdf_bytes
 
-_UA = "prebuttal/0.1 (https://github.com/GuoYuKai-SaMuEl/prebuttal; paper review stress test)"
+_UA = (
+    f"prebuttal/{__version__} "
+    "(https://github.com/GuoYuKai-SaMuEl/prebuttal; paper review stress test)"
+)
 
 _ARXIV_ID = re.compile(
     r"(?:arxiv\.org/(?:abs|pdf|format|html)/)?(\d{4}\.\d{4,5})(v\d+)?", re.IGNORECASE
