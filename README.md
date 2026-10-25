@@ -56,6 +56,11 @@ chose (`prebuttal backends` to inspect):
 | `ollama` | none | local & private — *unpublished papers never leave your machine* |
 | `relay` | none | file protocol: prompts spool to disk and **you, your agent's subagents, or any system** write the answers — zero key, explicit only (`--backend relay`; never picked by auto) |
 
+**Unpublished manuscript?** The text is sent to the backend's provider, and
+what happens to it there is that provider's privacy policy, not ours — see
+[Privacy & data custody](#privacy--data-custody). For local-only review use
+`ollama` or `relay`.
+
 Useful flags:
 
 ```bash
@@ -289,6 +294,27 @@ Also read [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), and our
   reviewing experiment](https://neurips.cc/Conferences/2026/ai-reviewing-experiment),
   the etiquette is clear — AI to *prepare* your own paper is yours to decide;
   AI to *review* others' papers must follow each venue's disclosure rules.
+
+### Privacy & data custody
+
+- **Your paper's text goes to whatever backend you configure.** With API or
+  agent-CLI backends the manuscript is transmitted to that provider — and
+  OpenRouter further routes each request to a third-party upstream provider.
+  What happens to the text there (retention, training use, human review) is
+  governed **solely by each provider's terms and privacy policy**, not by
+  Prebuttal.
+- **Prebuttal is an integration layer, not a data custodian.** This project
+  operates no models and runs no servers; we never see your paper. For
+  unpublished results, check the backend provider's data-use terms before
+  sending — provider-side handling of your data is the provider's
+  responsibility, not this project's.
+- **Local-only is a first-class path**: `ollama` never sends text off your
+  machine, and `relay` leaves who answers entirely to you.
+- **What Prebuttal itself stores stays on your disk**: run history (pack
+  text, raw outputs, resolved config) under `~/.prebuttal/runs/` and keys in
+  `~/.prebuttal/keys.env` (user-only). No telemetry. Note reports and share
+  pages contain excerpts of your paper — sharing them publishes those
+  excerpts.
 
 ## License
 

@@ -38,6 +38,25 @@ Know what is intentional behavior before reporting it:
   reports, JSON output, or share pages. Remove a stored key with
   `prebuttal key unset <name>` or by deleting the file.
 
+## Data custody & privacy
+
+Prebuttal integrates third-party model services; **it is an integration
+layer, not a data custodian.**
+
+- When an API or agent-CLI backend is used, the manuscript's text is
+  transmitted to that provider. OpenRouter additionally routes each request
+  to a third-party upstream provider, each with its own policy. How any
+  provider retains, trains on, or otherwise processes that text is governed
+  **solely by that provider's terms of service and privacy policy**. The
+  Prebuttal project has no role in — and takes no responsibility for —
+  provider-side data handling. For unpublished results, verify the
+  provider's data-use terms before sending.
+- Local-only paths exist by design: `ollama` (models on your machine) and
+  `relay` (you choose the responder).
+- Local storage stays on your machine: run history under `~/.prebuttal/`
+  and keys in `~/.prebuttal/keys.env` (user-only file). There is no
+  telemetry and no Prebuttal-operated server.
+
 ## Scope
 
 In scope: anything in this repository that could lead to code execution,

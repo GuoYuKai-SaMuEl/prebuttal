@@ -12,6 +12,11 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Added
 
+- Privacy & data-custody disclaimer (README "Honesty & policy" + SECURITY.md):
+  manuscript text sent to a backend is governed solely by that provider's
+  terms; Prebuttal is an integration layer, not a data custodian. Local-only
+  paths (`ollama`, `relay`) and what the tool itself stores (local disk only)
+  are spelled out.
 - `api-openrouter` backend: one OPENROUTER_API_KEY, hundreds of models,
   OpenAI-compatible wire format (attribution headers sent; JSON mode not
   forced since many OpenRouter models reject it). Default is a `:free` model
