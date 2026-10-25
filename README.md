@@ -261,14 +261,21 @@ Versioning policy while pre-1.0: **patch** releases (0.1.1, 0.1.2, …) are
 fixes and small additions; **minor** releases (0.2, 0.3, …) are substantial
 new features; 1.0 only once the interface is battle-tested.
 
+Tentative — priorities shift with usage and feedback. Short-term the focus
+is **hardening the core on real papers**, not adding features:
+
 1. **v0.1 (current, pre-release)** — core: ingestion pipeline, real venue
    forms, 3 independent reviewers + AC, every backend (agent CLIs / APIs /
    Ollama / relay), reports + JSON + share page, calibration script
-2. **v0.1.x** — more venues, community personas, OpenReview submission
-   integration, relay UX polish
-3. **v0.2** — rebuttal workbench (reviews → point-by-point response letter);
-   "CI for papers" (GitHub Action: \ref/\label checks, citation sanity)
-4. **v0.3+** — the calibration script becomes a public benchmark /
+2. **Now (v0.1.x)** — polish from real-usage findings: table & ingestion
+   edge cases (complex PDF tables), calibration scatter plot + honest
+   per-model calibration notes, provider-reliability UX (free-pool reality,
+   retry transparency), relay UX
+3. **Next (v0.2+)** — more venues, community personas, OpenReview
+   submission integration; then the rebuttal workbench (reviews →
+   point-by-point response letter) and "CI for papers" (GitHub Action:
+   \ref/\label checks, citation sanity)
+4. **Eventually** — the calibration script becomes a public benchmark /
    leaderboard: tools depreciate, benchmarks appreciate.
 
 ## Develop
