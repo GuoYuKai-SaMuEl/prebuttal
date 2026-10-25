@@ -307,8 +307,18 @@ def test_non_utf8_redirected_output_does_not_crash(tmp_path):
     import os
     import subprocess
     import sys
+    from pathlib import Path
 
-    env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PREBUTTAL_HOME": str(tmp_path)}
+    import prebuttal
+
+    pkg_root = str(Path(prebuttal.__file__).resolve().parent.parent)  # works uninstalled too
+    pythonpath = os.pathsep.join(p for p in (pkg_root, os.environ.get("PYTHONPATH")) if p)
+    env = {
+        **os.environ,
+        "PYTHONIOENCODING": "cp1252",
+        "PREBUTTAL_HOME": str(tmp_path),
+        "PYTHONPATH": pythonpath,
+    }
     proc = subprocess.run(
         [sys.executable, "-m", "prebuttal", "run", "nope.pdf"],
         capture_output=True,
