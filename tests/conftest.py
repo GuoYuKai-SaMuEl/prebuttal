@@ -141,6 +141,22 @@ META_PAYLOAD = {
     "confidence": 4,
     "recommendation": "borderline — accept after rebuttal",
     "disagreements": "R1 vs R2 on baseline adequacy; siding partly with R2.",
+    "action_plan": [
+        {
+            "priority": "should",
+            "issue": "No variance across seeds for the Table 2 ablation.",
+            "action": "Report mean and std over 3 seeds.",
+            "raised_by": ["R3"],
+            "effort": "small",
+        },
+        {
+            "priority": "must",
+            "issue": "Baseline set is thin: Table 1 misses a Perceiver comparison.",
+            "action": "Add Perceiver-AR to Table 1 or scope the claim to the baselines run.",
+            "raised_by": ["R2", "R3"],
+            "effort": "medium",
+        },
+    ],
 }
 
 

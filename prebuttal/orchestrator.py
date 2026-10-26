@@ -18,6 +18,8 @@ from typing import Any
 
 from .config import RunConfig, reviewer_seed
 from .models import (
+    PRIORITIES,
+    ActionItem,
     MetaReview,
     Review,
     ReviewReport,
@@ -58,7 +60,20 @@ Return ONLY a JSON object with exactly these keys:
   "estimated_rating": number // your predicted final rating on the conference scale
   "confidence": number       // your confidence, scale 1 to 5
   "recommendation": string   // one line: accept / borderline / reject leaning
-  "disagreements": string    // where the reviewers disagreed and who you side with"""
+  "disagreements": string    // where the reviewers disagreed and who you side with
+  "action_plan": [           // the authors' revision plan, most important first
+    {
+      "priority": "must" | "should" | "could",
+      "issue": string,         // the problem, citing the paper (section, table, number)
+      "action": string,        // concrete fix: experiment to add, section to rewrite,
+                               // claim to scope down, or how to answer it in a rebuttal
+      "raised_by": [string],   // reviewer ids that raised it, e.g. ["R2", "R3"]
+      "effort": "small" | "medium" | "large"
+    }
+  ]
+For the action plan: 3 to 8 items. Merge the same issue raised by several
+reviewers into one item. Only include issues grounded in the reviews or the
+submission; "must" means it would likely sink the paper if left unaddressed."""
 
 # Keep raw outputs bounded in reports/JSON.
 _RAW_CAP = 20_000
@@ -386,7 +401,7 @@ def run_meta(
             user=build_ac_user(pack, reviews, venue),
             temperature=cfg.ac.temperature,
             seed=cfg.seed,
-            max_tokens=min(cfg.max_tokens, 4000),
+            max_tokens=min(cfg.max_tokens, 6000),  # meta-review + revision plan
             retries=free_tier_retries(provider, cfg.retries),
         )
     except ProviderError as e:
@@ -410,8 +425,55 @@ def run_meta(
     meta.confidence = _clamp_score(_to_number(payload.get("confidence")), max_val=5.0)
     meta.recommendation = str(payload.get("recommendation", "")).strip()
     meta.disagreements = str(payload.get("disagreements", "")).strip()
+    meta.action_plan = coerce_action_plan(
+        payload.get("action_plan"), [r.reviewer_id for r in reviews]
+    )
     log(f"[AC] done in {meta.duration_s:.0f}s")
     return meta
+
+
+_PRIORITY_ALIASES = {
+    "must": "must", "critical": "must", "high": "must", "major": "must", "required": "must",
+    "should": "should", "medium": "should", "moderate": "should", "important": "should",
+    "could": "could", "low": "could", "minor": "could", "optional": "could", "nice": "could",
+}  # fmt: skip
+_EFFORT_ALIASES = {"small": "small", "low": "small", "s": "small", "medium": "medium",
+                   "m": "medium", "moderate": "medium", "large": "large", "high": "large",
+                   "l": "large", "big": "large"}  # fmt: skip
+_MAX_ACTIONS = 10
+
+
+def coerce_action_plan(raw: Any, reviewer_ids: list[str]) -> list[ActionItem]:
+    """Best-effort parse of the AC's action_plan; malformed entries are dropped.
+
+    Items are ordered must → should → could (stable within a priority) and
+    capped, so a rambling model cannot flood the report."""
+    if not isinstance(raw, list):
+        return []
+    known = {rid.upper(): rid for rid in reviewer_ids}
+    items: list[ActionItem] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        issue = str(entry.get("issue") or "").strip()
+        action = str(entry.get("action") or "").strip()
+        if not issue:
+            continue
+        word = re.match(r"[a-z]+", str(entry.get("priority") or "").strip().lower())
+        priority = _PRIORITY_ALIASES.get(word.group(0) if word else "", "should")
+        effort = _EFFORT_ALIASES.get(str(entry.get("effort") or "").strip().lower(), "")
+        by = entry.get("raised_by") or []
+        if isinstance(by, str):
+            by = re.split(r"[,\s/&]+", by)
+        raised = []
+        for rid in by if isinstance(by, list) else []:
+            canon = known.get(str(rid).strip().upper())
+            if canon and canon not in raised:
+                raised.append(canon)
+        items.append(ActionItem(priority, issue[:600], action[:800], raised, effort))
+    order = {p: i for i, p in enumerate(PRIORITIES)}
+    items.sort(key=lambda a: order[a.priority])
+    return items[:_MAX_ACTIONS]
 
 
 def _clamp_score(v: float | None, venue: Venue | None = None, max_val: float = 5.0) -> float | None:

@@ -10,7 +10,16 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-26
+
 ### Added
+- **Revision plan.** The area chair now also returns a prioritised plan
+  (must / should / could, the issue, the concrete fix, which reviewers raised
+  it, rough effort) — in the same call, no extra cost. It opens the Markdown
+  and HTML reports and the JSON (`meta.action_plan`); the run prints the top
+  items as `Fix first:`; `prebuttal plan [run]` prints it as a `- [ ]`
+  checklist (`--json` for scripts); `prebuttal diff` checks the previous
+  run's plan against the new run (no longer raised / still raised / new).
 - **Custom venues.** Any review form and scale — CVPR, AAAI, a journal, a
   revised ICML form, a lab's mock review — as one TOML file plus the form
   text, used with `--venue NAME` or `--venue path/to/venue.toml` (also in
@@ -295,7 +304,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/releases/tag/v0.1.0

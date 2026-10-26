@@ -175,6 +175,21 @@ class Review:
     started_at: str = ""
 
 
+PRIORITIES = ("must", "should", "could")
+EFFORTS = ("small", "medium", "large")
+
+
+@dataclass
+class ActionItem:
+    """One entry of the AC's revision plan: what to fix before submitting."""
+
+    priority: str  # must | should | could
+    issue: str
+    action: str
+    raised_by: list[str] = field(default_factory=list)  # reviewer ids
+    effort: str = ""  # small | medium | large ("" = not estimated)
+
+
 @dataclass
 class MetaReview:
     backend: str
@@ -186,6 +201,7 @@ class MetaReview:
     confidence: float | None = None
     recommendation: str = ""
     disagreements: str = ""
+    action_plan: list[ActionItem] = field(default_factory=list)
     parse_ok: bool = False
     raw_output: str = ""
     error: str | None = None

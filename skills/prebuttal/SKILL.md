@@ -84,8 +84,10 @@ After the user revises the paper:
    in the same project automatically.
 2. `prebuttal diff` — the newest run vs the one before it in the same project:
    score deltas per reviewer plus weakness movement (gone / persists / new,
-   heuristic word-overlap matching). Present the "gone" list as wins and
-   "persists" as the user's TODO.
+   heuristic word-overlap matching), and the previous run's revision plan
+   checked against the new run (no longer raised / still raised / new).
+   Present the "gone" and "no longer raised" lists as wins and the rest as
+   the user's TODO.
 3. `prebuttal runs <project>` lists a paper's runs; reference one as
    `<project>#3`, `<project>~1` (one before the newest) or by id prefix.
    `prebuttal projects` lists every paper.
@@ -100,12 +102,16 @@ After the user revises the paper:
 - `reviewers[].backend` / `model` — which backend produced each review (always
   disclose this to the user)
 - `meta.meta_review` — the area chair's synthesis and recommendation
+- `meta.action_plan[]` — the revision plan, most important first: `priority`
+  (must / should / could), `issue`, `action`, `raised_by` (reviewer ids),
+  `effort` (small / medium / large). `prebuttal plan` prints it as a checklist.
 
 ## Presenting results to the user
 
 1. Lead with the aggregate score and disagreement.
-2. List the recurring weaknesses across reviewers (things ≥2 reviewers agree on
-   are the real risks), each with its citation to a table/section.
+2. Walk through the revision plan (`meta.action_plan`), "must" items first —
+   items raised by ≥2 reviewers are the real risks — each with its citation
+   to a table/section and the suggested action.
 3. Pull out the questions reviewers would ask in rebuttal.
 4. Give the AC recommendation verbatim.
 5. Offer next steps: fix specific weaknesses, re-run after revision with the

@@ -240,6 +240,25 @@ and deliberate: *this tool was measured* — unlike role-play prompts. It is
 other by more than this tool's error. Disagreement (σ) is reported with every
 aggregate for exactly that reason.
 
+## The revision plan
+
+Reviews tell you what is wrong; the **revision plan** tells you what to do
+about it. The area chair merges what the reviewers raised into a short,
+prioritised list — no extra model call, it comes with the meta-review:
+
+```
+- [ ] **must** — Baseline set is thin: Table 1 misses a Perceiver comparison
+      → Add Perceiver-AR to Table 1 or scope the claim to the baselines run (R2, R3 · effort: medium)
+- [ ] **should** — No variance across seeds for the Table 2 ablation
+      → Report mean and std over 3 seeds (R3 · effort: small)
+```
+
+It opens every report, the run prints the top items (`Fix first:`), and
+`prebuttal plan [run]` prints it as a checklist to paste into your notes or an
+issue (`--json` for scripts). After you revise and re-run, `prebuttal diff`
+checks the old plan against the new reviews: which items are no longer
+raised, which still are, and what is new.
+
 ## Projects, reports & revision history
 
 Each paper gets a **project**, found from where it came from: the same PDF
@@ -264,7 +283,8 @@ so everything below works from any directory:
 prebuttal projects                   # one line per paper: runs, latest score, trend
 prebuttal runs [project]             # its runs, newest first, with notes
 prebuttal open                       # newest report in the browser (HTML)
-prebuttal diff                       # newest run vs the one before: ratings + weakness movement
+prebuttal plan                       # the newest run's revision plan as a checklist
+prebuttal diff                       # newest run vs the one before: ratings, weaknesses, plan
 prebuttal dashboard                  # local HTML overview: every project, score trends, links
 prebuttal show / export / note / rm  # print, copy out, annotate, delete runs
 prebuttal projects rename|rm         # tidy up
@@ -276,7 +296,8 @@ prefix.
 
 The revision loop: fix what the reviewers flagged, re-run with the same
 `--seed` and a `--note "what changed"`, then `prebuttal diff` shows which
-weaknesses went away, persisted, or appeared. Report location and formats
+weaknesses went away, persisted, or appeared, and which revision-plan items
+are no longer raised. Report location and formats
 are configurable: `--out-dir`, `--format md,html,json`, or an `[output]`
 section in `prebuttal.toml` (`dir = ""` keeps reports in the archive only).
 Need a file at a fixed path, e.g. for a script? `--json PATH`, or
@@ -391,16 +412,19 @@ is **hardening the core on real papers**, not adding features:
    projects & revision history (per-paper report folders, run management,
    local dashboard) and per-role reasoning effort; v0.2.1 hardened PDF table
    extraction on real two-column papers
-2. **Now (v0.2.x)** — polish from real-usage findings: calibration scatter
+2. **v0.3 (current)** — custom venues (any review form and scale as a TOML
+   file) and the revision plan (the AC's prioritised fix list, checked
+   against the next run by `prebuttal diff`)
+3. **Now (v0.3.x)** — polish from real-usage findings: calibration scatter
    plot + honest per-model calibration notes, provider-reliability UX
    (free-pool reality, retry transparency), relay UX
-3. **Next (v0.3+)** — custom venues (done in 0.3.0), community personas, OpenReview
-   submission integration, and a browser-only web quick-scan (GitHub Pages:
-   drag-drop a PDF + your own OpenRouter/Gemini key — no server, we stay a
-   non-custodian); then the rebuttal workbench (reviews →
-   point-by-point response letter) and "CI for papers" (GitHub Action:
-   \ref/\label checks, citation sanity)
-4. **Eventually** — the calibration script becomes a public benchmark /
+4. **Next (v0.4+)** — community personas, OpenReview submission
+   integration, and a browser-only web quick-scan (GitHub Pages: drag-drop a
+   PDF + your own OpenRouter/Gemini key — no server, we stay a
+   non-custodian); then the rebuttal workbench (reviews → point-by-point
+   response letter) and "CI for papers" (GitHub Action: \ref/\label checks,
+   citation sanity)
+5. **Eventually** — the calibration script becomes a public benchmark /
    leaderboard: tools depreciate, benchmarks appreciate.
 
 ## Develop

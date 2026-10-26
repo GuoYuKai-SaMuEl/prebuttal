@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import sys
 from pathlib import Path
 
@@ -34,7 +35,7 @@ from .config import (
 from .dashboard import dashboard_path, ensure_html, render_dashboard
 from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
-from .models import EFFORT_LEVELS
+from .models import EFFORT_LEVELS, dataclass_to_dict
 from .orchestrator import run_report
 from .outputs import FORMATS, parse_formats, write_local
 from .pack import render_pack
@@ -57,7 +58,7 @@ from .providers import (
     resolve_backends,
     scan_backends,
 )
-from .report import dumps_json, render_markdown
+from .report import dumps_json, render_markdown, render_plan, report_from_dict
 from .runs import (
     delete_runs,
     load_history,
@@ -177,6 +178,12 @@ def build_parser() -> argparse.ArgumentParser:
     show_p = sub.add_parser("show", help="print an archived report (default: latest)")
     show_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
     show_p.add_argument("--json", action="store_true", help="print the stored report.json")
+
+    plan_p = sub.add_parser(
+        "plan", help="print a run's revision plan as a checklist (default: latest)"
+    )
+    plan_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
+    plan_p.add_argument("--json", action="store_true", help="machine-readable action items")
 
     open_p = sub.add_parser("open", help="open a run's HTML report in the browser")
     open_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
@@ -309,8 +316,6 @@ def cmd_projects(args) -> int:
 
     projects = project_summaries()
     if args.json:
-        import json as jsonlib
-
         data = [
             {
                 "project": p.key,
@@ -323,7 +328,7 @@ def cmd_projects(args) -> int:
             }
             for p in projects
         ]
-        print(jsonlib.dumps(data, indent=2, ensure_ascii=False))
+        print(json.dumps(data, indent=2, ensure_ascii=False))
         return EXIT_OK
     print(render_projects_table(projects))
     if projects:
@@ -347,9 +352,7 @@ def cmd_runs(args) -> int:
         ]
     records = records[: max(1, args.limit)]
     if args.json:
-        import json as jsonlib
-
-        print(jsonlib.dumps([r.__dict__ for r in records], indent=2, ensure_ascii=False))
+        print(json.dumps([r.__dict__ for r in records], indent=2, ensure_ascii=False))
         return EXIT_OK
     print(render_runs_table(records))
     return EXIT_OK
@@ -379,6 +382,32 @@ def cmd_show(args) -> int:
     except OSError as e:
         print(f"error: archived {name} for {rec.label} is missing ({e})", file=sys.stderr)
         return EXIT_USAGE
+    return EXIT_OK
+
+
+def cmd_plan(args) -> int:
+    rec = _resolve_run_or_exit(args.run)
+    if rec is None:
+        return EXIT_USAGE
+    try:
+        data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        print(f"error: archived report.json for {rec.label} is unreadable ({e})", file=sys.stderr)
+        return EXIT_USAGE
+    plan = report_from_dict(data).meta.action_plan
+    if args.json:
+        print(json.dumps([dataclass_to_dict(it) for it in plan], indent=2, ensure_ascii=False))
+        return EXIT_OK
+    if not plan:
+        print(
+            f"{rec.label} has no revision plan (runs before prebuttal 0.3, or the area chair "
+            "failed). Re-run the paper to get one.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    print(f"# Revision plan — {data.get('paper', {}).get('title', rec.label)} ({rec.label})")
+    print()
+    print("\n".join(render_plan(plan)))
     return EXIT_OK
 
 
@@ -948,10 +977,13 @@ def cmd_run(args) -> int:
                 f"({prev.mean:g} → {agg.mean:g})"
             )
         print(f"Saved:    {rec.label}")
+    for i, it in enumerate(report.meta.action_plan[:3]):
+        text = it.issue if len(it.issue) <= 90 else it.issue[:89] + "…"
+        print(f"{'Fix first:' if i == 0 else '':<10} [{it.priority}] {text}")
     for i, path in enumerate(written):
         print(f"{'Report:' if i == 0 else '':<10}{path}")
     if rec is not None:
-        nxt = "prebuttal open · prebuttal dashboard"
+        nxt = "prebuttal open · prebuttal plan · prebuttal dashboard"
         if rec.run_no > 1:
             nxt = "prebuttal diff · " + nxt
         print(f"Next:     {nxt}")
@@ -1026,6 +1058,7 @@ def main(argv=None) -> int:
             "projects": cmd_projects,
             "runs": cmd_runs,
             "show": cmd_show,
+            "plan": cmd_plan,
             "open": cmd_open,
             "diff": cmd_diff,
             "note": cmd_note,

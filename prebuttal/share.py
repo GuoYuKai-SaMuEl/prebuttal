@@ -86,6 +86,26 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     <p>{_e(_clip(r.meta.meta_review, _META_CHARS))}</p>
   </section>"""
 
+    plan_html = ""
+    if r.meta.action_plan:
+        lis = "".join(
+            f'<li><span class="prio prio-{_e(it.priority)}">{_e(it.priority)}</span> '
+            f"<b>{_e(_clip(it.issue, _ITEM_CHARS))}</b>"
+            + (
+                f'<br><span class="act">→ {_e(_clip(it.action, _ITEM_CHARS))}</span>'
+                if it.action
+                else ""
+            )
+            + (f' <span class="by">{_e(", ".join(it.raised_by))}</span>' if it.raised_by else "")
+            + "</li>"
+            for it in r.meta.action_plan
+        )
+        plan_html = f"""
+  <section class="meta plan">
+    <h2>Revision plan</h2>
+    <ol>{lis}</ol>
+  </section>"""
+
     backends = " · ".join(f"{_e(rev.reviewer_id)}: {_e(rev.backend)}" for rev in r.reviews)
 
     return f"""<!doctype html>
@@ -123,6 +143,12 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   .meta {{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }}
   .meta h2 {{ font-size:16px; margin:0 0 8px; }}
   .est {{ font-weight:700; margin-bottom:6px; }}
+  .plan ol {{ margin:0; padding-left:20px; }} .plan li {{ margin:0 0 10px; }}
+  .prio {{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+          border-radius:999px; padding:1px 8px; margin-right:4px; }}
+  .prio-must {{ background:#fef2f2; color:#b91c1c; }} .prio-should {{ background:#fffbeb; color:#b45309; }}
+  .prio-could {{ background:#f1f5f9; color:var(--mut); }}
+  .act {{ color:#374151; }} .by {{ color:var(--mut); font-size:12px; }}
   footer {{ margin-top:28px; padding-top:16px; border-top:1px solid var(--line);
            color:var(--mut); font-size:13px; }}
   code {{ background:#eef2ff; border-radius:6px; padding:2px 8px; font-size:13px; }}
@@ -144,6 +170,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   <div class="grid">{"".join(cards)}
   </div>
   {meta_html}
+  {plan_html}
   <footer>
     Generated with <b>Prebuttal</b> — <code>pip install prebuttal</code> ·
     <a href="{_e(repo_url)}">{_e(repo_url)}</a><br>

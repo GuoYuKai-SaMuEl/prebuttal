@@ -9,6 +9,7 @@ from typing import Any
 
 from . import __version__
 from .models import (
+    ActionItem,
     Aggregate,
     MetaReview,
     Review,
@@ -163,6 +164,13 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
         out.append("**Ingestion warnings:** " + "; ".join(r.paper.warnings))
         out.append("")
 
+    # --- revision plan (the AC's, distilled from all reviews)
+    if r.meta.action_plan:
+        out.append("## Revision plan")
+        out.append("")
+        out.extend(render_plan(r.meta.action_plan))
+        out.append("")
+
     # --- meta review
     out.append(
         f"## Meta-review (Area Chair — `{r.meta.backend}` / `{r.meta.model or 'CLI default'}`)"
@@ -233,6 +241,22 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     return "\n".join(out)
 
 
+def render_plan(items: list[ActionItem], *, checkboxes: bool = True) -> list[str]:
+    """The revision plan as Markdown list lines (``- [ ]`` task items by default)."""
+    lines = []
+    for it in items:
+        box = "- [ ] " if checkboxes else "- "
+        tags = ", ".join(it.raised_by)
+        extra = " · ".join(x for x in (tags, f"effort: {it.effort}" if it.effort else "") if x)
+        line = f"{box}**{it.priority}** — {it.issue}"
+        if it.action:
+            line += f" → {it.action}"
+        if extra:
+            line += f" ({extra})"
+        lines.append(line)
+    return lines
+
+
 def _applied(backend: str, model: str) -> dict[str, bool]:
     temp_ok, seed_ok = param_support(backend, model)
     return {"temperature_applied": temp_ok, "seed_applied": seed_ok}
@@ -295,6 +319,14 @@ def _dataclass_from(cls: Any, data: dict[str, Any]) -> Any:
     return cls(**kwargs)
 
 
+def _meta_from(d: dict[str, Any]) -> MetaReview:
+    meta = _dataclass_from(MetaReview, d)
+    meta.action_plan = [
+        _dataclass_from(ActionItem, a) for a in d.get("action_plan") or [] if isinstance(a, dict)
+    ]
+    return meta
+
+
 def report_from_dict(d: dict[str, Any]) -> ReviewReport:
     """Rebuild a report from its ``report.json`` (enough to re-render HTML)."""
     venue = d.get("venue")
@@ -302,7 +334,7 @@ def report_from_dict(d: dict[str, Any]) -> ReviewReport:
         paper=_dataclass_from(StructuredPaper, d["paper"]),
         venue_key=venue.get("key", "") if isinstance(venue, dict) else str(venue or ""),
         reviews=[_dataclass_from(Review, r) for r in d["reviewers"]],
-        meta=_dataclass_from(MetaReview, d["meta"]),
+        meta=_meta_from(d["meta"]),
         aggregate=_dataclass_from(Aggregate, d["aggregate"]),
         run=_dataclass_from(RunInfo, d["run"]),
     )

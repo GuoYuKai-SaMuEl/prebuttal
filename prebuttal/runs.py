@@ -504,6 +504,34 @@ def render_diff(a: RunRecord, b: RunRecord) -> str:
         out.append("(no weaknesses reported in either run)")
         out.append("")
 
+    plan_a = [it for it in (ea.get("action_plan") or []) if isinstance(it, dict)]
+    plan_b = [it for it in (eb.get("action_plan") or []) if isinstance(it, dict)]
+    if plan_a:
+        # an item is still open while B's plan or any B reviewer still raises it
+        b_texts = [str(it.get("issue", "")) for it in plan_b] + [
+            str(w)
+            for r in db.get("reviewers", [])
+            for w in ((r.get("fields") or {}).get("weaknesses") or [])
+        ]
+        out.append("## Revision plan of A, checked against B")
+        n_done = 0
+        for it in plan_a:
+            issue = str(it.get("issue", ""))
+            still = any(_weak_sim(issue, t) >= 0.35 for t in b_texts)
+            n_done += not still
+            mark = "still raised" if still else "no longer raised"
+            out.append(f"- {mark}: [{it.get('priority', '?')}] {issue[:200]}")
+        new = [
+            str(it.get("issue", ""))
+            for it in plan_b
+            if not any(_weak_sim(str(it.get("issue", "")), str(x.get("issue", ""))) >= 0.35
+                       for x in plan_a)
+        ]  # fmt: skip
+        for issue in new:
+            out.append(f"- new in B: {issue[:200]}")
+        out.append(f"\n{n_done} of {len(plan_a)} plan items no longer raised.")
+        out.append("")
+
     out.append(
         "*Heuristic comparison of two simulated runs — same persona ≠ same reviewer; "
         "treat movements as signals, not measurements.*"
