@@ -73,7 +73,7 @@ from .runs import (
     set_note,
 )
 from .share import render_share_html
-from .venues import VENUE_KEYS, get_venue
+from .venues import VENUE_KEYS, VENUES, VenueError, get_venue
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -100,7 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
         "run", help="review a paper (PDF / LaTeX dir / arXiv link)", allow_abbrev=False
     )
     run.add_argument("paper", help="path to .pdf, LaTeX project dir, or arXiv link/id")
-    run.add_argument("--venue", choices=VENUE_KEYS, help="review form to use")
+    run.add_argument(
+        "--venue",
+        default=None,
+        help=f"review form: {', '.join(VENUE_KEYS)}, a custom venue name, "
+        "or a venue .toml file (see `prebuttal venues`)",
+    )
     run.add_argument("-c", "--config", default=None, help="prebuttal.toml path")
     run.add_argument("--reviewers", type=int, default=None, help="number of reviewers (1-5)")
     run.add_argument("--backend", default=None, help="force a backend for all roles")
@@ -218,6 +223,21 @@ def build_parser() -> argparse.ArgumentParser:
     key_unset.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
 
     sub.add_parser("models", help="list available models per backend (* = current default)")
+
+    ven_p = sub.add_parser("venues", help="list review forms; add your own venue")
+    ven_sub = ven_p.add_subparsers(dest="venues_cmd")
+    ven_new = ven_sub.add_parser("new", help="write a venue template to edit")
+    ven_new.add_argument("key", help="short name, e.g. cvpr or lab-review")
+    ven_new.add_argument(
+        "--from", dest="base", default=None, choices=VENUE_KEYS, help="start from a built-in venue"
+    )
+    ven_new.add_argument(
+        "--here",
+        action="store_true",
+        help="write to ./.prebuttal/venues (shared with the project) instead of ~/.prebuttal",
+    )
+    ven_show = ven_sub.add_parser("show", help="print a venue's scores and review form")
+    ven_show.add_argument("venue", help="venue name or .toml path")
 
     return parser
 
@@ -496,6 +516,72 @@ def cmd_dashboard(args) -> int:
     return EXIT_OK
 
 
+def _scale_summary(venue) -> str:
+    rf = venue.rating_field
+    step = ", half-steps" if rf.allow_float else ""
+    return f"{rf.label} 1-{rf.max:g}{step}"
+
+
+def cmd_venues(args) -> int:
+    from .venues import custom
+
+    if args.venues_cmd == "new":
+        key = args.key.strip().lower()
+        if not custom.KEY_RE.match(key):
+            print("error: use a short lowercase name like 'cvpr' or 'lab-review'", file=sys.stderr)
+            return EXIT_USAGE
+        if key in VENUES:
+            print(
+                f"error: '{key}' is built in — pick another name "
+                f"(e.g. `prebuttal venues new {key}-2027 --from {key}`)",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
+        folder = custom.search_dirs()[0] if args.here else custom.home_dir()
+        toml_path, form_path = folder / f"{key}.toml", folder / f"{key}.md"
+        if toml_path.exists() or form_path.exists():
+            print(f"error: {toml_path} or {form_path} already exists", file=sys.stderr)
+            return EXIT_USAGE
+        toml_text, form_text = custom.render_template(key, VENUES[args.base] if args.base else None)
+        folder.mkdir(parents=True, exist_ok=True)
+        toml_path.write_text(toml_text, encoding="utf-8")
+        form_path.write_text(form_text, encoding="utf-8")
+        print(f"Wrote {toml_path}")
+        print(f"      {form_path}")
+        print("Edit the scores in the .toml and paste the venue's reviewer guidelines into")
+        print(
+            f"the .md, then: prebuttal venues show {key}  ·  prebuttal run paper.pdf --venue {key}"
+        )
+        return 0
+
+    if args.venues_cmd == "show":
+        try:
+            venue = get_venue(args.venue)
+        except VenueError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return EXIT_USAGE
+        origin = venue.origin or "built in"
+        print(f"{venue.name} ({venue.key}) — {origin}\n")
+        print(venue.json_spec())
+        print("\n--- review form shown to reviewers ---\n")
+        print(venue.form_text().rstrip())
+        return 0
+
+    print("Built-in venues:")
+    for v in VENUES.values():
+        print(f"  {v.key:<12} {v.name:<22} {_scale_summary(v)}")
+    found = custom.list_custom()
+    print("\nCustom venues:" if found else "\nNo custom venues yet.")
+    for path, cv, err in found:
+        if cv is None:
+            print(f"  {path.stem:<12} INVALID — {err}")
+        else:
+            print(f"  {cv.key:<12} {cv.name:<22} {_scale_summary(cv)}  ({path})")
+    print("\nSearched: " + " · ".join(str(d) for d in custom.search_dirs()))
+    print("Add one:  prebuttal venues new cvpr   (or --from icml to copy a built-in form)")
+    return 0
+
+
 def cmd_models(args) -> int:
     from .modelscan import render, scan
 
@@ -696,6 +782,8 @@ def cmd_run(args) -> int:
         effort=args.effort,
     )
     venue = get_venue(cfg.venue)
+    if venue.custom:
+        _log(f"[prebuttal] venue: {venue.name} (custom, {venue.origin})")
     # validate output choices before any (possibly paid) review runs
     try:
         formats = parse_formats(args.format) if args.format else cfg.output_formats
@@ -951,6 +1039,8 @@ def main(argv=None) -> int:
             return cmd_key(args)
         if args.cmd == "models":
             return cmd_models(args)
+        if args.cmd == "venues":
+            return cmd_venues(args)
         return cmd_run(args)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from .venues import VENUE_KEYS
+from .venues import VenueError, get_venue
 
 CONFIG_FILENAME = "prebuttal.toml"
 
@@ -42,7 +42,8 @@ DEFAULT_CONFIG_TOML = """\
 # unpublished work, use `ollama` (local) or `relay` (you pick the responder).
 
 [default]
-venue = "iclr"          # neurips | iclr | icml | acl
+venue = "iclr"          # neurips | iclr | icml | acl, a custom venue name, or a
+                        # venue .toml path (relative to this file) — `prebuttal venues`
 seed = 42               # reproducibility: recorded in every report
 budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 # effort = "high"       # reasoning effort: low | medium | high (unset = each
@@ -237,10 +238,9 @@ def load_config(path: str | Path | None = None) -> RunConfig:
     d = raw.get("default", {})
     if "venue" in d:
         cfg.venue = str(d["venue"])
-    if cfg.venue not in VENUE_KEYS:
-        raise ConfigError(
-            f"unknown venue '{cfg.venue}' in {path} — supported: {', '.join(VENUE_KEYS)}"
-        )
+        if venue_is_path(cfg.venue) and not Path(cfg.venue).expanduser().is_absolute():
+            cfg.venue = str(path.parent / cfg.venue)  # relative to the config file
+    check_venue(cfg.venue, f" (venue set in {path})")
     cfg.seed = int(d.get("seed", cfg.seed))
     cfg.budget_chars = int(d.get("budget_chars", cfg.budget_chars))
     cfg.effort = check_effort(d.get("effort", cfg.effort), f"{path} [default]")
@@ -333,6 +333,20 @@ def env_backend() -> str | None:
     return value or None
 
 
+def venue_is_path(name: str) -> bool:
+    from .venues.custom import looks_like_path
+
+    return looks_like_path(name)
+
+
+def check_venue(name: str, where: str = "") -> None:
+    """Fail early (as a config error) on an unknown or invalid venue."""
+    try:
+        get_venue(name)
+    except VenueError as e:
+        raise ConfigError(f"{e}{where}") from e
+
+
 def apply_overrides(
     cfg: RunConfig,
     *,
@@ -349,8 +363,7 @@ def apply_overrides(
         cfg.reviewers = [replace(r, effort="") for r in cfg.reviewers]
         cfg.ac = replace(cfg.ac, effort="")
     if venue is not None:
-        if venue not in VENUE_KEYS:
-            raise ConfigError(f"unknown venue '{venue}' — supported: {', '.join(VENUE_KEYS)}")
+        check_venue(venue)
         cfg.venue = venue
     if seed is not None:
         cfg.seed = seed

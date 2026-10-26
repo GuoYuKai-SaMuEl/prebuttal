@@ -243,7 +243,7 @@ def to_json(report: ReviewReport, venue: Venue) -> dict[str, Any]:
     return {
         "prebuttal_version": __version__,
         "generated_at": r.run.generated_at,
-        "venue": {"key": venue.key, "name": venue.name},
+        "venue": _venue_json(venue),
         "run": dataclass_to_dict(r.run),
         "paper": r.paper.summary_dict(),
         "aggregate": {
@@ -264,6 +264,16 @@ def to_json(report: ReviewReport, venue: Venue) -> dict[str, Any]:
         "usage_total": dataclass_to_dict(r.usage_total),
         "notice": HONESTY_NOTE,
     }
+
+
+def _venue_json(venue: Venue) -> dict[str, Any]:
+    out: dict[str, Any] = {"key": venue.key, "name": venue.name}
+    if venue.custom:  # keep the definition: the file may change or move later
+        from .venues.custom import venue_to_spec
+
+        out["custom"] = True
+        out["definition"] = venue_to_spec(venue)
+    return out
 
 
 def dumps_json(report: ReviewReport, venue: Venue) -> str:

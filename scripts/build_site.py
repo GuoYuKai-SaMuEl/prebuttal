@@ -25,7 +25,7 @@ sys.path.insert(0, str(REPO))
 
 from prebuttal.report import report_from_dict
 from prebuttal.share import render_share_html
-from prebuttal.venues import get_venue
+from prebuttal.venues import venue_from_report
 
 REPO_URL = "https://github.com/GuoYuKai-SaMuEl/prebuttal"
 
@@ -137,11 +137,6 @@ def find_report(runs_dir: Path, pattern: str) -> dict | None:  # type: ignore[ty
     return None
 
 
-def venue_key(d: dict) -> str:  # type: ignore[type-arg]
-    v = d["venue"]
-    return v["key"] if isinstance(v, dict) else v
-
-
 def main() -> int:
     home = os.environ.get("PREBUTTAL_HOME") or os.path.expanduser("~/.prebuttal")
     runs_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(home) / "runs"
@@ -159,7 +154,7 @@ def main() -> int:
             else:
                 print(f"[site] no usable run for {pattern} — skipping {name}")
             continue
-        venue = get_venue(venue_key(d))
+        venue = venue_from_report(d)
         html = render_share_html(report_from_dict(d), venue, REPO_URL)
         target.write_text(with_analytics(with_banner(html, banner)), encoding="utf-8")
         title = d["paper"]["title"][:60]

@@ -14,6 +14,13 @@ from pathlib import Path
 FORMS_DIR = Path(__file__).parent / "forms"
 
 
+class VenueError(KeyError):
+    """Unknown venue, or a custom venue file that does not validate."""
+
+    def __str__(self) -> str:  # KeyError would repr() the message
+        return str(self.args[0]) if self.args else ""
+
+
 @dataclass(frozen=True)
 class VenueField:
     key: str
@@ -46,6 +53,12 @@ class Venue:
     confidence_key: str | None
     fields: list[VenueField]
     form_file: str
+    form_body: str = ""  # custom venues: the form text itself
+    origin: str = ""  # custom venues: the TOML file it came from ("" = built-in)
+
+    @property
+    def custom(self) -> bool:
+        return not self.form_file
 
     @property
     def rating_field(self) -> VenueField:
@@ -58,6 +71,8 @@ class Venue:
         raise KeyError(key)
 
     def form_text(self) -> str:
+        if self.form_body:
+            return self.form_body
         path = FORMS_DIR / self.form_file
         if not path.is_file():
             raise FileNotFoundError(f"missing venue form file: {path}")
@@ -240,11 +255,44 @@ VENUES: dict[str, Venue] = {v.key: v for v in (NEURIPS, ICLR, ICML, ARR)}
 VENUE_KEYS = list(VENUES)
 
 
-def get_venue(key: str) -> Venue:
-    key = (key or "").strip().lower()
-    if key not in VENUES:
-        raise KeyError(
-            f"unknown venue '{key}' — supported venues: {', '.join(VENUE_KEYS)} "
-            "(venue forms are plain-text files; PRs welcome)"
-        )
-    return VENUES[key]
+def get_venue(name: str) -> Venue:
+    """A built-in venue, a custom one by name, or a venue file by path.
+
+    Custom venues live in ``./.prebuttal/venues/`` or ``~/.prebuttal/venues/``
+    (see :mod:`prebuttal.venues.custom`).  Raises VenueError (a KeyError).
+    """
+    from . import custom
+
+    raw = (name or "").strip()
+    if custom.looks_like_path(raw):
+        return custom.load_venue_file(raw)
+    key = raw.lower()
+    if key in VENUES:
+        return VENUES[key]
+    path = custom.find_venue_file(key)
+    if path is not None:
+        return custom.load_venue_file(path)
+    extra = [p.stem for p, v, _e in custom.list_custom() if v is not None]
+    names = ", ".join(VENUE_KEYS + extra)
+    raise VenueError(
+        f"unknown venue '{key}' — available: {names}. Add your own with "
+        f"`prebuttal venues new {key or 'myvenue'}` (see `prebuttal venues`)"
+    )
+
+
+def venue_from_report(d: dict) -> Venue:
+    """The venue a stored ``report.json`` was written for.
+
+    Custom venues are rebuilt from the definition the report carries, so an
+    archived report still renders after its venue file is moved or edited."""
+    from . import custom
+
+    v = d.get("venue")
+    key = (v.get("key", "") if isinstance(v, dict) else str(v or "")).lower()
+    if key in VENUES:
+        return VENUES[key]
+    spec = v.get("definition") if isinstance(v, dict) else None
+    if isinstance(spec, dict):
+        # the form text is not stored: it is only needed to run a review
+        return custom.venue_from_spec(key, spec, form="(review form not stored in the report)")
+    return get_venue(key)

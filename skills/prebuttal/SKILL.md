@@ -31,7 +31,9 @@ exactly what this tool exists to avoid.
    If missing: `pip install prebuttal` (or `pipx install prebuttal`; `uvx prebuttal ...` for a one-shot run).
 2. Identify the paper source and target venue:
    - source: a PDF path, a LaTeX project directory, or an arXiv link/id
-   - venue: `neurips` | `iclr` | `icml` | `acl` (ask if unclear; default neurips)
+   - venue: `neurips` | `iclr` | `icml` | `acl` (ask if unclear; default neurips).
+     Other venues: `prebuttal venues` lists custom ones; `prebuttal venues new <name>`
+     writes a template the user fills with the venue's form and scale.
 3. Run:
 
    ```bash

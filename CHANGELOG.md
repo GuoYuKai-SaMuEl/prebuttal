@@ -10,6 +10,17 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Added
+- **Custom venues.** Any review form and scale — CVPR, AAAI, a journal, a
+  revised ICML form, a lab's mock review — as one TOML file plus the form
+  text, used with `--venue NAME` or `--venue path/to/venue.toml` (also in
+  `prebuttal.toml`, relative to it). Looked up in `./.prebuttal/venues/`, then
+  `~/.prebuttal/venues/`. `prebuttal venues` lists built-in and custom venues
+  (flagging invalid files), `prebuttal venues new NAME [--from icml] [--here]`
+  writes a commented template, `prebuttal venues show NAME` prints the scores
+  and form reviewers will see. Files are validated before any model is
+  called; reports store the venue definition so archived runs keep rendering.
+
 ## [0.2.1] — 2026-10-26
 
 ### Fixed

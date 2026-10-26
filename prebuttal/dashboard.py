@@ -15,7 +15,7 @@ from . import __version__
 from .report import report_from_dict
 from .runs import ProjectSummary, RunRecord, runs_root
 from .share import render_share_html
-from .venues import get_venue
+from .venues import venue_from_report
 
 DEFAULT_REPO_URL = "https://github.com/GuoYuKai-SaMuEl/prebuttal"
 
@@ -43,7 +43,7 @@ def ensure_html(rec: RunRecord, repo_url: str = DEFAULT_REPO_URL) -> Path:
     data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
     report = report_from_dict(data)
     path.write_text(
-        render_share_html(report, get_venue(report.venue_key or rec.venue), repo_url),
+        render_share_html(report, venue_from_report(data), repo_url),
         encoding="utf-8",
     )
     return path

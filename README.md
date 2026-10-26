@@ -118,6 +118,48 @@ Personas live in [`prebuttal/personas/`](https://github.com/GuoYuKai-SaMuEl/preb
 [`prebuttal/venues/forms/`](https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/prebuttal/venues/forms) — plain text files, PRs
 welcome (scale wording drifts every year; keep it current).
 
+## Your own venue (custom review forms)
+
+Built in: `neurips`, `iclr`, `icml`, `acl`. Anything else — CVPR, AAAI, a
+journal, this year's revised ICML form, your lab's internal mock review — is
+one TOML file plus the form text:
+
+```bash
+prebuttal venues new cvpr              # template in ~/.prebuttal/venues/
+prebuttal venues new icml-2027 --from icml --here   # copy a built-in, project-local
+prebuttal venues                       # list built-in + custom (invalid ones flagged)
+prebuttal venues show cvpr             # the scores and form reviewers will see
+prebuttal run paper.pdf --venue cvpr   # or --venue path/to/venue.toml
+```
+
+```toml
+# cvpr.toml
+name = "CVPR 2027"
+form = "cvpr.md"          # the reviewer guidelines, shown to reviewers verbatim
+rating = "rating"         # which score is the overall recommendation
+
+[[fields]]
+key = "weaknesses"
+label = "Weaknesses"
+kind = "list"             # text | list | score
+
+[[fields]]
+key = "rating"
+label = "Overall recommendation"
+kind = "score"
+max = 6                   # scores run 1..max; half_steps = true allows 3.5
+anchors = { "1" = "Reject", "3" = "Borderline", "6" = "Strong accept" }
+```
+
+Venues are looked up in `./.prebuttal/venues/` (commit it to share with
+co-authors) and then `~/.prebuttal/venues/`; built-in names can't be
+shadowed, so a copy needs its own name. Files are checked before any model is
+called, and every error names the file and the setting. Reports keep the
+venue's definition, so archived runs still render after the file changes.
+Custom venues are not calibrated: the calibration script needs OpenReview
+scores for a real venue. A venue's form text is instructions to your reviewers, so only
+use venue files you trust (the form must sit next to its `.toml`).
+
 ## Configuration
 
 `prebuttal init` writes a commented `prebuttal.toml`. Per-reviewer backends,
@@ -352,7 +394,7 @@ is **hardening the core on real papers**, not adding features:
 2. **Now (v0.2.x)** — polish from real-usage findings: calibration scatter
    plot + honest per-model calibration notes, provider-reliability UX
    (free-pool reality, retry transparency), relay UX
-3. **Next (v0.3+)** — more venues, community personas, OpenReview
+3. **Next (v0.3+)** — custom venues (done in 0.3.0), community personas, OpenReview
    submission integration, and a browser-only web quick-scan (GitHub Pages:
    drag-drop a PDF + your own OpenRouter/Gemini key — no server, we stay a
    non-custodian); then the rebuttal workbench (reviews →
