@@ -231,18 +231,40 @@ def _drop_args(m: re.Match, text: str) -> str:
     return " "
 
 
+# inline/display math, kept as LaTeX: reviewers read it, stripping it loses symbols
+_MATH_SPAN = re.compile(r"\$\$.+?\$\$|\$(?:\\.|[^$\\])+?\$|\\\(.+?\\\)|\\\[.+?\\\]", re.S)
+_ESC_DOLLAR = "\x00"
+
+
+def _clean_math(m: str, resolve_ref=None) -> str:
+    m = re.sub(r"\\label\s*\{[^{}]*\}", " ", m)
+    if resolve_ref is not None:
+        m = re.sub(r"\\(?:ref|eqref)\s*\{([^{}]*)\}", lambda r: resolve_ref(r.group(1)), m)
+    return re.sub(r"\s+", " ", m).strip()
+
+
 def _clean_inline(s: str, resolve_ref=None) -> str:
+    s = s.replace("\\$", _ESC_DOLLAR)
+    maths: list[str] = []
+    tag = f"\x01{id(maths)}:"  # unique per call: footnotes recurse
+
+    def keep(m: re.Match) -> str:
+        maths.append(_clean_math(m.group(0), resolve_ref))
+        return f"{tag}{len(maths) - 1}\x01"
+
+    s = _MATH_SPAN.sub(keep, s)
     for _ in range(4):
         if not re.search(r"\\(?:" + _WRAPPERS + r")\*?\s*\{", s):
             break
         s = re.sub(r"\\(?:" + _WRAPPERS + r")\*?\s*\{", "{", s)
 
-    def footnote(m: re.Match) -> str:
-        g = _group_after(m.string, m.end() - 1)
-        return "" if g is None else f" [note: {_clean_inline(g[0], resolve_ref)}] "
-
     s = re.sub(r"\\label\s*\{[^{}]*\}", " ", s)
-    s = re.sub(r"\\footnote\s*\{", footnote, s)
+    while m := re.search(r"\\footnote\s*(?=\{)", s):
+        g = _group_after(s, m.end())
+        if g is None:
+            s = s[: m.start()] + s[m.end() :]
+            continue
+        s = f"{s[: m.start()]} [note: {_clean_inline(g[0], resolve_ref)}] {s[g[1] :]}"
     s = re.sub(
         r"\\(?:cite|citep|citet|citealp|citeauthor|parencite|autocite)"
         r"\s*(?:\[[^\]]*\]\s*)*\{[^{}]*\}",
@@ -264,23 +286,28 @@ def _clean_inline(s: str, resolve_ref=None) -> str:
     s = re.sub(r"\\left\b|\\right\b|\\limits\b", " ", s)
     s = re.sub(r"\\[,;:!]", " ", s)
     s = re.sub(r"\\[\[\]{}]", " ", s)
-    for a, b in (("\\%", "%"), ("\\_", "_"), ("\\#", "#"), ("\\$", "$"), ("\\&", "&")):
+    for a, b in (("\\%", "%"), ("\\_", "_"), ("\\#", "#"), ("\\&", "&")):
         s = s.replace(a, b)
     s = s.replace("``", '"').replace("''", '"')
     s = s.replace("~", " ").replace("\\~", " ")
     s = re.sub(r"\\[a-zA-Z]+\*?", "", s)
     s = s.replace("{", "").replace("}", "")
     s = re.sub(r"[ \t]+", " ", s)
-    return s.strip()
+    s = re.sub(re.escape(tag) + "(\\d+)\x01", lambda m: maths[int(m.group(1))], s)
+    return s.replace(_ESC_DOLLAR, "$").strip()
 
 
 def _clean_block(text: str, resolve_ref=None) -> str:
     paragraphs = re.split(r"\n\s*\n", text)
     cleaned = []
     for para in paragraphs:
-        para = re.sub(r"\\item\b", "- ", para)
+        # list environments: drop the \begin/\end markers, one item per line
+        para = re.sub(r"\\(?:begin|end)\s*\{(?:itemize|enumerate|description)\}", " ", para)
+        para = re.sub(r"\\item\b\s*(?:\[([^\]]*)\])?", lambda m: f"\x02- {m.group(1) or ''} ", para)
+        para = re.sub(r"\\(?:begin|end)\s*\{[^{}]*\}", " ", para)
         para = _clean_inline(para, resolve_ref)
         para = re.sub(r"\s*\n\s*", " ", para)
+        para = re.sub(r"\s*\x02", "\n", para).strip()
         if para:
             cleaned.append(para)
     return "\n\n".join(cleaned)
@@ -359,6 +386,26 @@ def _caption_label(block: str) -> tuple[str, str]:
 _SEC_CMD = re.compile(r"\\(section|subsection|subsubsection)\*?\s*(?:\[[^\]]*\])?")
 _LEVELS = {"section": 1, "subsection": 2, "subsubsection": 3}
 _MATH_ENVS = ("equation", "align", "gather", "eqnarray", "multline")
+_MULTIROW_MATH = ("align", "gather", "eqnarray")
+_NONUMBER = re.compile(r"\\(?:nonumber|notag)\b")
+
+
+def _math_spans(text: str) -> list[tuple[int, int, str, bool, str]]:
+    """(start, end, env, starred, body) of display-math environments, in order."""
+    spans = []
+    for env in _MATH_ENVS:
+        for s, e, blk in _env_spans(text, env):
+            starred = text.startswith(f"\\begin{{{env}*}}", s)
+            spans.append((s, e, env, starred, blk))
+    return sorted(spans)
+
+
+def _math_rows(env: str, body: str) -> list[str]:
+    """One entry per equation number the environment produces."""
+    if env not in _MULTIROW_MATH:
+        return [body]
+    rows = re.split(r"\\\\", body)
+    return [r for r in rows if r.strip()] or [body]
 
 
 def ingest_latex_source(path: Path) -> StructuredPaper:
@@ -471,11 +518,14 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
 
     # --- equation labels (numbered by appearance)
     eq_counter = 0
-    for env in _MATH_ENVS:
-        for _s, _e, blk in _env_spans(body, env):
+    for _s, _e, _env, _starred, blk in _math_spans(body):
+        if _starred:
+            continue
+        for row in _math_rows(_env, blk):
+            if _NONUMBER.search(row):
+                continue
             eq_counter += 1
-            lm = re.search(r"\\label\s*\{([^{}]+)\}", blk)
-            if lm:
+            for lm in re.finditer(r"\\label\s*\{([^{}]+)\}", row):
                 label_map[lm.group(1)] = f"({eq_counter})"
 
     def resolve_ref(key: str) -> str:
@@ -492,6 +542,7 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
         float_spans[s] = (e, "figure")
 
     sections: list[Section] = []
+    eq_shown = 0  # numbers display equations in the same order as the labels above
     for i, (_start, _level, after, num, title_text, is_app) in enumerate(marks):
         end = marks[i + 1][0] if i + 1 < len(marks) else len(body)
         pieces: list[str] = []
@@ -510,8 +561,20 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
         pieces.append(body[cur:end])
         chunk = "".join(pieces)
 
-        for env in (*_MATH_ENVS, "abstract", "thebibliography"):
-            for s, e, blk in _env_spans(chunk, env):
+        shown = []
+        for s, e, env, starred, blk in _math_spans(chunk):
+            nums = []
+            if not starred:
+                for row in _math_rows(env, blk):
+                    if not _NONUMBER.search(row):
+                        eq_shown += 1
+                        nums.append(f"({eq_shown})")
+            math = _clean_math(_NONUMBER.sub(" ", blk), resolve_ref)
+            shown.append((s, e, f" $${math}$$ {' '.join(nums)} "))
+        for s, e, display in reversed(shown):
+            chunk = chunk[:s] + display + chunk[e:]
+        for env in ("abstract", "thebibliography"):
+            for s, e, blk in reversed(_env_spans(chunk, env)):
                 inner = _clean_inline(re.sub(r"\\label\s*\{[^{}]*\}", " ", blk), resolve_ref)
                 chunk = chunk[:s] + " " + inner + " " + chunk[e:]
 

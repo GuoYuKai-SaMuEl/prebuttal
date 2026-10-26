@@ -48,6 +48,14 @@ releases (0.2, 0.3, …) are substantial new features.
   identical packs: the adversarial reviewer had dropped Mamba v2 a full
   point while citing garbled tables among the weaknesses — restored; and a
   reviewer gave DPO a point of reputation credit — removed.
+- **LaTeX conversion no longer manufactures presentation flaws.** List
+  environments leaked their names into the text (`itemize - a - b itemize`),
+  every math command was deleted (`\sigma(g_h)` became `(g_h)`), display
+  equations lost their numbers and footnotes were printed twice. Reviewers
+  then reported "broken itemize markup" and an "unnumbered equation" the
+  paper did not have. Math is now kept as LaTeX, display equations carry
+  their numbers, list items stay one per line, and protocol rule 7 covers
+  LaTeX conversion as well as PDF extraction.
 - OpenAI models after gpt-5 (`gpt-6-luna`, …) are recognised as reasoning
   models: no `temperature`, `max_completion_tokens`, and `--effort` applies.
   Before, they were sent the classic chat parameters.

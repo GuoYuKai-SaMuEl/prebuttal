@@ -156,3 +156,28 @@ def test_single_tex_file(tmp_path):
     paper = ingest_latex_source(tmp_path / "solo.tex")
     assert paper.title == "Solo"
     assert paper.sections[0].number == "1"
+
+
+def test_lists_and_math_survive_cleaning(tmp_path):
+    # reviewers flagged "broken itemize markup" and an "unnumbered equation"
+    # that were artifacts of this conversion, not of the paper
+    (tmp_path / "m.tex").write_text(
+        r"""\documentclass{article}\begin{document}\section{Method}
+We contribute:
+\begin{itemize}
+\item a gate $\sigma(g_h)$ costing \$5;
+\item[(b)] a proof.\footnote{See $\alpha$.}
+\end{itemize}
+\begin{equation}\mathrm{y} = \sigma(x)\label{eq:a}\end{equation}
+\begin{align} a &= b \\ c &= d \nonumber \\ e &= f \label{eq:c}\end{align}
+\begin{equation*} z = 0 \end{equation*}
+By Eq.~\eqref{eq:a} and Eq.~\eqref{eq:c} it holds.
+\end{document}""",
+        encoding="utf-8",
+    )
+    text = ingest_latex_source(tmp_path / "m.tex").sections[0].text
+    assert "itemize" not in text
+    assert "\n- a gate $\\sigma(g_h)$ costing $5;\n- (b) a proof. [note: See $\\alpha$.]" in text
+    assert "$$\\mathrm{y} = \\sigma(x)$$ (1)" in text
+    assert "$$a &= b \\\\ c &= d \\\\ e &= f$$ (2) (3)" in text
+    assert "$$z = 0$$ By Eq. (1) and Eq. (3) it holds." in text
