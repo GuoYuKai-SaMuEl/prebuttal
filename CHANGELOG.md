@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 While pre-1.0: **patch** releases (0.1.x) are fixes and small additions; **minor**
 releases (0.2, 0.3, …) are substantial new features.
 
-## [Unreleased]
+## [0.2.1] — 2026-10-26
 
 ### Fixed
 - **PDF table extraction, much more of it.** On ten well-known arXiv papers

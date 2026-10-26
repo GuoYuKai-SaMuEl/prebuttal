@@ -4,4 +4,4 @@ Three independent-context AI reviewers plus an area chair, real conference
 review-form output, and a pipeline to calibrate scores against OpenReview.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
