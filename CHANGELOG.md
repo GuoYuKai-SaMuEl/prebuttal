@@ -32,6 +32,16 @@ releases (0.2, 0.3, …) are substantial new features.
   called; reports store the venue definition so archived runs keep rendering.
 
 ### Fixed
+- **Reviewer protocol guards: PDF-extraction artifacts and double-blind
+  review.** Every reviewer and the area chair now get two more rules.
+  Garbled table markup, misaligned columns, stray numbers and lost
+  subscripts are extraction artifacts of the tool, not the authors' writing
+  — never listed as a weakness, never a lower rating. And the submission is
+  reviewed double-blind: no credit for the work's fame, citations or
+  publication history, and no penalty either. Verified by A/B re-runs with
+  identical packs: the adversarial reviewer had dropped Mamba v2 a full
+  point while citing garbled tables among the weaknesses — restored; and a
+  reviewer gave DPO a point of reputation credit — removed.
 - OpenAI models after gpt-5 (`gpt-6-luna`, …) are recognised as reasoning
   models: no `temperature`, `max_completion_tokens`, and `--effort` applies.
   Before, they were sent the classic chat parameters.
