@@ -25,6 +25,8 @@ IMPORTANT = re.compile(
 
 FULL, REDUCED, MINIMAL = 1500, 600, 0
 
+NOT_EXTRACTED = "[numbers not extracted]"
+
 
 def estimate_tokens(chars: int) -> int:
     """Rough chars->tokens estimate (~4 chars/token for English + LaTeX)."""
@@ -35,10 +37,23 @@ def _tables_md(paper: StructuredPaper) -> str:
     if not paper.tables:
         return "\n## Tables\n\n(no tables detected in this submission)\n"
     parts = ["\n## Complete tables (verbatim, cell by cell)\n"]
+    if any(t.source == "pdf-caption-block" for t in paper.tables):
+        parts.append(
+            f"{NOT_EXTRACTED} marks a table whose cell values the PDF parser could "
+            "not recover; only its caption is shown. This is a limitation of the "
+            "review tool, not a flaw of the paper: do not criticise the submission "
+            "for missing numbers in such a table.\n"
+        )
     for t in paper.tables:
-        cap = f": {t.caption}" if t.caption else ""
+        cap = re.sub(
+            rf"^(?:table|tab\.)\s*{re.escape(t.number)}\s*[:.]\s*", "", t.caption, flags=re.I
+        )
+        cap = f": {cap}" if cap else ""
         parts.append(f"\n### Table {t.number}{cap}\n")
-        parts.append(t.to_markdown())
+        if t.source == "pdf-caption-block":
+            parts.append(NOT_EXTRACTED)
+        else:
+            parts.append(t.to_markdown())
         parts.append("")
     return "\n".join(parts)
 

@@ -6,9 +6,11 @@ compatible with its own MIT license (PyMuPDF, used before 0.1.1, is AGPL).
 
 Table strategy: fully ruled grids via ``page.find_tables`` and booktabs-style
 tables (horizontal rules only — the ML-paper default) via rule clustering +
-column whitespace; captions matched by proximity; any numbered "Table N"
-caption without a detected grid falls back to a verbatim caption-block so
-experimental numbers survive.
+column whitespace (rules grouped by width first, so two-column pages and
+stacked tables separate cleanly); each grid is paired with its nearest caption
+and dropped if it has none; any numbered "Table N" caption without a detected
+grid falls back to a caption-only block that the reviewer pack flags as
+"numbers not extracted".
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from __future__ import annotations
 import io
 import re
 import statistics
+from collections.abc import Sequence
 from itertools import pairwise
 
 from ..models import Figure, Section, StructuredPaper, Table
@@ -40,6 +43,10 @@ _NUMBERED = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+(\S.*)$")
 # A real caption has punctuation right after the number ("Table 3: ...", "Fig. 2.");
 # in-prose references like "Table 1 confirms that ..." must NOT match.
 _TABLE_CAP = re.compile(r"^\s*(?:table|tab\.)\s*(\d{1,3})(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I)
+# max vertical gap between a table's rules and its caption, in points
+_CAPTION_GAP = 120
+# max vertical gap between consecutive rules of one table (a 25-row table body)
+_RULE_GAP = 450
 _FIG_CAP = re.compile(r"^\s*(?:figure|fig\.)\s*(\d{1,3})(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I)
 
 
@@ -90,39 +97,77 @@ def _grid_from_cells(cells: list[tuple], words: list[dict]) -> list[list[str]] |
     return grid
 
 
-def _rule_regions(page) -> list[tuple[float, float, float, float]]:
-    """Bounding boxes of booktabs-style tables: stacks of >= 2 horizontal
-    rules spanning (nearly) the same x-range, close together vertically."""
+def _same_span(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    """Two rules span (nearly) the same x-range — a full-width rule and a
+    column-wide one do not, however much they overlap."""
+    ov = min(a[1], b[1]) - max(a[0], b[0])
+    return ov >= 0.8 * max(a[1] - a[0], b[1] - b[0])
+
+
+def _rule_regions(
+    page,
+    captions: Sequence[tuple[float, float, float, float]] = (),
+    words: Sequence[dict] = (),
+) -> list[tuple[float, float, float, float]]:
+    """Bounding boxes of booktabs-style tables: >= 2 horizontal rules of the
+    same width, close together vertically.
+
+    Rules are first grouped into x-bands (one per column / table width) and only
+    then split vertically, so a two-column page whose left and right rules
+    interleave in y still yields whole tables.  A band is also split at every
+    caption (``(x0, top, x1, bottom)``) lying between two of its rules, and at
+    every empty gap: the space between one table's bottom rule and the next
+    one's top rule holds no cells.
+    """
     rules = sorted(
         (e for e in page.horizontal_edges if e["x1"] - e["x0"] >= 40),
         key=lambda e: e["top"],
     )
-    regions: list[tuple[float, float, float, float]] = []
-    group: list[dict] = []
-
-    def _flush() -> None:
-        if len(group) >= 2:
-            regions.append(
-                (
-                    min(e["x0"] for e in group),
-                    group[0]["top"],
-                    max(e["x1"] for e in group),
-                    group[-1]["bottom"],
-                )
-            )
-
+    bands: list[list[dict]] = []
     for e in rules:
-        if group:
-            gx0, gx1 = min(g["x0"] for g in group), max(g["x1"] for g in group)
-            overlap = min(gx1, e["x1"]) - max(gx0, e["x0"])
-            span = min(gx1 - gx0, e["x1"] - e["x0"])
-            if overlap >= 0.8 * span and e["top"] - group[-1]["top"] <= 300:
-                group.append(e)
-                continue
-            _flush()
-        group = [e]
-    _flush()
+        for band in bands:
+            if _same_span((band[0]["x0"], band[0]["x1"]), (e["x0"], e["x1"])):
+                band.append(e)
+                break
+        else:
+            bands.append([e])
+
+    regions: list[tuple[float, float, float, float]] = []
+    for band in bands:
+        bx0, bx1 = band[0]["x0"], band[0]["x1"]
+        cuts = [
+            (top + bottom) / 2
+            for x0, top, x1, bottom in captions
+            if min(x1, bx1) - max(x0, bx0) > 0.5 * min(x1 - x0, bx1 - bx0)
+        ]
+        group: list[dict] = []
+        for e in band:
+            if group:
+                prev = group[-1]["bottom"]
+                empty = e["top"] - prev > 15 and not any(
+                    bx0 <= (w["x0"] + w["x1"]) / 2 <= bx1
+                    and prev < (w["top"] + w["bottom"]) / 2 < e["top"]
+                    for w in words
+                )
+                if empty or e["top"] - prev > _RULE_GAP or any(prev < c < e["top"] for c in cuts):
+                    if len(group) >= 2:
+                        regions.append(_box(group))
+                    group = []
+            group.append(e)
+        if len(group) >= 2:
+            regions.append(_box(group))
+    # larger tables first, so a stray rule pair inside one never pre-empts it
+    regions.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
     return regions
+
+
+def _box(group: list[dict]) -> tuple[float, float, float, float]:
+    return (
+        min(e["x0"] for e in group),
+        group[0]["top"],
+        max(e["x1"] for e in group),
+        group[-1]["bottom"],
+    )
 
 
 def _grid_from_region(bbox: tuple, words: list[dict]) -> list[list[str]] | None:
@@ -187,12 +232,12 @@ def _text_lines(page, page_no: int) -> list[dict]:
     return out
 
 
-def _text_blocks(page) -> list[tuple[float, float, str]]:
-    """(top, bottom, text) per layout text box — caption candidates."""
+def _text_blocks(page) -> list[tuple[float, float, float, float, str]]:
+    """(x0, top, x1, bottom, text) per layout text box — caption candidates."""
     from pdfminer.layout import LTTextBoxHorizontal
 
     return [
-        (page.height - b.y1, page.height - b.y0, _norm(_CID.sub("", b.get_text())))
+        (b.x0, page.height - b.y1, b.x1, page.height - b.y0, _norm(_CID.sub("", b.get_text())))
         for b in page.layout
         if isinstance(b, LTTextBoxHorizontal)
     ]
@@ -358,7 +403,12 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
             if grid is None:
                 grid = tab.extract()
             found.append((tab.bbox, grid))
-        for bbox in _rule_regions(page):
+        caps = [
+            (x0, top, x1, bottom, cm.group(1), t[:400])
+            for x0, top, x1, bottom, t in _text_blocks(page)
+            if (cm := _TABLE_CAP.match(t))
+        ]
+        for bbox in _rule_regions(page, [c[:4] for c in caps], words):
             overlaps = any(
                 bbox[1] < fb[3] and fb[1] < bbox[3] and bbox[0] < fb[2] and fb[0] < bbox[2]
                 for fb, _g in found
@@ -367,28 +417,31 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
                 grid = _grid_from_region(bbox, words)
                 if grid is not None:
                     found.append((bbox, grid))
-        caps = []
-        for y0, y1, t in _text_blocks(page):
-            cm = _TABLE_CAP.match(t)
-            if cm:
-                caps.append((y0, y1, cm.group(1), t[:400]))
-        for tab_bbox, grid in found:
-            grid = [[_norm(str(c)) if c is not None else "" for c in row] for row in grid]
+        # each grid takes its nearest caption, each caption one grid, closest
+        # pairs first; distance is caption-to-table *edge* (a tall table's
+        # caption is far from its centre).  A grid without a caption cannot be
+        # cited as "Table N" and is dropped rather than numbered by guesswork.
+        pairs = []
+        for gi, (tb, _g) in enumerate(found):
+            for ci, (cx0, ctop, cx1, cbot, _n, _t) in enumerate(caps):
+                if min(cx1, tb[2]) - max(cx0, tb[0]) <= 0:
+                    continue  # caption of another column
+                d = max(0.0, ctop - tb[3], tb[1] - cbot)
+                if d < _CAPTION_GAP:
+                    pairs.append((d, gi, ci))
+        taken_g: set[int] = set()
+        taken_c: set[int] = set()
+        matched: list[tuple[int, int]] = []
+        for _d, gi, ci in sorted(pairs):
+            if gi not in taken_g and ci not in taken_c:
+                taken_g.add(gi)
+                taken_c.add(ci)
+                matched.append((gi, ci))
+        for gi, ci in sorted(matched, key=lambda m: (found[m[0]][0][1], found[m[0]][0][0])):
+            grid = [[_norm(str(c)) if c is not None else "" for c in row] for row in found[gi][1]]
             grid = [row for row in grid if any(c for c in row)]
-            if len(grid) < 2:
-                continue
-            bbox_y = (tab_bbox[1] + tab_bbox[3]) / 2
-            number = ""
-            caption = ""
-            best_d = None
-            for y0, y1, num, text in caps:
-                cy = (y0 + y1) / 2
-                d = abs(cy - bbox_y)
-                if d < 260 and (best_d is None or d < best_d):
-                    best_d, number, caption = d, num, text
-            if not number:
-                number = f"t{len(tables) + 1}"
-            if number in seen_numbers:
+            number, caption = caps[ci][4], caps[ci][5]
+            if len(grid) < 2 or number in seen_numbers:
                 continue
             seen_numbers.add(number)
             tables.append(
@@ -426,10 +479,12 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
             )
         )
         seen_numbers.add(num)
-    if not any(t.source == "pdf-table" for t in tables):
+    caption_only = [t.number for t in tables if t.source == "pdf-caption-block"]
+    if caption_only:
+        names = ", ".join(f"Table {n}" for n in caption_only)
         warnings.append(
-            "no ruled tables detected via PDF table detection; "
-            "some tables may be caption-block fallbacks (numbers preserved as text)"
+            f"{names}: cell values not extracted from the PDF (caption only) — "
+            "reviewers are told this is a tool limitation"
         )
 
     # --- figure captions

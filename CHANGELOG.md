@@ -10,6 +10,19 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- **PDF tables on two-column pages.** Booktabs rules are now grouped by width
+  before they are split vertically, so a table is no longer cut apart by the
+  neighbouring column's rules, a full-width table no longer swallows column
+  tables, and tables stacked in one column are separated at their captions.
+- Captions are matched to the nearest table *edge* (a tall table keeps its
+  caption) and one-to-one; ruled blocks with no caption are dropped instead of
+  appearing as unnamed `t7` tables.
+- A table whose cells could not be extracted is now marked
+  `[numbers not extracted]` in the reviewer pack, with a note that this is a
+  tool limitation and not a flaw of the paper, and listed in the ingestion
+  warnings.
+
 ## [0.2.0] — 2026-10-26
 
 ### Added
