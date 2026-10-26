@@ -42,12 +42,25 @@ _HEADING_WORDS = {
 _NUMBERED = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+(\S.*)$")
 # A real caption has punctuation right after the number ("Table 3: ...", "Fig. 2.");
 # in-prose references like "Table 1 confirms that ..." must NOT match.
-_TABLE_CAP = re.compile(r"^\s*(?:table|tab\.)\s*(\d{1,3})(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I)
+# Numbers: "3", "3.1" (GPT-3 style), "A.1" / "A1" / "S2" (appendix, supplement).
+_CAP_NUM = r"((?:[A-Z]\.?)?\d{1,3}(?:\.\d{1,2})?)"
+_TABLE_CAP = re.compile(
+    r"^\s*(?:table|tab\.)\s*" + _CAP_NUM + r"(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I
+)
 # max vertical gap between a table's rules and its caption, in points
 _CAPTION_GAP = 120
 # max vertical gap between consecutive rules of one table (a 25-row table body)
 _RULE_GAP = 450
-_FIG_CAP = re.compile(r"^\s*(?:figure|fig\.)\s*(\d{1,3})(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I)
+# caption on the side the document does not use counts as this much farther:
+# a tie-breaker only, since papers mix conventions (Mamba does)
+_WRONG_SIDE = 8
+_FIG_CAP = re.compile(r"^\s*(?:figure|fig\.)\s*" + _CAP_NUM + r"(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I)
+
+
+def _number_key(num: str) -> tuple:
+    """Natural order: 2 < 3.1 < 10 < A.1 < S1 (appendix/supplement last)."""
+    letter = num[0].upper() if num[:1].isalpha() else ""
+    return (letter, *(int(n) for n in re.findall(r"\d+", num)))
 
 
 def _norm(s: str) -> str:
@@ -65,6 +78,7 @@ def _cluster(vals: list[float], tol: float = 2.5) -> list[float]:
 
 
 _CID = re.compile(r"\(cid:\d+\)")
+_DINGBATS = {"(cid:51)": "✓", "(cid:52)": "✓", "(cid:55)": "✗", "(cid:56)": "✗"}
 
 
 def _nearest(vals: list[float], v: float) -> int:
@@ -98,10 +112,11 @@ def _grid_from_cells(cells: list[tuple], words: list[dict]) -> list[list[str]] |
 
 
 def _same_span(a: tuple[float, float], b: tuple[float, float]) -> bool:
-    """Two rules span (nearly) the same x-range — a full-width rule and a
-    column-wide one do not, however much they overlap."""
-    ov = min(a[1], b[1]) - max(a[0], b[0])
-    return ov >= 0.8 * max(a[1] - a[0], b[1] - b[0])
+    """Two rules span the same x-range, as a table's top, mid and bottom rules
+    do; a full-width rule and a column-wide one do not, however much they
+    overlap."""
+    tol = max(4.0, 0.03 * (a[1] - a[0]))
+    return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
 
 
 def _rule_regions(
@@ -203,6 +218,73 @@ def _grid_from_region(bbox: tuple, words: list[dict]) -> list[list[str]] | None:
             if c is not None:
                 grid[r][c] = f"{grid[r][c]} {w['text']}".strip()
     return grid
+
+
+def _caption_gaps(tb: tuple, caps: list[tuple]) -> list[tuple[float, bool, int]]:
+    """(gap, caption_is_above, caption index) for captions near table bbox ``tb``."""
+    out = []
+    for ci, (cx0, ctop, cx1, cbot, _n, _t) in enumerate(caps):
+        if min(cx1, tb[2]) - max(cx0, tb[0]) <= 0:
+            continue  # caption of another column
+        is_above = (ctop + cbot) / 2 < (tb[1] + tb[3]) / 2
+        gap = max(0.0, tb[1] - cbot) if is_above else max(0.0, ctop - tb[3])
+        if gap < _CAPTION_GAP:
+            out.append((gap, is_above, ci))
+    return out
+
+
+def _captions_above(page_finds: list) -> bool:
+    """The document's caption convention, voted by tables with a caption on one
+    side only.  ML venues put table captions above (the default); ACL below."""
+    votes = 0
+    for found, caps in page_finds:
+        for tb, _g in found:
+            sides = {is_above for _d, is_above, _c in _caption_gaps(tb, caps)}
+            if len(sides) == 1:
+                votes += 1 if sides.pop() else -1
+    return votes >= 0
+
+
+def _match_captions(found: list, caps: list, above: bool) -> list[tuple[int, list[int]]]:
+    """Pair grids with captions one-to-one, closest first, on the document's
+    caption side unless only the other side fits.  A grid left over beside a
+    matched one (same top, same caption in reach) is another panel of that
+    table.  Grids with no caption cannot be cited as "Table N" and are dropped
+    rather than numbered by guesswork.  Returns [(caption, [grid, ...])]."""
+    pairs = [
+        (gap + (0 if is_above == above else _WRONG_SIDE), gi, ci)
+        for gi, (tb, _g) in enumerate(found)
+        for gap, is_above, ci in _caption_gaps(tb, caps)
+    ]
+    by_caption: dict[int, list[int]] = {}
+    taken: set[int] = set()
+    for _d, gi, ci in sorted(pairs):
+        if gi not in taken and ci not in by_caption:
+            taken.add(gi)
+            by_caption[ci] = [gi]
+    for _d, gi, ci in sorted(pairs):
+        if gi in taken or ci not in by_caption:
+            continue
+        first = found[by_caption[ci][0]][0]
+        if abs(found[gi][0][1] - first[1]) <= 3:  # side-by-side panel
+            taken.add(gi)
+            by_caption[ci].append(gi)
+    out = []
+    for ci, gis in by_caption.items():
+        gis.sort(key=lambda g: found[g][0][0])  # panels left to right
+        out.append((ci, gis))
+    out.sort(key=lambda m: (found[m[1][0]][0][1], found[m[1][0]][0][0]))
+    return out
+
+
+def _join_panels(grids: list[list[list]]) -> list[list[str]]:
+    """Clean grid(s); side-by-side panels are stacked, each keeping its header row."""
+    rows: list[list[str]] = []
+    for grid in grids:
+        clean = [[_norm(str(c)) if c is not None else "" for c in row] for row in grid]
+        rows.extend(row for row in clean if any(c for c in row))
+    width = max((len(r) for r in rows), default=0)
+    return [r + [""] * (width - len(r)) for r in rows]
 
 
 def _text_lines(page, page_no: int) -> list[dict]:
@@ -389,9 +471,11 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         sections.append(Section(**current))
 
     # --- tables
-    tables: list[Table] = []
-    seen_numbers: set[str] = set()
+    page_finds = []
     for page in pages:
+        for ch in page.chars:  # pifont \cmark / \xmark: ablation tables are full of them
+            if "dingbat" in (ch.get("fontname") or "").lower():
+                ch["text"] = _DINGBATS.get(ch["text"], ch["text"])
         words = page.extract_words()
         found: list[tuple[tuple, list[list[str]]]] = []
         try:
@@ -403,10 +487,14 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
             if grid is None:
                 grid = tab.extract()
             found.append((tab.bbox, grid))
+        blocks = _text_blocks(page)
         caps = [
             (x0, top, x1, bottom, cm.group(1), t[:400])
-            for x0, top, x1, bottom, t in _text_blocks(page)
+            for x0, top, x1, bottom, t in blocks
             if (cm := _TABLE_CAP.match(t))
+        ]
+        fig_caps = [
+            (x0, top, x1, bottom, "", "") for x0, top, x1, bottom, t in blocks if _FIG_CAP.match(t)
         ]
         for bbox in _rule_regions(page, [c[:4] for c in caps], words):
             overlaps = any(
@@ -417,29 +505,22 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
                 grid = _grid_from_region(bbox, words)
                 if grid is not None:
                     found.append((bbox, grid))
-        # each grid takes its nearest caption, each caption one grid, closest
-        # pairs first; distance is caption-to-table *edge* (a tall table's
-        # caption is far from its centre).  A grid without a caption cannot be
-        # cited as "Table N" and is dropped rather than numbered by guesswork.
-        pairs = []
-        for gi, (tb, _g) in enumerate(found):
-            for ci, (cx0, ctop, cx1, cbot, _n, _t) in enumerate(caps):
-                if min(cx1, tb[2]) - max(cx0, tb[0]) <= 0:
-                    continue  # caption of another column
-                d = max(0.0, ctop - tb[3], tb[1] - cbot)
-                if d < _CAPTION_GAP:
-                    pairs.append((d, gi, ci))
-        taken_g: set[int] = set()
-        taken_c: set[int] = set()
-        matched: list[tuple[int, int]] = []
-        for _d, gi, ci in sorted(pairs):
-            if gi not in taken_g and ci not in taken_c:
-                taken_g.add(gi)
-                taken_c.add(ci)
-                matched.append((gi, ci))
-        for gi, ci in sorted(matched, key=lambda m: (found[m[0]][0][1], found[m[0]][0][0])):
-            grid = [[_norm(str(c)) if c is not None else "" for c in row] for row in found[gi][1]]
-            grid = [row for row in grid if any(c for c in row)]
+        # a boxed plot is ruled too: drop grids nearer a figure caption than a table one
+        found = [
+            (tb, g)
+            for tb, g in found
+            if min((d for d, _a, _c in _caption_gaps(tb, fig_caps)), default=_CAPTION_GAP)
+            >= min((d for d, _a, _c in _caption_gaps(tb, caps)), default=_CAPTION_GAP)
+            or not fig_caps
+        ]
+        page_finds.append((found, caps))
+
+    above = _captions_above(page_finds)
+    tables: list[Table] = []
+    seen_numbers: set[str] = set()
+    for found, caps in page_finds:
+        for ci, panels in _match_captions(found, caps, above):
+            grid = _join_panels([found[gi][1] for gi in panels])
             number, caption = caps[ci][4], caps[ci][5]
             if len(grid) < 2 or number in seen_numbers:
                 continue
@@ -503,7 +584,7 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         title=title,
         abstract=abstract,
         sections=sections,
-        tables=sorted(tables, key=lambda t: (len(t.number), t.number)),
+        tables=sorted(tables, key=lambda t: _number_key(t.number)),
         figures=figures,
         source_type="pdf",
         source_path=source_path,

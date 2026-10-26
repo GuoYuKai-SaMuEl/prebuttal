@@ -10,10 +10,34 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass, field
 
-from prebuttal.ingestion.pdf import ingest_pdf_bytes
+import pytest
+
+from prebuttal.ingestion.pdf import _TABLE_CAP, _number_key, ingest_pdf_bytes
 from prebuttal.pack import render_pack
 
 ROW_H = 13
+
+
+@pytest.mark.parametrize(
+    ("line", "number"),
+    [
+        ("Table 3: Results.", "3"),
+        ("Table 3.1: Results on LAMBADA.", "3.1"),  # GPT-3 style
+        ("Table A.2: More ablations.", "A.2"),
+        ("Table S1: Supplementary.", "S1"),
+        ("Table 1. We report", "1"),
+        ("Table 1 confirms that", None),  # in-prose reference
+        ("Table 1.5 shows", None),
+    ],
+)
+def test_caption_numbers(line, number):
+    m = _TABLE_CAP.match(line)
+    assert (m.group(1) if m else None) == number
+
+
+def test_table_numbers_sort_naturally():
+    nums = ["10", "A.1", "3.1", "2", "S1", "3"]
+    assert sorted(nums, key=_number_key) == ["2", "3", "3.1", "10", "A.1", "S1"]
 
 
 @dataclass

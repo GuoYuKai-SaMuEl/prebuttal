@@ -11,13 +11,22 @@ releases (0.2, 0.3, …) are substantial new features.
 ## [Unreleased]
 
 ### Fixed
-- **PDF tables on two-column pages.** Booktabs rules are now grouped by width
-  before they are split vertically, so a table is no longer cut apart by the
-  neighbouring column's rules, a full-width table no longer swallows column
-  tables, and tables stacked in one column are separated at their captions.
-- Captions are matched to the nearest table *edge* (a tall table keeps its
-  caption) and one-to-one; ruled blocks with no caption are dropped instead of
-  appearing as unnamed `t7` tables.
+- **PDF table extraction, much more of it.** On ten well-known arXiv papers
+  the tables recovered cell by cell went from 53 to 127, with no unnamed
+  tables left (there were 115); on Mamba v1/v2 every table now has its cells.
+  - Booktabs rules are grouped by exact width before they are split
+    vertically, so a table is no longer cut apart by the neighbouring
+    column's rules, a full-width table no longer swallows column tables, and
+    tables stacked in one column are separated at captions and empty gaps.
+  - Captions are matched one-to-one to the nearest table *edge* (a tall
+    table keeps its caption), on the side the paper uses for captions;
+    side-by-side panels under one caption become one table; a boxed plot
+    next to a figure caption is no longer taken for a table.
+  - Ruled blocks with no caption are dropped instead of appearing as unnamed
+    `t7` tables.
+  - Captions numbered `3.1`, `A.2` or `S1` are recognised (GPT-3-style
+    papers previously lost every table), and pifont check marks read as
+    ✓ / ✗ instead of `(cid:51)`.
 - A table whose cells could not be extracted is now marked
   `[numbers not extracted]` in the reviewer pack, with a note that this is a
   tool limitation and not a flaw of the paper, and listed in the ingestion
