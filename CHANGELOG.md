@@ -21,6 +21,11 @@ releases (0.2, 0.3, …) are substantial new features.
   and form reviewers will see. Files are validated before any model is
   called; reports store the venue definition so archived runs keep rendering.
 
+### Fixed
+- OpenAI models after gpt-5 (`gpt-6-luna`, …) are recognised as reasoning
+  models: no `temperature`, `max_completion_tokens`, and `--effort` applies.
+  Before, they were sent the classic chat parameters.
+
 ## [0.2.1] — 2026-10-26
 
 ### Fixed

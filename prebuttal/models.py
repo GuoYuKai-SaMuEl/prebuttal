@@ -123,9 +123,9 @@ EFFORT_LEVELS = ("low", "medium", "high")
 
 
 def openai_reasoning_model(model: str) -> bool:
-    """gpt-5* / o-series: no sampling parameters, reasoning_effort instead."""
+    """gpt-5 and later / o-series: no sampling parameters, reasoning_effort instead."""
     m = model.lower().rsplit("/", 1)[-1]
-    return bool(re.match(r"(gpt-5|o[1-9])", m)) and "chat" not in m
+    return bool(re.match(r"(gpt-([5-9]|[1-9]\d)|o[1-9])", m)) and "chat" not in m
 
 
 def param_support(backend: str, model: str = "") -> tuple[bool, bool]:

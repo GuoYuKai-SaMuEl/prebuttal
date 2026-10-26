@@ -33,8 +33,8 @@ PAPER = REPO / "tests" / "fixtures" / "demo-paper.pdf"
 CASES = [
     ("api-anthropic", "ANTHROPIC_API_KEY", "claude-haiku-5-5", []),
     ("api-anthropic", "ANTHROPIC_API_KEY", "claude-haiku-5-5", ["--effort", "low"]),
-    ("api-openai", "OPENAI_API_KEY", "gpt-5.6-luna", []),
-    ("api-openai", "OPENAI_API_KEY", "gpt-5.6-luna", ["--effort", "low"]),
+    ("api-openai", "OPENAI_API_KEY", "gpt-6-luna", []),
+    ("api-openai", "OPENAI_API_KEY", "gpt-6-luna", ["--effort", "low"]),
     ("api-gemini", "GEMINI_API_KEY", "gemini-3.5-flash-lite", []),
     ("api-gemini", "GEMINI_API_KEY", "gemini-3.5-flash-lite", ["--effort", "low"]),
     ("api-openrouter", "OPENROUTER_API_KEY", "", []),  # default :free model

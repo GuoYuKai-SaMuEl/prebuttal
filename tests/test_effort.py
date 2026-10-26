@@ -65,6 +65,10 @@ def test_support_matrix():
     assert param_support("api-anthropic", "claude-sonnet-5-5") == (False, False)
     assert param_support("api-openai", "gpt-5.6-terra") == (False, True)
     assert param_support("api-openai", "gpt-4.1-mini") == (True, True)
+    # later generations are reasoning models too (a gpt-6 must not get temperature)
+    for m in ("gpt-6-luna", "gpt-7", "gpt-10-mini", "o4-mini", "openai/gpt-6-luna"):
+        assert param_support("api-openai", m) == (False, True), m
+    assert param_support("api-openai", "gpt-4o-mini") == (True, True)
 
 
 # ------------------------------------------------------------ request shapes

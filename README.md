@@ -207,7 +207,7 @@ or per `[[reviewer]]` / `[ac]`. It maps onto each backend's own control:
 | `agent-claude` | `claude --effort` |
 | `agent-codex` | `-c model_reasoning_effort=...` |
 | `api-anthropic` | `output_config.effort` |
-| `api-openai` | `reasoning_effort` (gpt-5 / o-series reasoning models) |
+| `api-openai` | `reasoning_effort` (gpt-5 and later / o-series reasoning models) |
 | `api-gemini` | `thinkingLevel` (Gemini 3+) / `thinkingBudget` (2.x) |
 | `api-openrouter` | `reasoning.effort` |
 | `ollama` | `think` (gpt-oss models) |

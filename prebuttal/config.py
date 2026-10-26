@@ -48,7 +48,7 @@ seed = 42               # reproducibility: recorded in every report
 budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 # effort = "high"       # reasoning effort: low | medium | high (unset = each
                         # model's default). Thinking models only: Claude, codex,
-                        # OpenAI gpt-5/o-series, Gemini, OpenRouter, Ollama gpt-oss.
+                        # OpenAI gpt-5+/o-series, Gemini, OpenRouter, Ollama gpt-oss.
                         # Also per [[reviewer]] / [ac], or --effort for one run.
 
 # backend = "auto" (default) picks the best available backends at startup:
