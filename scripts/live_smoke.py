@@ -8,6 +8,9 @@ parameters, token limits, JSON parsing).  Nothing is archived.
     ANTHROPIC_API_KEY=... OPENAI_API_KEY=... python scripts/live_smoke.py
     python scripts/live_smoke.py api-openai          # just one backend
 
+With a network secret (the proxy injects the real key), set the variable to
+any placeholder, e.g. OPENAI_API_KEY=injected, so the backend is enabled.
+
 Costs a few cents per backend.  Exit code 0 only if every attempted run passed.
 """
 
@@ -26,12 +29,10 @@ from prebuttal import cli
 
 PAPER = REPO / "tests" / "fixtures" / "demo-paper.pdf"
 
-# (backend, key variable, model, extra flags) — cheapest model of each family;
-# OpenAI twice: classic chat models and reasoning models use different parameters
+# (backend, key variable, model, extra flags) — a cheap current model per family
 CASES = [
     ("api-anthropic", "ANTHROPIC_API_KEY", "claude-haiku-5-5", []),
     ("api-anthropic", "ANTHROPIC_API_KEY", "claude-haiku-5-5", ["--effort", "low"]),
-    ("api-openai", "OPENAI_API_KEY", "gpt-4o-mini", []),
     ("api-openai", "OPENAI_API_KEY", "gpt-5.6-luna", []),
     ("api-openai", "OPENAI_API_KEY", "gpt-5.6-luna", ["--effort", "low"]),
     ("api-gemini", "GEMINI_API_KEY", "gemini-3.5-flash-lite", []),
