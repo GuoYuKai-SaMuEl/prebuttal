@@ -84,9 +84,12 @@ CURATED: list[tuple[str, str, str]] = [
             "This is arXiv v2 (May 2024) — the revised version, accepted at COLM 2024.",
         ),
     ),
+    # dpo: pinned to the 2026-10-25 run so the published 4.67/6 sample can't
+    # silently drift to a newer re-run (a 2026-10-26 re-run of the same panel
+    # gave 4.33/6 — kept in the local archive, not published).
     (
         "dpo.html",
-        "*direct-preference*",
+        "20261025-163120-10aa*",
         _real_paper_banner("2305.18290", "Rafael Rafailov, Archit Sharma, Eric Mitchell, et al."),
     ),
     ("weak.html", "*globalgate*", SYNTHETIC_BANNER),

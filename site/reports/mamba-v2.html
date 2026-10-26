@@ -33,6 +33,12 @@
   .meta { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }
   .meta h2 { font-size:16px; margin:0 0 8px; }
   .est { font-weight:700; margin-bottom:6px; }
+  .plan ol { margin:0; padding-left:20px; } .plan li { margin:0 0 10px; }
+  .prio { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+          border-radius:999px; padding:1px 8px; margin-right:4px; }
+  .prio-must { background:#fef2f2; color:#b91c1c; } .prio-should { background:#fffbeb; color:#b45309; }
+  .prio-could { background:#f1f5f9; color:var(--mut); }
+  .act { color:#374151; } .by { color:var(--mut); font-size:12px; }
   footer { margin-top:28px; padding-top:16px; border-top:1px solid var(--line);
            color:var(--mut); font-size:13px; }
   code { background:#eef2ff; border-radius:6px; padding:2px 8px; font-size:13px; }
@@ -109,6 +115,7 @@ The paper makes the SSM parameters Δ, B and C functions of the input (Section 3
    - Table 10: increasing N helps substantially only when B and C are selective (9.73 → 8.71 at about 1% extra parameters). This is a clean test of the compression argument in Section 3.1, as R1 notes.
 3. **The systems contribution is real.** Section 4.5 and Figure 8 report the scan as faster than FlashAttention-2 beyond 2K length…</p>
   </section>
+  
   <footer>
     Generated with <b>Prebuttal</b> — <code>pip install prebuttal</code> ·
     <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">https://github.com/GuoYuKai-SaMuEl/prebuttal</a><br>

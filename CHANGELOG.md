@@ -30,6 +30,12 @@ releases (0.2, 0.3, …) are substantial new features.
   writes a commented template, `prebuttal venues show NAME` prints the scores
   and form reviewers will see. Files are validated before any model is
   called; reports store the venue definition so archived runs keep rendering.
+- **Site samples on 0.3.0.** The weak-paper sample page is a fresh 0.3.0 run
+  of the same fictional paper with the cross-model panel (claude sonnet,
+  codex, gemini-3.8-flash; AC opus) — the first public sample showing the
+  revision-plan section. DPO's sample is pinned to its published run so
+  later re-runs can't silently replace it; the Mamba pages re-rendered with
+  the v0.3 template.
 
 ### Fixed
 - **Reviewer protocol guards: PDF-extraction artifacts and double-blind
