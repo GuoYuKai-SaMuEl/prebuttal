@@ -54,6 +54,11 @@ _RULE_GAP = 450
 # caption on the side the document does not use counts as this much farther:
 # a tie-breaker only, since papers mix conventions (Mamba does)
 _WRONG_SIDE = 8
+# a ruled block of prose (e.g. prompt examples) is kept as text up to this size
+_TEXT_TABLE_CHARS = 2000
+# a gap wider than this fraction of the font size separates words; pdfplumber's
+# fixed 3pt default glues tightly set LaTeX text ("Winratevs.groundtruth")
+_WORD_GAP = 0.15
 _FIG_CAP = re.compile(r"^\s*(?:figure|fig\.)\s*" + _CAP_NUM + r"(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I)
 
 
@@ -202,22 +207,118 @@ def _grid_from_region(bbox: tuple, words: list[dict]) -> list[list[str]] | None:
             rows[-1].append(w)
         else:
             rows.append([w])
-    spans: list[list[float]] = []
-    for w in sorted(inside, key=lambda w: w["x0"]):
-        if spans and w["x0"] - spans[-1][1] < 6:  # 6pt < LaTeX's 2*tabcolsep gap
-            spans[-1][1] = max(spans[-1][1], w["x1"])
-        else:
-            spans.append([w["x0"], w["x1"]])
-    if len(rows) < 2 or len(spans) < 2:
+    rows = _merge_subscripts(rows)
+    if len(rows) < 2:
+        return None
+    spans = _column_spans(rows)
+    if len(spans) < 2:
         return None
     grid = [["" for _ in spans] for _ in rows]
     for r, row in enumerate(rows):
         for w in sorted(row, key=lambda w: w["x0"]):
             cx = (w["x0"] + w["x1"]) / 2
-            c = next((k for k, (a, b) in enumerate(spans) if a <= cx <= b), None)
-            if c is not None:
-                grid[r][c] = f"{grid[r][c]} {w['text']}".strip()
+            c = min(
+                range(len(spans)),
+                key=lambda k: max(spans[k][0] - cx, cx - spans[k][1], 0.0),
+            )
+            grid[r][c] = f"{grid[r][c]} {w['text']}".strip()
     return grid
+
+
+def _merge_subscripts(rows: list[list[dict]]) -> list[list[dict]]:
+    """``BERT`` + a lowered ``BASE`` starting where it ends -> ``BERT_BASE``.
+
+    pdfplumber puts a subscript on its own line, which would otherwise become
+    an extra, nearly empty table row."""
+    out: list[list[dict]] = []
+    for row in rows:
+        prev = out[-1] if out else []
+        hosts = [
+            next(
+                (
+                    i
+                    for i, p in enumerate(prev)
+                    if abs(w["x0"] - p["x1"]) <= 1.5 and 0 < w["top"] - p["top"] < 7
+                ),
+                None,
+            )
+            for w in row
+        ]
+        if prev and None not in hosts and len(set(hosts)) == len(hosts):
+            for w, i in zip(row, hosts, strict=True):
+                assert i is not None
+                prev[i] = {**prev[i], "text": f"{prev[i]['text']}_{w['text']}", "x1": w["x1"]}
+            continue
+        out.append(list(row))
+    return out
+
+
+def _column_spans(rows: list[list[dict]]) -> list[tuple[float, float]]:
+    """Columns = x-ranges filled in (nearly) every row.
+
+    A gap between columns may be crossed by a few rows (a ``\\multicolumn``
+    header, one long model name) and still separate them; words closer than
+    6pt (< LaTeX's 2*tabcolsep) always belong to one cell.
+    """
+    events: list[tuple[float, int]] = []
+    for row in rows:
+        cell: list[float] = []
+        for w in sorted(row, key=lambda w: w["x0"]):
+            if cell and w["x0"] - cell[1] < 6:
+                cell[1] = max(cell[1], w["x1"])
+                continue
+            if cell:
+                events += [(cell[0], 1), (cell[1], -1)]
+            cell = [w["x0"], w["x1"]]
+        if cell:
+            events += [(cell[0], 1), (cell[1], -1)]
+    n = len(rows)
+    allowed = max(1 if n >= 4 else 0, n // 8)
+    spans: list[list[float]] = []
+    depth = 0
+    for x, d in sorted(events, key=lambda e: (e[0], -e[1])):
+        before = depth
+        depth += d
+        if before <= allowed < depth:  # a column starts
+            if spans and x - spans[-1][1] < 1.0:
+                pass  # too thin to be a real gap: the last column continues
+            else:
+                spans.append([x, x])
+        elif depth <= allowed < before:  # a column ends
+            spans[-1][1] = x
+    return [(sp[0], sp[1]) for sp in spans]
+
+
+def _figure_like(tb: tuple, caps: list[tuple], fig_caps: list[tuple]) -> bool:
+    """A ruled block nearer a figure caption than any table caption (a boxed plot)."""
+    if not fig_caps:
+        return False
+    fig = min((d for d, _a, _c in _caption_gaps(tb, fig_caps)), default=_CAPTION_GAP)
+    tab = min((d for d, _a, _c in _caption_gaps(tb, caps)), default=_CAPTION_GAP)
+    return fig < tab
+
+
+def _region_text(bbox: tuple, words: list[dict]) -> str:
+    """The words inside ``bbox`` as lines of text."""
+    x0, top, x1, bottom = bbox
+    inside = sorted(
+        (
+            w
+            for w in words
+            if x0 - 2 <= (w["x0"] + w["x1"]) / 2 <= x1 + 2
+            and top < (w["top"] + w["bottom"]) / 2 < bottom
+        ),
+        key=lambda w: (round(w["top"]), w["x0"]),
+    )
+    lines: list[list[dict]] = []
+    for w in inside:
+        if lines and abs(w["top"] - lines[-1][0]["top"]) <= 3:
+            lines[-1].append(w)
+        else:
+            lines.append([w])
+    return "\n".join(
+        " ".join(w["text"] for w in sorted(ln, key=lambda w: w["x0"])) for ln in lines
+    ).strip()
 
 
 def _caption_gaps(tb: tuple, caps: list[tuple]) -> list[tuple[float, bool, int]]:
@@ -476,7 +577,7 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         for ch in page.chars:  # pifont \cmark / \xmark: ablation tables are full of them
             if "dingbat" in (ch.get("fontname") or "").lower():
                 ch["text"] = _DINGBATS.get(ch["text"], ch["text"])
-        words = page.extract_words()
+        words = page.extract_words(x_tolerance_ratio=_WORD_GAP)
         found: list[tuple[tuple, list[list[str]]]] = []
         try:
             grids = page.find_tables()  # fully ruled grids (vertical + horizontal lines)
@@ -496,6 +597,7 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         fig_caps = [
             (x0, top, x1, bottom, "", "") for x0, top, x1, bottom, t in blocks if _FIG_CAP.match(t)
         ]
+        texts: list[tuple[tuple, str]] = []  # ruled blocks of prose (prompt examples)
         for bbox in _rule_regions(page, [c[:4] for c in caps], words):
             overlaps = any(
                 bbox[1] < fb[3] and fb[1] < bbox[3] and bbox[0] < fb[2] and fb[0] < bbox[2]
@@ -505,36 +607,47 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
                 grid = _grid_from_region(bbox, words)
                 if grid is not None:
                     found.append((bbox, grid))
-        # a boxed plot is ruled too: drop grids nearer a figure caption than a table one
-        found = [
-            (tb, g)
-            for tb, g in found
-            if min((d for d, _a, _c in _caption_gaps(tb, fig_caps)), default=_CAPTION_GAP)
-            >= min((d for d, _a, _c in _caption_gaps(tb, caps)), default=_CAPTION_GAP)
-            or not fig_caps
-        ]
-        page_finds.append((found, caps))
+                elif text := _region_text(bbox, words):
+                    texts.append((bbox, text))
+        # a boxed plot is ruled too: drop blocks nearer a figure caption than a table one
+        found = [f for f in found if not _figure_like(f[0], caps, fig_caps)]
+        texts = [t for t in texts if not _figure_like(t[0], caps, fig_caps)]
+        page_finds.append((found, caps, texts))
 
-    above = _captions_above(page_finds)
+    above = _captions_above([(f, c) for f, c, _t in page_finds])
     tables: list[Table] = []
     seen_numbers: set[str] = set()
-    for found, caps in page_finds:
+
+    def _add(number: str, caption: str, **kw) -> None:
+        seen_numbers.add(number)
+        tables.append(Table(number=number, caption=caption[:400], **kw))
+
+    for found, caps, texts in page_finds:
+        matched = set()
         for ci, panels in _match_captions(found, caps, above):
             grid = _join_panels([found[gi][1] for gi in panels])
             number, caption = caps[ci][4], caps[ci][5]
             if len(grid) < 2 or number in seen_numbers:
                 continue
-            seen_numbers.add(number)
-            tables.append(
-                Table(
-                    number=number,
-                    caption=caption[:400],
-                    header=grid[0],
-                    rows=grid[1:],
-                    raw="\n".join(" | ".join(r) for r in grid),
-                    source="pdf-table",
-                )
+            matched.add(ci)
+            _add(
+                number,
+                caption,
+                header=grid[0],
+                rows=grid[1:],
+                raw="\n".join(" | ".join(r) for r in grid),
+                source="pdf-table",
             )
+        # captions left over may own a ruled block of plain text: keep its words
+        rest = [ci for ci in range(len(caps)) if ci not in matched]
+        for k, panels in _match_captions(texts, [caps[ci] for ci in rest], above):
+            number, caption = caps[rest[k]][4], caps[rest[k]][5]
+            if number in seen_numbers:
+                continue
+            text = "\n\n".join(texts[ti][1] for ti in panels)
+            if len(text) > _TEXT_TABLE_CHARS:
+                text = text[:_TEXT_TABLE_CHARS].rsplit(" ", 1)[0] + " […]"
+            _add(number, caption, raw=text, source="pdf-text")
 
     # --- fallback: caption blocks without a detected grid
     cap_blocks: dict[str, str] = {}

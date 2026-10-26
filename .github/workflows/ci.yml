@@ -61,6 +61,30 @@ jobs:
       - name: Run tests
         run: python -m pytest -q --durations=10
 
+  real-papers:
+    name: Test (real arXiv papers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PREBUTTAL_REAL_PAPERS: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Cache downloaded papers
+        # pinned arXiv versions never change: fetch once, not on every run
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/prebuttal/test-papers
+          key: test-papers-${{ hashFiles('tests/test_pdf_real_papers.py') }}
+          restore-keys: test-papers-
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Run real-paper tests
+        run: python -m pytest -q tests/test_pdf_real_papers.py
+
   min-deps:
     name: Test (oldest supported dependencies)
     runs-on: ubuntu-latest

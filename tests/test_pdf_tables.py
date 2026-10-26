@@ -83,7 +83,11 @@ def _pdf(pages: list[list[Tab]], captions: list[list[tuple[float, float, str]]] 
             for r, row in enumerate(t.rows):
                 base = t.y + 4 + r * ROW_H + 9 + (3 if r else 0)
                 for col, cell in enumerate(row):
-                    text(t.x + 2 + t.cols[col], base, cell)
+                    main, _, sub = cell.partition("_")  # "BERT_BASE": lowered subscript
+                    text(t.x + 2 + t.cols[col], base, main)
+                    if sub:
+                        x = t.x + 2 + t.cols[col] + c.stringWidth(main, "Helvetica", 8)
+                        text(x, base + 3, sub, 6)
             if t.caption:
                 cy = t.bottom + 12 if t.below else t.y - 6
                 text(t.x, cy, t.caption)
@@ -233,3 +237,31 @@ def test_caption_only_table_is_flagged_for_reviewers():
     pack = render_pack(paper)
     assert "[numbers not extracted" in pack
     assert "not a flaw of the paper" in pack
+
+
+def test_multicolumn_header_does_not_merge_the_columns_below():
+    t = Tab(50, 200, 300, [["", "Win rate vs. ground truth"], ["Alg.", "Temp 0", "Temp 0.25"],
+            ["DPO", "0.36", "0.31"], ["PPO", "0.26", "0.23"]], (0, 100, 170),
+            "Table 1: Spanning header.")  # fmt: skip
+    got = _table(ingest_pdf_bytes(_pdf([[t]])), "1")
+    assert got is not None
+    assert ["DPO", "0.36", "0.31"] in got.rows and ["Alg.", "Temp 0", "Temp 0.25"] in got.rows
+
+
+def test_subscripts_join_their_word_instead_of_adding_rows():
+    t = Tab(50, 200, 300, [["System", "Dev", "Test"], ["BERT_BASE", "81.6", "-"],
+            ["BERT_LARGE", "86.6", "86.3"]], (0, 150, 220), "Table 4: Subscripts.")  # fmt: skip
+    got = _table(ingest_pdf_bytes(_pdf([[t]])), "4")
+    assert got is not None
+    assert got.rows == [["BERT_BASE", "81.6", "-"], ["BERT_LARGE", "86.6", "86.3"]]
+
+
+def test_ruled_block_of_prose_is_kept_as_text():
+    t = Tab(50, 200, 400, [["Q: Roger has 5 balls and buys 2 more cans of balls."],
+            ["A: Roger started with 5 balls. The answer is 11."]], (0,),
+            "Table 20: Few-shot exemplars.")  # fmt: skip
+    paper = ingest_pdf_bytes(_pdf([[t]]))
+    got = _table(paper, "20")
+    assert got is not None and got.source == "pdf-text"
+    assert "Roger started with 5 balls" in got.raw
+    assert not paper.warnings and "[numbers not extracted]" not in render_pack(paper)

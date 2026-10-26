@@ -12,8 +12,9 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ### Fixed
 - **PDF table extraction, much more of it.** On ten well-known arXiv papers
-  the tables recovered cell by cell went from 53 to 127, with no unnamed
-  tables left (there were 115); on Mamba v1/v2 every table now has its cells.
+  the tables recovered cell by cell went from 53 to 146 and those reduced to
+  a bare caption from 99 to 10, with no unnamed tables left (there were 115);
+  on Mamba v1/v2 every table now has its cells.
   - Booktabs rules are grouped by exact width before they are split
     vertically, so a table is no longer cut apart by the neighbouring
     column's rules, a full-width table no longer swallows column tables, and
@@ -27,6 +28,12 @@ releases (0.2, 0.3, …) are substantial new features.
   - Captions numbered `3.1`, `A.2` or `S1` are recognised (GPT-3-style
     papers previously lost every table), and pifont check marks read as
     ✓ / ✗ instead of `(cid:51)`.
+  - Columns are found from whitespace shared by nearly every row, so a
+    `\multicolumn` header no longer glues the columns under it together;
+    subscripts (`BERT_BASE`) join their word instead of adding a row; words
+    in tightly set LaTeX are separated (`SSM Layer`, not `SSMLayer`).
+  - A ruled block of prose (prompt examples, model outputs) is kept as text
+    instead of being reduced to its caption.
 - A table whose cells could not be extracted is now marked
   `[numbers not extracted]` in the reviewer pack, with a note that this is a
   tool limitation and not a flaw of the paper, and listed in the ingestion

@@ -62,7 +62,7 @@ class Table:
     header: list[str] = field(default_factory=list)
     rows: list[list[str]] = field(default_factory=list)
     raw: str = ""
-    source: str = ""  # "latex-tabular" | "pdf-table" | "pdf-caption-block"
+    source: str = ""  # "latex-tabular" | "pdf-table" | "pdf-text" | "pdf-caption-block"
     section: str = ""  # section heading where the table appears
 
     @property

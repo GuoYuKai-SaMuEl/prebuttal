@@ -1,9 +1,12 @@
 # Test fixtures
 
 - `demo-paper.pdf` — `examples/demo-paper` compiled with pdflatex.
-- `mamba-v1-tables.pdf` — pages 11, 13, 15 and 17 of arXiv:2312.00752v1;
-  `mamba-v2-tables.pdf` — pages 11 and 34 of arXiv:2312.00752v2.
-  *Mamba: Linear-Time Sequence Modeling with Selective State Spaces*,
-  Albert Gu and Tri Dao, licensed
-  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Pages extracted
-  unchanged; used as table-extraction regression tests.
+
+Real-paper regression tests (`tests/test_pdf_real_papers.py`) do not ship
+their PDFs: they download pinned arXiv versions on first use into
+`~/.cache/prebuttal/test-papers` (or `$PREBUTTAL_PAPER_CACHE`), and only when
+`PREBUTTAL_REAL_PAPERS=1` is set — otherwise they are skipped, so the default
+test run stays offline. CI runs them in a dedicated job with the cache saved
+between runs.
+
+    PREBUTTAL_REAL_PAPERS=1 python -m pytest tests/test_pdf_real_papers.py
