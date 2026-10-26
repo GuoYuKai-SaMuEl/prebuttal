@@ -104,7 +104,8 @@ def test_diff_checks_plan_items_against_the_next_run(
 
     text = render_diff(a, b)
     assert "## Revision plan of A, checked against B" in text
-    assert "- no longer raised: [must] Baseline set is thin" in text
+    assert "- not re-detected: [must] Baseline set is thin" in text
     assert "- still raised: [should] No variance across seeds" in text
     assert "- new in B: Figure 2 axis labels" in text
-    assert "1 of 2 plan items no longer raised." in text
+    assert "1 of 2 plan items were not re-detected in B." in text
+    assert "Matching is by wording" in text  # a new item appeared: warn about rewording

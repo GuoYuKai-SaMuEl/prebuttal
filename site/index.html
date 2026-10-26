@@ -52,6 +52,7 @@
   h2 { font-size: 24px; margin: 56px 0 8px; }
   .sub { color: var(--muted); margin: 0 0 24px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
   .card {
     background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
     padding: 18px 20px;
@@ -129,7 +130,8 @@
     <div class="card">
       <h3>Real review forms</h3>
       <p>NeurIPS 1–6, ICLR 1–10, ICML 1–10 and ARR Soundness/Excitement/Overall —
-      with the official scale anchors, not invented ones.</p>
+      with the official scale anchors, not invented ones. Another venue? Any form
+      and scale is one TOML file: <code>prebuttal venues new cvpr</code>.</p>
     </div>
     <div class="card">
       <h3>Cell-accurate ingestion</h3>
@@ -202,8 +204,8 @@
   </div>
 
   <h2 id="revision-loop">The revision loop</h2>
-  <p class="sub">Every paper is a project; every run lines up as revision history —
-  and two runs can be diffed. New in v0.2.</p>
+  <p class="sub">Every run ends with a prioritised revision plan; every paper is a
+  project whose runs line up as revision history — and two runs can be diffed.</p>
   <pre class="term"># abridged output of the real runs
 $ prebuttal run 2312.00752v1 --project mamba-revision --note "v1 — rejected at ICLR 2024"
   R1 claude/sonnet 8 · R2 codex 5 · R3 gemini-3.8-flash 8
@@ -217,7 +219,14 @@ $ prebuttal diff
   adversarial  5 → 6            (Δ +1)
   gone:        "Mamba-3B vs 2.8B naming inconsistency"   — fixed by the revision
   persists:    "no variance / error bars reported"       — the real reviewers' complaint too</pre>
-  <div class="grid">
+  <div class="grid two">
+    <div class="card">
+      <h3>A revision plan, not just a verdict</h3>
+      <p>The area chair merges what the reviewers raised into a short checklist —
+      <em>must / should / could</em>, the issue with its table or section, the
+      concrete fix, who raised it. <code>prebuttal plan</code> prints it; the next
+      <code>prebuttal diff</code> checks it against the re-run. New in v0.3.</p>
+    </div>
     <div class="card">
       <h3>Projects &amp; run history</h3>
       <p>Each paper gets a project found from its source — the same PDF, LaTeX

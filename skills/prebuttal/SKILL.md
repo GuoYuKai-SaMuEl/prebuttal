@@ -85,9 +85,10 @@ After the user revises the paper:
 2. `prebuttal diff` — the newest run vs the one before it in the same project:
    score deltas per reviewer plus weakness movement (gone / persists / new,
    heuristic word-overlap matching), and the previous run's revision plan
-   checked against the new run (no longer raised / still raised / new).
-   Present the "gone" and "no longer raised" lists as wins and the rest as
-   the user's TODO.
+   checked against the new run (not re-detected / still raised / new).
+   Matching is by wording: before calling a "gone" or "not re-detected" item
+   fixed, check it is not simply reworded among the "new" ones; present real
+   fixes as wins and the rest as the user's TODO.
 3. `prebuttal runs <project>` lists a paper's runs; reference one as
    `<project>#3`, `<project>~1` (one before the newest) or by id prefix.
    `prebuttal projects` lists every paper.

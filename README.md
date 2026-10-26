@@ -257,7 +257,10 @@ It opens every report, the run prints the top items (`Fix first:`), and
 `prebuttal plan [run]` prints it as a checklist to paste into your notes or an
 issue (`--json` for scripts). After you revise and re-run, `prebuttal diff`
 checks the old plan against the new reviews: which items are no longer
-raised, which still are, and what is new.
+detected, which still are, and what is new. The matching is by wording, so a
+reworded issue shows up as "not re-detected" *and* "new" — compare runs made
+with the same backends and seed, and read both lists before ticking anything
+off.
 
 ## Projects, reports & revision history
 
@@ -297,7 +300,7 @@ prefix.
 The revision loop: fix what the reviewers flagged, re-run with the same
 `--seed` and a `--note "what changed"`, then `prebuttal diff` shows which
 weaknesses went away, persisted, or appeared, and which revision-plan items
-are no longer raised. Report location and formats
+are no longer detected. Report location and formats
 are configurable: `--out-dir`, `--format md,html,json`, or an `[output]`
 section in `prebuttal.toml` (`dir = ""` keeps reports in the archive only).
 Need a file at a fixed path, e.g. for a script? `--json PATH`, or

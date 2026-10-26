@@ -513,13 +513,16 @@ def render_diff(a: RunRecord, b: RunRecord) -> str:
             for r in db.get("reviewers", [])
             for w in ((r.get("fields") or {}).get("weaknesses") or [])
         ]
-        out.append("## Revision plan of A, checked against B")
-        n_done = 0
+        out.append(
+            "## Revision plan of A, checked against B "
+            "(heuristic: ≥35% word overlap with any B plan item or weakness)"
+        )
+        n_gone = 0
         for it in plan_a:
             issue = str(it.get("issue", ""))
             still = any(_weak_sim(issue, t) >= 0.35 for t in b_texts)
-            n_done += not still
-            mark = "still raised" if still else "no longer raised"
+            n_gone += not still
+            mark = "still raised" if still else "not re-detected"
             out.append(f"- {mark}: [{it.get('priority', '?')}] {issue[:200]}")
         new = [
             str(it.get("issue", ""))
@@ -529,7 +532,16 @@ def render_diff(a: RunRecord, b: RunRecord) -> str:
         ]  # fmt: skip
         for issue in new:
             out.append(f"- new in B: {issue[:200]}")
-        out.append(f"\n{n_done} of {len(plan_a)} plan items no longer raised.")
+        out.append("")
+        out.append(f"{n_gone} of {len(plan_a)} plan items were not re-detected in B.")
+        if n_gone and new:
+            # a reworded issue shows up twice: "not re-detected" and "new in B"
+            out.append(
+                "Matching is by wording: an issue B raises in other words counts as "
+                "not re-detected *and* new — read the two lists side by side before "
+                "ticking anything off. Most reliable with the same backends and "
+                "seed for both runs."
+            )
         out.append("")
 
     out.append(

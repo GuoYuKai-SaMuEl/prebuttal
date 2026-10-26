@@ -19,7 +19,8 @@ releases (0.2, 0.3, …) are substantial new features.
   and HTML reports and the JSON (`meta.action_plan`); the run prints the top
   items as `Fix first:`; `prebuttal plan [run]` prints it as a `- [ ]`
   checklist (`--json` for scripts); `prebuttal diff` checks the previous
-  run's plan against the new run (no longer raised / still raised / new).
+  run's plan against the new run (not re-detected / still raised / new —
+  matched by wording, and it says so when rewording may be involved).
 - **Custom venues.** Any review form and scale — CVPR, AAAI, a journal, a
   revised ICML form, a lab's mock review — as one TOML file plus the form
   text, used with `--venue NAME` or `--venue path/to/venue.toml` (also in
