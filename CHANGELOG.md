@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 While pre-1.0: **patch** releases (0.1.x) are fixes and small additions; **minor**
 releases (0.2, 0.3, …) are substantial new features.
 
+## [Unreleased]
+
 ## [0.2.1] — 2026-10-26
 
 ### Fixed
@@ -277,6 +279,7 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/releases/tag/v0.1.0
