@@ -153,30 +153,32 @@
     <div class="left">
       <h3>Mamba — one paper, two rounds: the rejected v1 vs the revised v2</h3>
       <div class="venue">ICLR 2024 → COLM 2024 · <a href="reports/mamba-revision.html">full comparison →</a></div>
-      <p>The same cross-model panel (claude sonnet · codex · gemini-3.8-flash, AC
-      opus) reviewed both arXiv versions of Mamba. Only the adversarial reviewer
-      moved (5 → 6) and the disagreement narrowed — the same direction as the real
-      outcome. Weaknesses the revision actually fixed disappeared from the panel's
-      list; the ones the real reviewers hammered on persisted.</p>
+      <p>The same cross-model panel (claude sonnet · codex gpt-6-luna ·
+      gemini-3.8-flash, AC opus) reviewed both arXiv versions of Mamba, three seeds
+      each. The score did not move (mean 7.22 → 7.33, inside the noise) and, matched
+      by meaning, every concern in the v1 revision plan was raised again against v2 —
+      including the missing error bars the real ICLR reviewers hammered on. The tool
+      says “no change” when it sees none.</p>
     </div>
     <div class="score">
-      <div class="num">7.0 → 7.3<span style="font-size:18px;color:var(--muted)">/10</span></div>
-      <div class="cap">v1 → v2 · same panel, same settings</div>
-      <div class="real">real: rejected → accepted</div>
+      <div class="num">7.33 → 7.33<span style="font-size:18px;color:var(--muted)">/10</span></div>
+      <div class="cap">v1 → v2 · seed 42 · 3-seed means 7.22 → 7.33</div>
+      <div class="real">real: rejected → accepted elsewhere</div>
     </div>
   </div>
   <div class="card paper">
     <div class="left">
       <h3>Direct Preference Optimization: Your Language Model is Secretly a Reward Model</h3>
       <div class="venue">NeurIPS 2023 · <a href="reports/dpo.html">full report →</a></div>
-      <p>The adversarial persona scored a full point below the others (5 / 4 / 5) and
-      the AC synthesized the disagreement — matching the real outcome: accepted as a
-      poster with reviews in the accept band.</p>
+      <p>Two reviewers at borderline accept, the detail reviewer at accept (4 / 4 / 5),
+      and an AC estimate of 5. The revision plan goes after what a skeptic would:
+      no matched PPO baseline for dialogue, no uncertainty on any win rate, an
+      unmeasured efficiency claim. Positive, as the real outcome was.</p>
     </div>
     <div class="score">
-      <div class="num">4.67<span style="font-size:18px;color:var(--muted)">/6</span></div>
-      <div class="cap">σ 0.47, range 4–5</div>
-      <div class="real">real panel: accepted (poster)</div>
+      <div class="num">4.33<span style="font-size:18px;color:var(--muted)">/6</span></div>
+      <div class="cap">σ 0.47, range 4–5 · AC 5</div>
+      <div class="real">real: accepted</div>
     </div>
   </div>
   <div class="card paper">
@@ -198,7 +200,9 @@
     Calibration caveats, stated plainly: frontier models have almost certainly seen
     these papers in training (contamination), which pushes scores toward the lenient
     side — an earlier single-model panel rated Mamba 8/8/8 with no dissenter at all.
-    The revision-round demo above shows a directionally-correct but modest response.
+    The revision-round demo above shows no measurable response to the revision; an
+    earlier version of this page read a single-run 7.0 → 7.3 as progress, which
+    re-running with three seeds showed to be noise.
     These comparisons illustrate the workflow, not a validated predictor.
     A stress test, not a prophecy.
   </div>
@@ -208,17 +212,23 @@
   project whose runs line up as revision history — and two runs can be diffed.</p>
   <pre class="term"># abridged output of the real runs
 $ prebuttal run 2312.00752v1 --project mamba-revision --note "v1 — rejected at ICLR 2024"
-  R1 claude/sonnet 8 · R2 codex 5 · R3 gemini-3.8-flash 8
-  Predicted: 7/10 (σ 1.41)          → saved as mamba-revision#1
+  R1 claude/sonnet 8 · R2 codex/gpt-6-luna 6 · R3 gemini-3.8-flash FAILED (HTTP 429)
+  the report uses the 2 reviews that finished — `prebuttal retry mamba-revision#11`
 
-$ prebuttal run 2312.00752 --note "v2 — revised, accepted at COLM 2024"
-  Predicted: 7.33/10 (σ 0.94)       → saved as mamba-revision#2
+$ prebuttal retry mamba-revision#11     # only R3 and the AC run again
+  R3 gemini-3.8-flash 8
+  Predicted: 7.33/10 (σ 0.94)       → saved as mamba-revision#17
 
-$ prebuttal diff
-  panel        7/10 → 7.33/10   (Δ +0.33) · σ 1.41 → 0.94
-  adversarial  5 → 6            (Δ +1)
-  gone:        "Mamba-3B vs 2.8B naming inconsistency"   — fixed by the revision
-  persists:    "no variance / error bars reported"       — the real reviewers' complaint too</pre>
+$ prebuttal run 2312.00752v2 --note "v2 — revised, accepted at COLM 2024"
+$ prebuttal retry mamba-revision#12     # R3 hit the same quota; completed the same way
+  Predicted: 7.33/10 (σ 0.94)       → saved as mamba-revision#18
+
+$ prebuttal diff --llm mamba-revision#17 mamba-revision#18
+  panel          7.33/10 → 7.33/10 (Δ +0)
+  still raised:  [must] Headline claims exceed the tested regime …
+  still raised:  [should] No seeds, standard deviations or confidence intervals …
+  new in B:      the custom fused CUDA kernel's portability
+  0 of 8 plan items were not re-detected in B.</pre>
   <div class="grid two">
     <div class="card">
       <h3>A revision plan, not just a verdict</h3>

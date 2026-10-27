@@ -48,6 +48,13 @@ releases (0.2, 0.3, …) are substantial new features.
   re-sends the archived images.
 
 ### Changed
+- **Site samples re-run on 0.4** with one panel (claude sonnet · codex
+  gpt-6-luna · gemini-3.8-flash, AC claude opus), seed 42. The Mamba
+  revision page is rewritten honestly: with three seeds per version the score
+  does not move (7.22 → 7.33, inside the noise) and every v1 plan item is
+  raised again against v2 (matched by meaning). The old page's single-run
+  "7.0 → 7.3" and "naming inconsistency fixed by the revision" claims are
+  withdrawn. DPO 4.33/6, weak paper 1.33/10.
 - **Design commitment: fewer parameters.** CONTRIBUTING.md now asks every
   new command to work with no options and every flag to earn its place
   (defaults, values derived from the run or config, or a `prebuttal.toml`

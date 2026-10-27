@@ -81,50 +81,64 @@
     <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/issues">open an issue</a>.
   </div>
 
-  <h2>The two panels</h2>
+  <h2>The two panels (seed 42)</h2>
   <table>
     <tr><th>Role</th><th>Model</th><th>v1 · rejected</th><th>v2 · revised</th><th>real ICLR 2024</th></tr>
     <tr><td>R1 · senior_kind</td><td>claude sonnet</td><td>8</td><td>8</td><td>8</td></tr>
-    <tr><td>R2 · adversarial</td><td>codex (gpt-6-luna)</td><td>5</td><td><span class="up">6 ↑</span></td><td><b>3</b> (the dissenter)</td></tr>
+    <tr><td>R2 · adversarial</td><td>codex (gpt-6-luna)</td><td>6</td><td>6</td><td><b>3</b> (the dissenter)</td></tr>
     <tr><td>R3 · detail_obsessive</td><td>gemini-3.8-flash</td><td>8</td><td>8</td><td>6</td></tr>
-    <tr><td>Panel mean</td><td></td><td>7.00 (σ 1.41)</td><td>7.33 (σ 0.94)</td><td>6.25 → reject</td></tr>
+    <tr><td>Panel mean</td><td></td><td>7.33 (σ 0.94)</td><td>7.33 (σ 0.94)</td><td>6.25 → reject</td></tr>
     <tr><td>AC estimate</td><td>claude opus</td><td>8</td><td>8</td><td></td></tr>
   </table>
 
-  <h2>What moved between rounds</h2>
+  <h2>What happened between rounds: almost nothing</h2>
   <div class="card">
-    <h3>The strictest reviewer is the one that moved</h3>
-    <p>Only the adversarial reviewer changed score (5 → 6) and the panel's disagreement
-    narrowed (σ 1.41 → 0.94) — the same direction as the real outcome, where the
-    rejected paper was later accepted in revised form. The sensitivity is real but
-    modest: a stress test, not a prophecy.</p>
+    <h3>The same concerns, raised again</h3>
+    <p>Matched by meaning (<code>prebuttal diff --llm</code>), all 8 items of the v1
+    revision plan were raised again against v2: headline claims beyond the tested
+    scale (scaling laws stop near 1.3B, zero-shot at 2.8B), no seeds or error bars in
+    any table, a non-monotonic Table 13, a missing Transformer++ row in Table 3,
+    efficiency numbers without operating context. The one new v2 item is the
+    portability of the custom fused CUDA kernel. To this panel, the revision did not
+    address what it cared about.</p>
   </div>
   <div class="card">
-    <h3>Weaknesses the revision actually fixed disappeared</h3>
-    <p>The v1 panel flagged a “Mamba-3B vs Mamba-2.8B” naming inconsistency — gone in
-    v2, because the revision fixed it. The loudest persistent weakness, “no variance or
-    error bars anywhere”, survived both rounds — exactly what the real ICLR reviewers
-    hammered on too. In v2 the new critiques refocus on long-context retrieval
-    evidence, matching the restructured paper (33 → 19 sections).</p>
+    <h3>The score doesn't move either — and that is measured, not guessed</h3>
+    <p>Each version was reviewed three times (seeds 42–44). v1: 7.33, 7.33, 7.00
+    (mean 7.22). v2: 7.33, 7.33, 7.33 (mean 7.33). The whole difference is one point
+    from one reviewer in one run — inside the noise. The senior and detail
+    reviewers gave 8 to both versions in every run: this panel does not separate
+    the two versions, and an earlier version of this page that read a
+    7.0 → 7.3 “improvement” from single runs was reading noise.</p>
   </div>
   <div class="card">
-    <h3>The area chair fact-checks its panel</h3>
-    <p>In v1 the AC (claude opus) refused to count half-empty tables against the
-    authors, correctly judging them an extraction artifact of the tool rather than the
-    paper — and in v2 it caught the adversarial reviewer mis-reading the OPT-6.7B
-    comparison in Table 3, quoting the correct numbers from the paper.</p>
+    <h3>A claim we withdrew</h3>
+    <p>That earlier page also said a “Mamba-3B vs 2.8B” naming inconsistency was
+    “gone in v2, because the revision fixed it”. It is not: the seed-42 v2 review
+    raises it again. The old claim came from word-overlap matching, which on this
+    pair calls 5 of the 8 plan items resolved — by meaning, none were. That is why
+    <code>diff --llm</code> exists.</p>
+  </div>
+  <div class="card">
+    <h3>The area chair still checks its panel</h3>
+    <p>In both rounds the AC (claude opus) sided with the two 8s but kept the
+    adversarial reviewer's points on scoping the claims. In v2 it disputed part of
+    R2's case: the decisive Table 3 comparisons share tokenizer, data and token
+    budget, and R2's reading of Table 15 conflated a memory benchmark with the
+    KV-cache argument.</p>
   </div>
 
   <div class="note">
     Read this honestly: frontier models have almost certainly seen Mamba in training
-    (contamination), which pushes scores toward the lenient side — two reviewers and
-    the AC stayed at 8 in both rounds. One run per version (no seed variance
-    measured), and the weakness “movement” is a word-overlap heuristic. The value of
-    the demo is the workflow — run, revise, diff — not the absolute numbers.
+    (contamination), which pushes scores toward the lenient side. And arXiv v2 being
+    accepted at a different venue says little about whether it answered these
+    particular concerns. What this demo does show is the workflow — run, revise,
+    diff, re-check with more seeds — and a tool that reports “no change” when it
+    sees none.
   </div>
 
   <footer>
-    Generated with Prebuttal (v0.2.0) from the public arXiv versions of the paper ·
+    Generated with a pre-release of Prebuttal 0.4 from the public arXiv versions of the paper ·
     reports: <a href="mamba-v1.html">v1</a> · <a href="mamba-v2.html">v2</a> ·
     <a href="../index.html#revision-loop">how this was made</a>
   </footer>

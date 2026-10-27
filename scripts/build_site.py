@@ -60,15 +60,18 @@ SYNTHETIC_BANNER = (
     "No real authors, methods or results."
 )
 
-# The Mamba pair is a revision round: same panel (claude sonnet · codex ·
-# gemini-3.8-flash, AC claude opus), same seed, over both arXiv versions —
+# All four samples come from one panel (claude sonnet · codex gpt-6-luna ·
+# gemini-3.8-flash, AC claude opus), seed 42, run on 2026-10-27 with the 0.4
+# pre-release. The Mamba pair is a revision round over both arXiv versions —
 # v1 is the ICLR 2024-rejected submission, v2 the revision accepted at
-# COLM 2024. The id prefixes pin the 2026-10-26 runs so the "*mamba*"
-# glob can't silently drift to a newer run.
+# COLM 2024 (the v1 run's R3 was completed with `prebuttal retry` after a
+# Gemini quota error). Seeds 43 and 44 stay in the local archive as the
+# variance check quoted on mamba-revision.html. The id prefixes pin the runs
+# so a glob can't silently drift to a newer one.
 CURATED: list[tuple[str, str, str]] = [
     (
         "mamba-v1.html",
-        "20261026-0110*",
+        "20261027-153543-a958*",
         _real_paper_banner(
             "2312.00752v1",
             "Albert Gu and Tri Dao",
@@ -77,22 +80,19 @@ CURATED: list[tuple[str, str, str]] = [
     ),
     (
         "mamba-v2.html",
-        "20261026-0114*",
+        "20261027-153730-b30d*",
         _real_paper_banner(
             "2312.00752v2",
             "Albert Gu and Tri Dao",
             "This is arXiv v2 (May 2024) — the revised version, accepted at COLM 2024.",
         ),
     ),
-    # dpo: pinned to the 2026-10-25 run so the published 4.67/6 sample can't
-    # silently drift to a newer re-run (a 2026-10-26 re-run of the same panel
-    # gave 4.33/6 — kept in the local archive, not published).
     (
         "dpo.html",
-        "20261025-163120-10aa*",
+        "20261027-153028-2d91*",
         _real_paper_banner("2305.18290", "Rafael Rafailov, Archit Sharma, Eric Mitchell, et al."),
     ),
-    ("weak.html", "*globalgate*", SYNTHETIC_BANNER),
+    ("weak.html", "20261027-153345-0861*", SYNTHETIC_BANNER),
 ]
 
 _BANNER_START = "<!-- site-banner -->"
