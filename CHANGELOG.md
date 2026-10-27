@@ -15,9 +15,10 @@ releases (0.2, 0.3, …) are substantial new features.
   overloaded backend, a timeout) plus the area chair, on the exact text the
   others reviewed, and archives the result as a new run of the project — the
   finished reviews are not paid for twice. `--backend` / `--model` switch the
-  retried roles to another backend. Runs now archive their reviewer pack
-  (`pack.md`, in the private run store); runs from 0.3.1 and earlier can be
-  retried with `--paper <source>` if the paper is unchanged.
+  roles that failed to another backend (an area chair that worked keeps its
+  own when it re-runs over the merged reviews). Runs now archive their
+  reviewer pack (`pack.md`, in the private run store); runs from 0.3.1 and
+  earlier can be retried with `--paper <source>` if the paper is unchanged.
 - **Ctrl-C keeps finished reviews.** Interrupting a run archives the reviews
   that already finished (note `interrupted`, exit code 130), so
   `prebuttal retry` can complete it instead of starting over.

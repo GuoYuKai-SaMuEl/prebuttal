@@ -147,3 +147,16 @@ def test_ctrl_c_saves_finished_reviews_for_retry(
 
     rc = cli.main(["retry", "--config", str(cfg_path), "--backend", "fake", "--out-dir", "r"])
     assert rc == cli.EXIT_OK
+
+
+def test_retry_backend_override_spares_a_working_ac(
+    latex_project, fake_statuses, flaky_config, capsys
+):
+    cfg_path, calls = flaky_config
+    cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    register_backend("other", lambda m, cfg, t: PersonaFakeProvider(backend="other", calls=calls))
+    rc = cli.main(["retry", "--config", str(cfg_path), "--backend", "other", "--out-dir", "r"])
+    assert rc == cli.EXIT_OK
+    new = json.loads((load_history()[0].dir_path / "report.json").read_text(encoding="utf-8"))
+    assert new["reviewers"][1]["backend"] == "other"  # the failed reviewer switched
+    assert new["meta"]["backend"] == "fake"  # the AC had worked: it keeps its backend

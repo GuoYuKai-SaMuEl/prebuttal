@@ -169,8 +169,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--paper", default=None, help="paper source, only for runs archived before 0.3.2"
     )
     retry_p.add_argument("-c", "--config", default=None, help="prebuttal.toml path")
-    retry_p.add_argument("--backend", default=None, help="backend for the retried roles")
-    retry_p.add_argument("--model", default=None, help="model id for the retried roles")
+    retry_p.add_argument(
+        "--backend", default=None, help="backend for the failed roles (a working AC keeps its own)"
+    )
+    retry_p.add_argument("--model", default=None, help="model id for the failed roles")
     retry_p.add_argument("--note", default="", help="note for the new run")
     retry_p.add_argument("--out-dir", default=None, help="reports folder (see `run`)")
     retry_p.add_argument("--format", default=None, help="report formats (see `run`)")
@@ -1160,13 +1162,22 @@ def cmd_retry(args) -> int:
         return EXIT_USAGE
 
     roles = [
-        (old.reviews[i].reviewer_id, args.backend or old.reviews[i].backend,
-         old.reviews[i].model if args.model is None else args.model, old.reviews[i].effort)
+        (
+            old.reviews[i].reviewer_id,
+            args.backend or old.reviews[i].backend,
+            old.reviews[i].model if args.model is None else args.model,
+            old.reviews[i].effort,
+        )
         for i in targets
-    ] + [
-        ("AC", args.backend or old.meta.backend,
-         old.meta.model if args.model is None else args.model, old.meta.effort)
-    ]  # fmt: skip
+    ]
+    # the AC always re-runs over the merged reviews, but --backend/--model are
+    # meant for what failed: an AC that worked keeps its backend and model
+    ac_failed = not old.meta.parse_ok
+    roles.append(
+        ("AC", (args.backend if ac_failed else None) or old.meta.backend,
+         args.model if ac_failed and args.model is not None else old.meta.model,
+         old.meta.effort)
+    )  # fmt: skip
     uses_relay = any(b == "relay" for (_r, b, _m, _e) in roles)
     if not _config_trusted(
         cfg, [(b, m) for (_r, b, m, _e) in roles], pinned=False, relay=uses_relay
