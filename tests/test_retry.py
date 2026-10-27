@@ -105,3 +105,45 @@ def test_retry_old_run_needs_the_unchanged_paper(
     # the revised paper is refused: a retry must review the same text
     rc = cli.main(["retry", rec.id, "--config", str(cfg_path), "--paper", str(latex_project)])
     assert rc == cli.EXIT_USAGE and "changed" in capsys.readouterr().err
+
+
+def test_ctrl_c_saves_finished_reviews_for_retry(
+    latex_project, fake_statuses, flaky_config, capsys
+):
+    """Ctrl-C mid-run keeps the (paid) reviews that finished; retry completes it."""
+    import _thread
+    import threading
+
+    cfg_path, calls = flaky_config
+    release = threading.Event()
+
+    class _Hung(PersonaFakeProvider):
+        def _complete(self, **kw):
+            # the two other reviewers are done: the user presses Ctrl-C now
+            threading.Timer(0.2, _thread.interrupt_main).start()
+            release.wait(10)
+            return super()._complete(**kw)
+
+    register_backend("hung", lambda m, cfg, t: _Hung(backend="hung", calls=calls))
+    _Flaky.down = False
+    toml = cfg_path.read_text(encoding="utf-8").replace(
+        'persona = "detail_obsessive"\nbackend = "fake"',
+        'persona = "detail_obsessive"\nbackend = "hung"',
+    )
+    cfg_path.write_text(toml, encoding="utf-8")
+    try:
+        rc = cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    finally:
+        release.set()
+    assert rc == 130
+    err = capsys.readouterr().err
+    assert "saving the reviews that finished" in err and "prebuttal retry" in err
+
+    rec = load_history()[0]
+    assert rec.note == "interrupted"
+    data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+    assert [r["parse_ok"] for r in data["reviewers"]] == [True, True, False]
+    assert "interrupted" in data["reviewers"][2]["error"]
+
+    rc = cli.main(["retry", "--config", str(cfg_path), "--backend", "fake", "--out-dir", "r"])
+    assert rc == cli.EXIT_OK

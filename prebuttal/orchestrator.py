@@ -361,6 +361,32 @@ def run_one_reviewer(
     return review
 
 
+INTERRUPTED = "interrupted (Ctrl-C) before it finished"
+
+
+class RunInterrupted(KeyboardInterrupt):
+    """Ctrl-C during a run. Carries what had finished, so it can be saved.
+
+    ``report`` is set by run_report (reviews + an unfinished meta-review)."""
+
+    def __init__(self, reviews: list[Review], report: ReviewReport | None = None):
+        super().__init__()
+        self.reviews = reviews
+        self.report = report
+
+
+def _failed_review(rcfg, provider: BaseProvider, cfg: RunConfig, idx: int, error: str) -> Review:
+    return Review(
+        reviewer_id=rcfg.id,
+        persona=rcfg.persona,
+        backend=provider.backend,
+        model=provider.model,
+        temperature=rcfg.temperature,
+        seed=reviewer_seed(cfg, rcfg, idx),
+        error=error,
+    )
+
+
 def run_reviews(
     cfg: RunConfig,
     venue: Venue,
@@ -375,14 +401,8 @@ def run_reviews(
             reviews[idx] = run_one_reviewer(rcfg, idx, venue, pack, provider, cfg, log, delay)
         except Exception as e:  # a bug in one reviewer must not lose the others' (paid) work
             log(f"[{rcfg.id}] FAILED: unexpected {type(e).__name__}: {e}")
-            reviews[idx] = Review(
-                reviewer_id=rcfg.id,
-                persona=rcfg.persona,
-                backend=provider.backend,
-                model=provider.model,
-                temperature=rcfg.temperature,
-                seed=reviewer_seed(cfg, rcfg, idx),
-                error=f"unexpected {type(e).__name__}: {e}",
+            reviews[idx] = _failed_review(
+                rcfg, provider, cfg, idx, f"unexpected {type(e).__name__}: {e}"
             )
 
     # Daemon threads, not a ThreadPoolExecutor: an executor joins its workers
@@ -403,9 +423,16 @@ def run_reviews(
         )
         t.start()
         threads.append(t)
-    for t in threads:
-        while t.is_alive():
-            t.join(0.25)  # short joins keep Ctrl-C deliverable (notably on Windows)
+    try:
+        for t in threads:
+            while t.is_alive():
+                t.join(0.25)  # short joins keep Ctrl-C deliverable (notably on Windows)
+    except KeyboardInterrupt:
+        done = list(reviews)  # snapshot: a straggler finishing now must not change it
+        for idx, rcfg in enumerate(cfg.reviewers):
+            if done[idx] is None:
+                done[idx] = _failed_review(rcfg, providers[rcfg.id], cfg, idx, INTERRUPTED)
+        raise RunInterrupted(done) from None
     return reviews
 
 
@@ -555,8 +582,35 @@ def run_report(
     summarizer = make_summarizer(ac_provider, log) if cfg.compress else None
     pack = render_pack(paper, budget_chars=cfg.budget_chars, summarizer=summarizer)
 
-    reviews = run_reviews(cfg, venue, pack, providers, log)
-    meta = run_meta(cfg, venue, pack, reviews, ac_provider, log)
+    def unfinished_meta() -> MetaReview:
+        return MetaReview(
+            backend=ac_provider.backend,
+            model=ac_provider.model,
+            temperature=cfg.ac.temperature,
+            error=INTERRUPTED,
+        )
+
+    try:
+        reviews = run_reviews(cfg, venue, pack, providers, log)
+    except RunInterrupted as e:
+        report = _assemble(paper, cfg, venue, pack, e.reviews, unfinished_meta())
+        raise RunInterrupted(e.reviews, report) from None
+    try:
+        meta = run_meta(cfg, venue, pack, reviews, ac_provider, log)
+    except KeyboardInterrupt:
+        report = _assemble(paper, cfg, venue, pack, reviews, unfinished_meta())
+        raise RunInterrupted(reviews, report) from None
+    return _assemble(paper, cfg, venue, pack, reviews, meta)
+
+
+def _assemble(
+    paper: StructuredPaper,
+    cfg: RunConfig,
+    venue: Venue,
+    pack: str,
+    reviews: list[Review],
+    meta: MetaReview,
+) -> ReviewReport:
     aggregate = make_aggregate(reviews)
 
     usage_total = Usage()

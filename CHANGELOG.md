@@ -18,6 +18,9 @@ releases (0.2, 0.3, …) are substantial new features.
   retried roles to another backend. Runs now archive their reviewer pack
   (`pack.md`, in the private run store); runs from 0.3.1 and earlier can be
   retried with `--paper <source>` if the paper is unchanged.
+- **Ctrl-C keeps finished reviews.** Interrupting a run archives the reviews
+  that already finished (note `interrupted`, exit code 130), so
+  `prebuttal retry` can complete it instead of starting over.
 
 ### Changed
 - CI fails on any text I/O without an explicit `encoding=`

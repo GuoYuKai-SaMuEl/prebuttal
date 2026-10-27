@@ -37,7 +37,7 @@ from .dashboard import dashboard_path, ensure_html, render_dashboard
 from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
 from .models import EFFORT_LEVELS, dataclass_to_dict
-from .orchestrator import run_report
+from .orchestrator import RunInterrupted, run_report
 from .outputs import FORMATS, parse_formats, write_local
 from .pack import render_pack
 from .projects import (
@@ -928,25 +928,37 @@ def cmd_run(args) -> int:
             "For automatic reviews instead, install claude/codex CLI or set GEMINI_API_KEY."
         )
 
-    report = run_report(paper, cfg, venue, providers, ac_provider, log=_log)
+    interrupted = False
+    try:
+        report = run_report(paper, cfg, venue, providers, ac_provider, log=_log)
+    except RunInterrupted as e:
+        # keep what finished (and was paid for): archive it so `retry` can complete it
+        if e.report is None or not any(r.parse_ok for r in e.report.reviews):
+            raise
+        _log("\n[prebuttal] interrupted — saving the reviews that finished")
+        report, interrupted = e.report, True
 
     # Archive first, best-effort: a failure to archive never fails the
     # review, and a bad output path afterwards can't lose a (paid) review.
     project = slugify(paper.title)
     with contextlib.suppress(OSError, ProjectError):
         project = assign_project(args.paper, paper.title, args.project, register=not args.no_save)
-    return _deliver(
+    note = args.note.strip()
+    if interrupted:
+        note = f"{note} (interrupted)".strip() if note else "interrupted"
+    rc = _deliver(
         report,
         venue,
         cfg,
         project=project,
-        note=args.note.strip(),
+        note=note,
         formats=formats,
         out_dir=args.out_dir if args.out_dir is not None else cfg.output_dir,
         json_path=args.json,
         stdout=args.stdout,
         save=not args.no_save,
     )
+    return 130 if interrupted else rc
 
 
 def _deliver(
