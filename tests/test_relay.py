@@ -166,28 +166,30 @@ timeout_s = 30
     assert all(r["backend"] == "relay" for r in data["reviewers"])
 
 
-def test_relay_waits_for_a_half_written_answer(tmp_path):
-    """A responder that is still writing must not be read mid-file."""
+def test_relay_waits_for_a_half_written_answer(tmp_path, monkeypatch):
+    """A responder that is still writing must not be read mid-file.
+
+    Deterministic: the relay's own sleep between polls grows the answer file,
+    so every poll sees a new prefix regardless of how slow the machine is
+    (a writer thread with real sleeps was flaky on slow CI runners)."""
+    from prebuttal.providers import relay
+
     spool = tmp_path / "s"
     provider = RelayProvider(spool_dir=spool, timeout_s=5, poll_s=0.1)
     full = '{"rating": 5, "confidence": 4, "summary": "' + "x" * 400 + '"}'
+    chunks = [full[:end] for end in range(40, len(full), 20)] + [full]
+    polls: list[int] = []
 
-    def writer():
-        while not list(spool.glob("*.req.md")):
-            time.sleep(0.01)
+    def grow_answer(_seconds):
         req = next(iter(spool.glob("*.req.md")))
         ans = req.with_name(req.name.replace(".req.md", ".ans.md"))
-        # the file grows faster than the poll interval: every poll sees a new prefix
-        for end in range(40, len(full), 20):
-            ans.write_text(full[:end], encoding="utf-8")
-            time.sleep(0.03)
-        ans.write_text(full, encoding="utf-8")
+        ans.write_text(chunks[min(len(polls), len(chunks) - 1)], encoding="utf-8")
+        polls.append(1)
 
-    t = threading.Thread(target=writer, daemon=True)
-    t.start()
+    monkeypatch.setattr(relay.time, "sleep", grow_answer)
     comp = provider.complete(system="s", user="u", retries=0)
-    t.join(2)
     assert comp.text == full
+    assert len(polls) == len(chunks)  # no partial prefix was taken early
 
 
 def test_relay_accepts_stable_non_json_answer(tmp_path):
