@@ -33,6 +33,16 @@ def test_with_analytics_is_idempotent():
     assert bs.with_analytics(once) == once
 
 
+def test_with_banner_is_idempotent():
+    """Re-running the site build must not add a blank line per run."""
+    bs = _build_site()
+    html = "<header>\n    <h1>t</h1>\n  </header>\n  <div class=hero>x</div>"
+    once = bs.with_banner(html, "Demo banner")
+    assert once.count("Demo banner") == 1
+    assert bs.with_banner(once, "Demo banner") == once
+    assert bs.with_banner(once, "New text").count("\n") == once.count("\n")
+
+
 def test_every_site_page_has_the_snippet_once():
     pages = sorted(SITE.rglob("*.html"))
     assert pages

@@ -40,7 +40,8 @@ def test_effort_config_levels_and_precedence(tmp_path):
         '[default]\neffort = "medium"\n'
         '[[reviewer]]\nid = "R1"\npersona = "senior_kind"\neffort = "high"\n'
         '[[reviewer]]\nid = "R2"\npersona = "adversarial"\n'
-        '[ac]\neffort = "low"\n'
+        '[ac]\neffort = "low"\n',
+        encoding="utf-8",
     )
     cfg = load_config(p)
     assert [role_effort(cfg, r) for r in ("R1", "R2", "AC")] == ["high", "medium", "low"]
@@ -50,7 +51,7 @@ def test_effort_config_levels_and_precedence(tmp_path):
 
     assert role_effort(load_config(None), "R1") == ""  # unset: each model's default
 
-    p.write_text('[default]\neffort = "extreme"\n')
+    p.write_text('[default]\neffort = "extreme"\n', encoding="utf-8")
     with pytest.raises(ConfigError, match="unknown effort"):
         load_config(p)
 

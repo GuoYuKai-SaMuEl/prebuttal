@@ -91,10 +91,10 @@ def test_output_dir_empty_keeps_reports_in_the_archive_only(run, tmp_path):
 
 def test_output_config_section(tmp_path):
     cfg_path = tmp_path / "p.toml"
-    cfg_path.write_text('[output]\ndir = "rev"\nformats = ["html", "json"]\n')
+    cfg_path.write_text('[output]\ndir = "rev"\nformats = ["html", "json"]\n', encoding="utf-8")
     cfg = load_config(cfg_path)
     assert cfg.output_dir == "rev" and cfg.output_formats == ("html", "json")
-    cfg_path.write_text('[output]\nformats = ["docx"]\n')
+    cfg_path.write_text('[output]\nformats = ["docx"]\n', encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(cfg_path)
 
@@ -188,7 +188,7 @@ def test_legacy_history_without_projects_still_loads(tmp_path):
         "dir": str(tmp_path / "x"),
     }
     history_path().parent.mkdir(parents=True, exist_ok=True)
-    history_path().write_text(json.dumps(rec) + "\n")
+    history_path().write_text(json.dumps(rec) + "\n", encoding="utf-8")
     (loaded,) = load_history()
     assert loaded.label == "old-paper#1"
 

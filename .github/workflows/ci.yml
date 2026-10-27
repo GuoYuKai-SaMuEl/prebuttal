@@ -9,6 +9,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Warn on text I/O without encoding= (pytest turns it into an error, see
+# pyproject.toml): the bug only shows on non-UTF-8 Windows locales otherwise.
+env:
+  PYTHONWARNDEFAULTENCODING: "1"
+
 jobs:
   lint:
     name: Lint (ruff)

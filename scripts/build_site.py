@@ -103,7 +103,8 @@ def with_banner(html: str, banner: str) -> str:
     """Insert (or replace) the curation banner right after the page header."""
     if _BANNER_START in html:
         head, rest = html.split(_BANNER_START, 1)
-        html = head + rest.split(_BANNER_END, 1)[1]
+        # rstrip drops the "\n  " inserted with the old banner: rebuilds stay byte-identical
+        html = head.rstrip() + rest.split(_BANNER_END, 1)[1]
     block = (
         f'{_BANNER_START}<div style="background:#fff7ed;border:1px solid #fed7aa;'
         f'border-radius:10px;padding:10px 14px;margin:14px 0;font-size:13px;color:#9a3412">'

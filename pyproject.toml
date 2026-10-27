@@ -78,6 +78,10 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Text I/O without encoding= silently uses the locale code page on Windows
+# (cp1252, cp950...). CI sets PYTHONWARNDEFAULTENCODING=1 so any such call
+# fails the suite on every OS; locally: `python -X warn_default_encoding -m pytest`.
+filterwarnings = ["error::EncodingWarning"]
 
 [tool.ruff]
 line-length = 100
