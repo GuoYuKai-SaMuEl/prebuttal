@@ -172,3 +172,46 @@ def test_images_are_never_in_report_json(latex_project):
     report, venue = make_report(latex_project)
     report.paper.figure_images = [FigureImage("Figure 1", PNG * 100)]
     assert "iVBORw0KGgp" not in dumps_json(report, venue)
+
+
+def test_unrelated_error_is_not_retried_without_images():
+    """A 404 for an unknown model would fail the same way text-only."""
+
+    class _NotFound(_Vision):
+        def _complete(self, *, images=None, **kw):
+            self.seen.append(images)
+            raise ProviderError("HTTP 404: models/gemini-no-such-model is not found")
+
+    cfg = load_config(None)
+    nf = _NotFound()
+    providers = {r.id: PersonaFakeProvider() for r in cfg.reviewers}
+    providers["R1"] = nf
+    reviews = _run(providers, cfg)
+    assert len(nf.seen) == 1 and not reviews[0].parse_ok
+
+
+def test_a_retry_run_archives_its_figures_too(
+    tmp_path, monkeypatch, fake_statuses, fake_config, capsys
+):
+    """The retry of a retry must still have the images to send."""
+    register_backend("fake", lambda m, cfg, t: _Vision(model="fake-m"))
+
+    class _Down(_Vision):
+        def _complete(self, *, images=None, **kw):
+            raise ProviderError("HTTP 503: overloaded")
+
+    register_backend("down", lambda m, cfg, t: _Down(backend="down"))
+    toml = fake_config.read_text(encoding="utf-8").replace(
+        'persona = "adversarial"\nbackend = "fake"', 'persona = "adversarial"\nbackend = "down"'
+    )
+    fake_config.write_text(toml, encoding="utf-8")
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(make_pdf_bytes())
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("prebuttal.providers.base.time.sleep", lambda s: None)
+    assert cli.main(["run", str(pdf), "--config", str(fake_config), "--figures"]) == 4
+    rc = cli.main(["retry", "--config", str(fake_config), "--backend", "fake"])
+    assert rc == cli.EXIT_OK
+    retried = load_history()[0]
+    assert retried.note.startswith("retry of")
+    assert (retried.dir_path / "figures" / "01.png").is_file()

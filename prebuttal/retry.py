@@ -129,6 +129,7 @@ def retry_report(
         pack_sha256=sha256_text(pack),
         config_path=cfg.config_path,
     )
+    old.paper.figure_images = list(images or [])  # archived again: a retry can be retried
     return ReviewReport(
         paper=old.paper,
         venue_key=old.venue_key,

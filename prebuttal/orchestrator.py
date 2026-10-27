@@ -285,6 +285,13 @@ def free_tier_retries(provider: BaseProvider, base: int) -> int:
     return base + 3 if provider.model.endswith(":free") else base
 
 
+def _about_images(error: str) -> bool:
+    """A rejected request that a text-only retry can fix: a 400, or an error
+    naming images. Not e.g. a 404 for an unknown model, which would fail again."""
+    low = error.lower()
+    return "http 400" in low or "image" in low or "vision" in low or "multimodal" in low
+
+
 def run_one_reviewer(
     rcfg,
     index: int,
@@ -334,9 +341,9 @@ def run_one_reviewer(
                 images=[im.png for im in images] or None,
             )
         except ProviderError as e:
-            if not images:
+            if not images or not _about_images(str(e)):
                 raise
-            # most often a text-only model behind a vision-capable API: go without
+            # a text-only model behind a vision-capable API: go without
             log(f"[{rcfg.id}] request with figure images failed ({str(e)[:120]}); text only")
             images = ()
             user = build_reviewer_user(pack)
