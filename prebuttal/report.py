@@ -75,9 +75,10 @@ def _render_review(review: Review, venue: Venue, index: int) -> str:
     model = review.model or "CLI default"
     temp, seed = _params(review.backend, review.model, review.temperature, review.seed)
     effort = f" · effort {review.effort}" if review.effort else ""
+    figs = f" · saw {review.images} figure image(s)" if review.images else ""
     out.append(
         f"*Backend `{review.backend}` · model `{model}`{effort} · temp {temp} "
-        f"· seed {seed} · {review.duration_s:.0f}s · {review.usage.describe()}*"
+        f"· seed {seed}{figs} · {review.duration_s:.0f}s · {review.usage.describe()}*"
     )
     out.append("")
     if review.error and not review.parse_ok:

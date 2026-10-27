@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 from ..models import Figure, Section, StructuredPaper, Table
+from .figures import latex_figure_images
 from .hidden import find_hidden_latex_text, hidden_text_warning
 
 
@@ -90,6 +91,9 @@ def _merge_inputs(
 # \input{file} / \include{file}, and TeX's primitive form `\input file`
 # (braces or whitespace required, so \includegraphics and \inputencoding never match)
 _INPUT_RE = re.compile(r"\\(?:input|include)(?:\s*\{([^{}]+)\}|\s+([^\s{}\\%]+))")
+
+
+_GRAPHIC = re.compile(r"\\includegraphics\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 
 
 def find_root_tex(directory: Path) -> Path:
@@ -434,7 +438,8 @@ def _math_rows(env: str, body: str) -> list[str]:
     return [r for r in rows if r.strip()] or [body]
 
 
-def ingest_latex_source(path: Path) -> StructuredPaper:
+def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPaper:
+    """``figure_images``: render up to that many figures for vision reviewers."""
     path = Path(path)
     root = find_root_tex(path) if path.is_dir() else path
     base = root.parent
@@ -521,7 +526,14 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
         number = str(len(figures) + 1)
         if label:
             label_map[label] = number
-        figures.append(Figure(number=number, caption=" ".join(_clean_inline(cap).split())))
+        gm = _GRAPHIC.search(blk)
+        figures.append(
+            Figure(
+                number=number,
+                caption=" ".join(_clean_inline(cap).split()),
+                graphic=gm.group(1).strip() if gm else "",
+            )
+        )
 
     # --- sections
     appendix_at = None
@@ -656,6 +668,11 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
         source_path=str(path),
         warnings=warnings,
         hidden_text=hidden,
+        figure_images=(
+            latex_figure_images(figures, base, path if path.is_dir() else base, figure_images)
+            if figure_images
+            else []
+        ),
     )
 
 

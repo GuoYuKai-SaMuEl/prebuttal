@@ -216,6 +216,18 @@ Where a model has no such control (classic chat models, relay, custom agent
 CLIs) the setting is skipped; `--dry-run` says so up front, and every report
 lists the effort each review actually ran with.
 
+### Figures as images
+
+Reviewers see figure *captions* by default. With `--figures` (or
+`figures = true` under `[default]`), reviewers on the vision-capable API
+backends — `api-anthropic`, `api-openai`, `api-gemini`, `api-openrouter` —
+also get the figures as images: for a PDF or arXiv paper, each page that
+holds a figure caption; for a LaTeX project, the first `\includegraphics` of
+each figure (files inside the project folder only). At most `max_figures`
+(default 6) images, ~1.5k tokens each. A text-only model behind one of those
+APIs is retried without images; agent CLIs, Ollama and relay keep captions
+only. Each review says how many images it saw.
+
 ## Calibration (honesty, not prophecy)
 
 Scores are meaningless unless measured. The calibration pipeline runs Prebuttal
@@ -372,7 +384,7 @@ reports, JSON, or share pages.
 | 3 | no review backend available |
 | 4 | partial failure (some reviewers or the AC failed; report still written) |
 | 5 | every reviewer failed |
-| 130 | interrupted (Ctrl+C) |
+| 130 | interrupted (Ctrl+C); reviews that had finished are archived — `prebuttal retry` completes the run |
 
 ## Comparison
 

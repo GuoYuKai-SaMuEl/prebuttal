@@ -46,6 +46,10 @@ venue = "iclr"          # neurips | iclr | icml | acl, a custom venue name, or a
                         # venue .toml path (relative to this file) — `prebuttal venues`
 seed = 42               # reproducibility: recorded in every report
 budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
+# figures = true        # also show figures as images to reviewers on vision
+                        # APIs (anthropic, openai, gemini, openrouter); others
+                        # keep captions only. Costs ~1.5k tokens per image.
+# max_figures = 6       # images per reviewer (PDF: pages that hold figures)
 # effort = "high"       # reasoning effort: low | medium | high (unset = each
                         # model's default). Thinking models only: Claude, codex,
                         # OpenAI gpt-5+/o-series, Gemini, OpenRouter, Ollama gpt-oss.
@@ -156,6 +160,8 @@ class RunConfig:
     budget_chars: int = 120_000
     effort: str = ""  # reasoning effort for every role; "" = each model's default
     compress: bool = False  # LLM-summarize elided sections instead of truncating
+    figures: bool = False  # show figure images to vision-capable API reviewers
+    max_figures: int = 6  # images per reviewer (PDF: pages holding figures)
     max_tokens: int = 6000
     est_completion_tokens: int = 2500
     timeout_s: int = 900
@@ -269,6 +275,8 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
     cfg.budget_chars = int(d.get("budget_chars", cfg.budget_chars))
     cfg.effort = check_effort(d.get("effort", cfg.effort), f"{path} [default]")
     cfg.compress = bool(d.get("compress", cfg.compress))
+    cfg.figures = bool(d.get("figures", cfg.figures))
+    cfg.max_figures = max(1, min(int(d.get("max_figures", cfg.max_figures)), 20))
     cfg.max_tokens = int(d.get("max_tokens", cfg.max_tokens))
     cfg.est_completion_tokens = int(d.get("est_completion_tokens", cfg.est_completion_tokens))
     cfg.timeout_s = int(d.get("timeout_s", cfg.timeout_s))

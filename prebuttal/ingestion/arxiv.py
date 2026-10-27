@@ -84,12 +84,14 @@ def fetch_title(arxiv_id: str) -> str | None:
     return None
 
 
-def ingest_arxiv(source: str) -> StructuredPaper:
+def ingest_arxiv(source: str, *, figure_images: int = 0) -> StructuredPaper:
     arxiv_id = parse_arxiv_id(source)
     if not arxiv_id:
         raise ArxivError(f"not an arXiv link or id: {source!r}")
     pdf = fetch_pdf_bytes(arxiv_id)
     title_hint = fetch_title(arxiv_id)
-    paper = ingest_pdf_bytes(pdf, source_path=source, title_hint=title_hint)
+    paper = ingest_pdf_bytes(
+        pdf, source_path=source, title_hint=title_hint, figure_images=figure_images
+    )
     paper.source_type = "arxiv"
     return paper

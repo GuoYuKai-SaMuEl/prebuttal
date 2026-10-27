@@ -6,6 +6,7 @@ tolerates markdown fences and surrounding chatter anyway.
 
 from __future__ import annotations
 
+import base64
 import os
 
 import httpx
@@ -37,8 +38,23 @@ def _retry_after(value: str | None) -> float | None:
         return None
 
 
+def _b64(png: bytes) -> str:
+    return base64.b64encode(png).decode("ascii")
+
+
+def _openai_user(user: str, images: list[bytes] | None) -> str | list[dict]:
+    """OpenAI-style user content: plain text, or text + data-URL images."""
+    if not images:
+        return user
+    return [{"type": "text", "text": user}] + [
+        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{_b64(png)}"}}
+        for png in images
+    ]
+
+
 class _HTTPProvider(BaseProvider):
     kind = "api"
+    supports_images = True  # every vision model of these APIs; others answer 400
 
     def _post_json(self, url: str, headers: dict, payload: dict) -> dict:
         try:
@@ -79,12 +95,12 @@ class OpenAIProvider(_HTTPProvider):
     def default_model(cls) -> str:
         return _env_default("OPENAI", cls.DEFAULT_MODEL)
 
-    def _complete(self, *, system, user, temperature, seed, max_tokens):
+    def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
         payload: dict = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system},
-                {"role": "user", "content": user},
+                {"role": "user", "content": _openai_user(user, images)},
             ],
             "response_format": {"type": "json_object"},
         }
@@ -141,12 +157,12 @@ class OpenRouterProvider(_HTTPProvider):
     def default_model(cls) -> str:
         return _env_default("OPENROUTER", cls.DEFAULT_MODEL)
 
-    def _complete(self, *, system, user, temperature, seed, max_tokens):
+    def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system},
-                {"role": "user", "content": user},
+                {"role": "user", "content": _openai_user(user, images)},
             ],
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -204,7 +220,16 @@ class AnthropicProvider(_HTTPProvider):
     def default_model(cls) -> str:
         return _env_default("ANTHROPIC", cls.DEFAULT_MODEL)
 
-    def _complete(self, *, system, user, temperature, seed, max_tokens):
+    def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
+        content: str | list[dict] = user
+        if images:
+            content = [
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/png", "data": _b64(png)},
+                }
+                for png in images
+            ] + [{"type": "text", "text": user}]
         # No temperature or seed: current Claude models accept only their
         # default sampling (other values are a 400), and there is no seed.
         # Thinking is on by default and its tokens count against max_tokens.
@@ -212,7 +237,7 @@ class AnthropicProvider(_HTTPProvider):
             "model": self.model,
             "system": system,
             "max_tokens": max(max_tokens, REASONING_MIN_TOKENS),
-            "messages": [{"role": "user", "content": user}],
+            "messages": [{"role": "user", "content": content}],
         }
         if self.applied_effort:
             payload["output_config"] = {"effort": self.applied_effort}
@@ -251,7 +276,7 @@ class GeminiProvider(_HTTPProvider):
     def default_model(cls) -> str:
         return _env_default("GEMINI", cls.DEFAULT_MODEL)
 
-    def _complete(self, *, system, user, temperature, seed, max_tokens):
+    def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
         gen = {
             "temperature": temperature,
             "maxOutputTokens": max_tokens,
@@ -266,7 +291,16 @@ class GeminiProvider(_HTTPProvider):
                 gen["thinkingConfig"] = {"thinkingLevel": self.applied_effort}
         payload = {
             "systemInstruction": {"parts": [{"text": system}]},
-            "contents": [{"role": "user", "parts": [{"text": user}]}],
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"inline_data": {"mime_type": "image/png", "data": _b64(png)}}
+                        for png in images or []
+                    ]
+                    + [{"text": user}],
+                }
+            ],
             "generationConfig": gen,
         }
         data = self._post_json(

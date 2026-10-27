@@ -137,6 +137,15 @@ def save_run(
         (out_dir / "report.html").write_text(html, encoding="utf-8")
     if getattr(report, "pack", ""):  # `prebuttal retry` re-sends exactly this text
         (out_dir / "pack.md").write_text(report.pack, encoding="utf-8")
+    images = getattr(report.paper, "figure_images", None) or []
+    if images:  # ... and these figures
+        fig_dir = out_dir / "figures"
+        fig_dir.mkdir(exist_ok=True)
+        for i, im in enumerate(images, 1):
+            (fig_dir / f"{i:02d}.png").write_bytes(im.png)
+        (fig_dir / "figures.json").write_text(
+            json.dumps([im.label for im in images], ensure_ascii=False), encoding="utf-8"
+        )
     resolved = {
         "prebuttal_version": __version__,
         "venue": venue.key,

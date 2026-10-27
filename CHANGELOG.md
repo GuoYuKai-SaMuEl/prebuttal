@@ -38,6 +38,13 @@ releases (0.2, 0.3, …) are substantial new features.
   `<stem>.ans.md`, so the CLI never reads a half-written answer; in-place
   writers still work through the completeness/stability check. A spool's
   README.txt from an older version is refreshed.
+- **Figures as images (`--figures`, or `figures = true`).** Reviewers on
+  vision-capable API backends (Anthropic, OpenAI, Gemini, OpenRouter) also
+  see the figures: PDF/arXiv pages that hold a figure caption, or each LaTeX
+  figure's first `\includegraphics` (inside the project folder only), at most
+  `max_figures` (default 6). Off by default; a text-only model is retried
+  without images; each review records how many images it saw, and `retry`
+  re-sends the archived images.
 
 ### Changed
 - **A `prebuttal.toml` found in the current directory** (not passed with

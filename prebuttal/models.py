@@ -94,6 +94,16 @@ class Figure:
     number: str
     caption: str
     section: str = ""
+    page: int = 0  # PDF page (from 1) of the caption; 0 = unknown
+    graphic: str = ""  # LaTeX: the first \includegraphics path
+
+
+@dataclass
+class FigureImage:
+    """A figure as an image for vision-capable reviewers (never in report.json)."""
+
+    label: str  # e.g. "page 3 (Figures 1, 2)" or "Figure 4"
+    png: bytes = field(repr=False)
 
 
 @dataclass
@@ -108,6 +118,8 @@ class StructuredPaper:
     warnings: list[str] = field(default_factory=list)
     # text a human reader cannot see (white / microscopic / off-page)
     hidden_text: list[str] = field(default_factory=list)
+    # rendered figures, only when figures are enabled (--figures)
+    figure_images: list[FigureImage] = field(default_factory=list, repr=False)
     # counts from a stored report.json, whose summary has no section bodies
     stored_counts: dict[str, int] = field(default_factory=dict, repr=False)
 
@@ -171,6 +183,7 @@ class Review:
     temperature: float
     seed: int | None
     effort: str = ""  # reasoning effort actually sent; "" = the model's default
+    images: int = 0  # figure images this reviewer was shown
     fields: dict[str, Any] = field(default_factory=dict)
     rating: float | None = None
     confidence: float | None = None

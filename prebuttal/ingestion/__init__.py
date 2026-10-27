@@ -33,20 +33,22 @@ def display_path(p: Path) -> str:
         return full.name
 
 
-def ingest(source: str) -> StructuredPaper:
-    """Route ``source`` (path or arXiv URL/id) to the right parser."""
-    paper = _ingest(source)
+def ingest(source: str, *, figure_images: int = 0) -> StructuredPaper:
+    """Route ``source`` (path or arXiv URL/id) to the right parser.
+
+    ``figure_images``: also render up to that many figures as images."""
+    paper = _ingest(source, figure_images)
     if paper.source_type != "arxiv":
         paper.source_path = display_path(Path(source.strip()))
     return paper
 
 
-def _ingest(source: str) -> StructuredPaper:
+def _ingest(source: str, figure_images: int) -> StructuredPaper:
     s = source.strip()
 
     if s.startswith(("http://", "https://")) or parse_arxiv_id(s):
         try:
-            return ingest_arxiv(s)
+            return ingest_arxiv(s, figure_images=figure_images)
         except Exception as e:
             raise IngestError(f"arXiv ingestion failed: {e}") from e
 
@@ -56,19 +58,19 @@ def _ingest(source: str) -> StructuredPaper:
 
     if p.is_dir():
         try:
-            return ingest_latex_source(p)
+            return ingest_latex_source(p, figure_images=figure_images)
         except LatexError as e:
             raise IngestError(f"LaTeX ingestion failed: {e}") from e
 
     if p.suffix.lower() == ".pdf":
         try:
-            return ingest_pdf_bytes(p.read_bytes(), source_path=str(p))
+            return ingest_pdf_bytes(p.read_bytes(), source_path=str(p), figure_images=figure_images)
         except PDFError as e:
             raise IngestError(f"PDF ingestion failed: {e}") from e
 
     if p.suffix.lower() == ".tex":
         try:
-            return ingest_latex_source(p)
+            return ingest_latex_source(p, figure_images=figure_images)
         except LatexError as e:
             raise IngestError(f"LaTeX ingestion failed: {e}") from e
 

@@ -119,6 +119,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="reasoning effort for thinking models (default: each model's own)",
     )
+    run.add_argument(
+        "--figures",
+        action="store_true",
+        help="also show figures as images to reviewers on vision-capable API backends",
+    )
     run.add_argument("--dry-run", action="store_true", help="show cost + backends, call nothing")
     run.add_argument(
         "-y",
@@ -888,7 +893,9 @@ def cmd_run(args) -> int:
 
     _log(f"[prebuttal] ingesting {args.paper} ...")
     try:
-        paper = ingest(args.paper)
+        if args.figures:
+            cfg.figures = True
+        paper = ingest(args.paper, figure_images=cfg.max_figures if cfg.figures else 0)
     except IngestError as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_USAGE
@@ -1117,7 +1124,14 @@ def _deliver(
 
 
 def cmd_retry(args) -> int:
-    from .retry import RetryError, failed_reviewers, load_pack, retry_report, venue_for_retry
+    from .retry import (
+        RetryError,
+        failed_reviewers,
+        load_figures,
+        load_pack,
+        retry_report,
+        venue_for_retry,
+    )
 
     rec = _resolve_run_or_exit(args.run)
     if rec is None:
@@ -1167,7 +1181,8 @@ def cmd_retry(args) -> int:
     names = ", ".join(old.reviews[i].reviewer_id for i in targets) or "none"
     _log(f"[prebuttal] retrying {rec.label}: reviewers {names}, then the AC")
 
-    report = retry_report(data, pack, venue, cfg, built, ac_provider, _log)
+    figures = load_figures(rec.dir_path)
+    report = retry_report(data, pack, venue, cfg, built, ac_provider, _log, figures)
     note = args.note.strip() or f"retry of {rec.label}"
     return _deliver(
         report,

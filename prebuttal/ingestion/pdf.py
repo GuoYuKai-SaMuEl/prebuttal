@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from itertools import pairwise
 
 from ..models import Figure, Section, StructuredPaper, Table
+from .figures import pdf_figure_images
 from .hidden import find_hidden_pdf_text, hidden_text_warning
 
 
@@ -428,8 +429,9 @@ def _text_blocks(page) -> list[tuple[float, float, float, float, str]]:
 
 
 def ingest_pdf_bytes(
-    data: bytes, *, source_path: str = "", title_hint: str | None = None
+    data: bytes, *, source_path: str = "", title_hint: str | None = None, figure_images: int = 0
 ) -> StructuredPaper:
+    """``figure_images``: render up to that many figure pages for vision reviewers."""
     import pdfplumber  # local import keeps `prebuttal backends` startup light
 
     try:
@@ -438,7 +440,10 @@ def ingest_pdf_bytes(
     except Exception as e:
         raise PDFError(f"cannot open PDF: {e}") from e
     try:
-        return _ingest(doc, pages, source_path=source_path, title_hint=title_hint)
+        paper = _ingest(doc, pages, source_path=source_path, title_hint=title_hint)
+        if figure_images:
+            paper.figure_images = pdf_figure_images(pages, paper.figures, figure_images)
+        return paper
     finally:
         doc.close()
 
@@ -689,7 +694,9 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         fm = _FIG_CAP.match(ln["text"])
         if fm and fm.group(2) and fm.group(1) not in fig_seen:
             fig_seen.add(fm.group(1))
-            figures.append(Figure(number=fm.group(1), caption=ln["text"][:400]))
+            figures.append(
+                Figure(number=fm.group(1), caption=ln["text"][:400], page=ln["page"] + 1)
+            )
 
     if not sections:
         warnings.append("no section headings detected; paper text may be image-based")

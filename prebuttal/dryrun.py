@@ -74,6 +74,11 @@ def render_dry_run(
         f"  {pack_chars:,} chars ≈ {pack_tok:,} tokens (budget {cfg.budget_chars:,} chars)"
     )
     lines.append(f"  per reviewer ≈ {in_tok:,} in + ~{out_tok:,} out tokens")
+    if cfg.figures:
+        lines.append(
+            f"  figures: up to {cfg.max_figures} images per reviewer on vision-capable API "
+            "backends (~1.5k tokens each, not in the estimate below)"
+        )
     lines.append("")
     lines.append("Cost estimate (indicative — see [pricing] overrides)")
     total = 0.0

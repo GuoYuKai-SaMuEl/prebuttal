@@ -10,11 +10,12 @@ is archived as a new run of the same project.
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
 from .config import ReviewerConfig, RunConfig
-from .models import ReviewReport, RunInfo, Usage, make_aggregate, sha256_text
+from .models import FigureImage, ReviewReport, RunInfo, Usage, make_aggregate, sha256_text
 from .orchestrator import Log, run_meta, run_reviews
 from .providers import BaseProvider
 from .report import report_from_dict
@@ -47,6 +48,19 @@ def load_pack(run_dir: Path, report: ReviewReport, paper_pack: str | None) -> st
     return paper_pack
 
 
+def load_figures(run_dir: Path) -> list[FigureImage]:
+    """The figure images the original reviewers could see (none if not archived)."""
+    fig_dir = run_dir / "figures"
+    try:
+        labels = json.loads((fig_dir / "figures.json").read_text(encoding="utf-8"))
+        return [
+            FigureImage(label=str(label), png=(fig_dir / f"{i:02d}.png").read_bytes())
+            for i, label in enumerate(labels, 1)
+        ]
+    except (OSError, ValueError, TypeError):
+        return []
+
+
 def venue_for_retry(data: dict) -> Venue:
     """The venue to *run* with: custom venues need their form text, which
     report.json does not store, so the venue file must still exist unchanged."""
@@ -72,6 +86,7 @@ def retry_report(
     providers: dict[str, BaseProvider],
     ac_provider: BaseProvider,
     log: Log,
+    images: list[FigureImage] | None = None,
 ) -> ReviewReport:
     """Re-run the failed reviewers of ``data`` (a report.json) plus the AC.
 
@@ -94,7 +109,7 @@ def retry_report(
         ],
     )
     sub.ac = replace(cfg.ac, temperature=old.meta.temperature)
-    fresh = run_reviews(sub, venue, pack, providers, log) if targets else []
+    fresh = run_reviews(sub, venue, pack, providers, log, images or []) if targets else []
     reviews = list(old.reviews)
     for i, review in zip(targets, fresh, strict=True):
         reviews[i] = review

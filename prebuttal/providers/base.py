@@ -51,6 +51,8 @@ def strip_ansi(s: str) -> str:
 
 class BaseProvider(ABC):
     kind = "api"  # "api" | "agent" | "ollama"
+    # backends whose _complete() takes ``images`` (PNG bytes shown with the user turn)
+    supports_images = False
 
     def __init__(self, backend: str, model: str, *, timeout_s: float = 900.0):
         self.backend = backend
@@ -84,7 +86,10 @@ class BaseProvider(ABC):
         seed: int | None = None,
         max_tokens: int = 4000,
         retries: int = 3,
+        images: list[bytes] | None = None,
     ) -> Completion:
+        # only image-capable backends get the argument: others keep their signature
+        extra = {"images": images} if images and self.supports_images else {}
         attempt = 0
         while True:
             try:
@@ -94,6 +99,7 @@ class BaseProvider(ABC):
                     temperature=temperature,
                     seed=seed,
                     max_tokens=max_tokens,
+                    **extra,
                 )
                 if not text or not text.strip():
                     raise TransientProviderError("empty completion")
