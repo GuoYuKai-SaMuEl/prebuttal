@@ -138,8 +138,8 @@ After the user revises the paper:
    `prebuttal retry`: it re-runs only the failed reviewers and the AC on the
    same text, so the finished reviews are not paid for twice.
 6. Offer next steps: fix specific weaknesses, re-run after revision with the
-   same `--seed` to compare, or open the HTML report (`prebuttal open`) /
-   the overview of every run (`prebuttal dashboard`).
+   same `--seed` to compare, or open the HTML report (`prebuttal show --open`) /
+   the overview of every run (`prebuttal projects --open`).
 
 ## Honesty rules
 

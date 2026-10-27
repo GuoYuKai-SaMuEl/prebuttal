@@ -238,20 +238,23 @@ these work from any directory:
 
 ```bash
 prebuttal projects                   # one line per paper: runs, latest score, trend
-prebuttal runs [project]             # its runs, newest first, with notes
-prebuttal open                       # newest report in the browser
+prebuttal projects --open            # the same as an HTML overview, with score trends
+prebuttal runs [project]             # a paper's runs, newest first, with notes
+prebuttal show                       # print the newest report
+prebuttal show mamba#3 --open        # ... open it in the browser instead
+prebuttal show -o review.html        # ... or save a copy (.md, .html or .json)
 prebuttal plan                       # the newest revision plan as a checklist (--json too)
 prebuttal retry                      # a reviewer failed? re-run only it (+ the AC), same text
-prebuttal dashboard                  # local HTML overview: every project, score trends
-prebuttal show / export / note / rm  # print, copy out, annotate, delete runs
+prebuttal note / rm                  # annotate or delete runs (a whole paper: projects rm)
 prebuttal projects rename|rm         # tidy up
 ```
 
 Runs are referenced as `latest` (the default), `mamba` (newest run of a
-project), `mamba#3`, `mamba~1` (one before the newest) or an id prefix.
-Reports go where you want them: `--out-dir`, `--format md,html,json`, an
-`[output]` section in `prebuttal.toml`, `--json PATH`, or `prebuttal export
--f md -o PATH` afterwards.
+project), `mamba#3`, `mamba~1` (one before the newest) or an id prefix; `rm`
+wants a specific run, so a project name alone is refused there. Reports go
+where you want them: `--out-dir`, an `[output]` section in `prebuttal.toml`
+(`formats = ["md", "html", "json"]`), `--json PATH` for a fixed file, or
+`prebuttal show -o PATH` afterwards.
 
 ## Your own venue
 

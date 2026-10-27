@@ -363,17 +363,25 @@ def test_cli_export_follows_output_extension(latex_project, tmp_path, monkeypatc
     )
 
     md = tmp_path / "exported.md"
-    assert cli.main(["export", "-o", str(md)]) == cli.EXIT_OK
+    assert cli.main(["show", "-o", str(md)]) == cli.EXIT_OK
     assert md.read_text(encoding="utf-8").startswith("# Prebuttal Report")
 
     js = tmp_path / "exported.json"
-    assert cli.main(["export", "-o", str(js)]) == cli.EXIT_OK
+    assert cli.main(["show", "-o", str(js)]) == cli.EXIT_OK
     assert js.read_text(encoding="utf-8").lstrip().startswith("{")
 
-    # an explicit --format still wins over the extension
-    htm = tmp_path / "forced.md"
-    assert cli.main(["export", "-o", str(htm), "--format", "html"]) == cli.EXIT_OK
+    htm = tmp_path / "exported.html"
+    assert cli.main(["show", "-o", str(htm)]) == cli.EXIT_OK
     assert htm.read_text(encoding="utf-8").lstrip().startswith("<!doctype html>")
+
+    # the extension is the format: anything else is refused, nothing written
+    assert cli.main(["show", "-o", str(tmp_path / "report.txt")]) == cli.EXIT_USAGE
+    assert not (tmp_path / "report.txt").exists()
+
+    # hidden 0.4 alias: `export` with --format still works
+    forced = tmp_path / "forced.md"
+    assert cli.main(["export", "-o", str(forced), "--format", "html"]) == cli.EXIT_OK
+    assert forced.read_text(encoding="utf-8").lstrip().startswith("<!doctype html>")
 
 
 PINNED_TOML = """

@@ -214,7 +214,7 @@ def test_show_open_diff_note_export_rm(run, tmp_path, capsys, monkeypatch):
 
     opened: list[Path] = []
     monkeypatch.setattr(cli, "_open_in_browser", opened.append)
-    rc, out, _ = _cli(capsys, "open", f"{PROJECT}#1")
+    rc, out, _ = _cli(capsys, "show", f"{PROJECT}#1", "--open")
     assert rc == cli.EXIT_OK and opened[0].name == "report.html"
 
     rc, out, _ = _cli(capsys, "note", "latest", "rebuttal draft v2")
@@ -222,8 +222,13 @@ def test_show_open_diff_note_export_rm(run, tmp_path, capsys, monkeypatch):
     rc, out, _ = _cli(capsys, "runs", PROJECT)
     assert "rebuttal draft v2" in out
 
-    rc, out, _ = _cli(capsys, "export", "-f", "md", "-o", "exported.md")
+    rc, out, _ = _cli(capsys, "show", "-o", "exported.md")
     assert rc == cli.EXIT_OK and (tmp_path / "exported.md").is_file()
+
+    # a bare project name is refused: it is one word away from `projects rm`
+    rc, _, err = _cli(capsys, "rm", PROJECT, "-y")
+    assert rc == cli.EXIT_USAGE and f"prebuttal projects rm {PROJECT}" in err
+    assert len(load_history()) == 2
 
     rc, out, _ = _cli(capsys, "rm", f"{PROJECT}#1", "-y")
     assert rc == cli.EXIT_OK
@@ -237,17 +242,17 @@ def test_open_renders_html_for_runs_archived_without_it(run, capsys, monkeypatch
     (rec.dir_path / "report.html").unlink()
     opened: list[Path] = []
     monkeypatch.setattr(cli, "_open_in_browser", opened.append)
-    rc, _, _ = _cli(capsys, "open")
+    rc, _, _ = _cli(capsys, "show", "--open")
     assert rc == cli.EXIT_OK
     assert "Latent Bottleneck" in opened[0].read_text(encoding="utf-8")
 
 
-def test_dashboard(run, capsys, monkeypatch):
+def test_projects_open_is_the_html_overview(run, capsys, monkeypatch):
     run()
     run("--note", "<script>alert(1)</script>")
     opened: list[Path] = []
     monkeypatch.setattr(cli, "_open_in_browser", opened.append)
-    rc, _, _ = _cli(capsys, "dashboard")
+    rc, _, _ = _cli(capsys, "projects", "--open")
     assert rc == cli.EXIT_OK
     html = opened[0].read_text(encoding="utf-8")
     assert "Latent Bottleneck Transformers" in html
@@ -258,8 +263,36 @@ def test_dashboard(run, capsys, monkeypatch):
         assert f'href="{link}"' in html
         assert (opened[0].parent / link).is_file()
 
-    rc, _, _ = _cli(capsys, "dashboard", "--no-open")
-    assert rc == cli.EXIT_OK and len(opened) == 1
+
+def test_old_history_commands_are_hidden_aliases(run, capsys, monkeypatch, tmp_path):
+    """open / export / dashboard and run --stdout / --format work until 0.6, with a notice."""
+    run()
+    opened: list[Path] = []
+    monkeypatch.setattr(cli, "_open_in_browser", opened.append)
+    for argv, new in (
+        (["open"], "show --open"),
+        (["export", "-o", "x.md"], "show -o FILE"),
+        (["dashboard", "--no-open"], "projects --open"),
+    ):
+        rc, _, err = _cli(capsys, *argv)
+        assert rc == cli.EXIT_OK and f"is now `prebuttal {new}`" in err
+    assert len(opened) == 1  # open; dashboard --no-open writes without opening
+    assert (tmp_path / "x.md").is_file()
+
+    rc, out = run("--stdout", "--format", "md")
+    assert rc == cli.EXIT_OK and "# Prebuttal" in out
+
+    help_text = cli.build_parser().format_help()
+    listed = {ln.split()[0] for ln in help_text.splitlines() if ln[:5].strip() and ln[:4] == "    "}
+    assert not listed & {"open", "export", "dashboard"}
+    run_help = cli.build_parser()._subparsers._group_actions[0].choices["run"].format_help()
+    assert "--stdout" not in run_help and "--format" not in run_help
+
+
+def test_show_views_are_exclusive(capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["show", "--json", "--open"])
+    assert exc.value.code == 2
 
 
 def test_local_folder_named_like_an_arxiv_id_stays_local(tmp_path, monkeypatch):

@@ -43,10 +43,20 @@ the tool must not leak your keys.
   it's ready, where its access comes from (CLI login, env var or stored key,
   masked) and its default model. `prebuttal backends <name>` lists that
   backend's models. `prebuttal models` and `prebuttal key status` still work
-  as hidden aliases (with a notice) and will be removed in 0.6. The other
-  commands were reviewed too and stay: each does one job, and folding them
-  together (`show --plan`, `projects` inside `runs`) needed new flags or
-  overloaded arguments — longer, not simpler.
+  as hidden aliases (with a notice) and will be removed in 0.6.
+- **One command per thing you look at** (17 → 14 commands): `show` is a
+  run's report — printed, `--open` in the browser (was `prebuttal open`),
+  or saved with `-o FILE`, the extension picking the format (was
+  `prebuttal export`); `projects --open` is the HTML overview of every
+  paper (was `prebuttal dashboard`). `--open` means the same thing on both.
+  `run` loses `--stdout` (`prebuttal show` after the run) and `--format`
+  (`[output] formats` in `prebuttal.toml`; `--json PATH` stays). The old
+  names keep working as hidden aliases with a notice until 0.6. `plan`,
+  `diff`, `note`, `retry` and `projects` / `runs` stay apart: each does one
+  job, and merging them needed a flag or an argument with two meanings.
+- `prebuttal rm mamba` deleted the newest run of `mamba` — one word away
+  from `prebuttal projects rm mamba`, which deletes them all. `rm` now
+  refuses a bare project name and asks for the run (`mamba#3`, `mamba~1`).
 - Report and share-page notes are labelled "Notes" instead of "Ingestion
   warnings", since they now include the pre-flight check.
 

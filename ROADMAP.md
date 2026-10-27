@@ -60,11 +60,14 @@ Done when: `check` raises no false alarms on the sample papers and catches
 every planted problem in deliberately broken ones; the key threat model is
 written down with tests; the command list is shorter with no lost function.
 
-Outcome: as planned, except the run-history commands, which stayed — each
-does one job, and every merge tried needed a new flag or an overloaded
-argument. `models` and `key status` are hidden aliases until 0.6. `check`
-got one option after all, `--venue`: most users have no `prebuttal.toml`,
-and checking a paper against the wrong venue's rules is worse than a flag.
+Outcome: 17 → 14 commands. Following `gh pr view --web` and `curl -o`,
+`open` and `export` became `show --open` / `show -o FILE`, and `dashboard`
+became `projects --open`; `run` lost `--stdout` and `--format`. `plan`,
+`diff`, `note` and `projects` / `runs` stayed apart — merging them needed a
+new flag or an argument with two meanings. All old names are hidden aliases
+until 0.6. `check` got one option after all, `--venue`: most users have no
+`prebuttal.toml`, and checking a paper against the wrong venue's rules is
+worse than a flag.
 
 ## 0.6 — a revision loop you can trust
 

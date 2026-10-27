@@ -5,8 +5,8 @@ Commands:
   prebuttal retry [run]       re-run only the reviewers that failed, then the AC
   prebuttal check <paper>     desk-reject pre-flight (anonymity, page limit, ??) — no model
   prebuttal projects          list papers (one project per paper, runs grouped)
-  prebuttal runs [project]    list runs; show / open / diff / note / rm / export them
-  prebuttal dashboard         local HTML overview of every project and run
+  prebuttal runs [project]    list runs; show / diff / note / rm them
+  prebuttal projects --open   local HTML overview of every project and run
   prebuttal backends [name]   what you can review with (auth, models)
   prebuttal init              write a sample prebuttal.toml
 
@@ -142,11 +142,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--note", default="", help='what changed in this revision, e.g. "added ablation"'
     )
-    run.add_argument(
-        "--format",
-        default=None,
-        help="report formats to write: md,html,json (default md,html; see [output])",
-    )
+    # hidden 0.4 aliases: [output] formats in prebuttal.toml / `prebuttal show`
+    run.add_argument("--format", default=None, help=argparse.SUPPRESS)
     run.add_argument(
         "--out-dir",
         default=None,
@@ -155,7 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--json", metavar="PATH", default=None, help="also write machine-readable JSON here"
     )
-    run.add_argument("--stdout", action="store_true", help="print the full report to stdout")
+    run.add_argument("--stdout", action="store_true", help=argparse.SUPPRESS)
     run.add_argument(
         "--no-save",
         action="store_true",
@@ -188,7 +185,9 @@ def build_parser() -> argparse.ArgumentParser:
     init = sub.add_parser("init", help="write a sample prebuttal.toml")
     init.add_argument("--force", action="store_true", help="overwrite existing file")
 
-    proj_p = sub.add_parser("projects", help="list projects (one per paper)")
+    proj_p = sub.add_parser(
+        "projects", help="papers (one project each): list them, --open the overview, rename|rm"
+    )
     proj_sub = proj_p.add_subparsers(dest="proj_cmd")
     proj_sub.add_parser("list", help="list projects (default)")
     ren = proj_sub.add_parser("rename", help="rename a project")
@@ -197,7 +196,13 @@ def build_parser() -> argparse.ArgumentParser:
     prm = proj_sub.add_parser("rm", help="delete a project and all its archived runs")
     prm.add_argument("name")
     prm.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
-    proj_p.add_argument("--json", action="store_true", help="machine-readable list")
+    proj_view = proj_p.add_mutually_exclusive_group()
+    proj_view.add_argument("--json", action="store_true", help="machine-readable list")
+    proj_view.add_argument(
+        "--open",
+        action="store_true",
+        help="open the HTML overview of every project and run (score trends, links)",
+    )
 
     runs_p = sub.add_parser("runs", help="list archived review runs")
     runs_p.add_argument("project", nargs="?", default=None, help="only this project's runs")
@@ -205,9 +210,16 @@ def build_parser() -> argparse.ArgumentParser:
     runs_p.add_argument("-n", "--limit", type=int, default=20, help="show the N most recent runs")
     runs_p.add_argument("--json", action="store_true", help="machine-readable history")
 
-    show_p = sub.add_parser("show", help="print an archived report (default: latest)")
+    show_p = sub.add_parser(
+        "show", help="a run's report: print it, open it in the browser, or save a copy"
+    )
     show_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
-    show_p.add_argument("--json", action="store_true", help="print the stored report.json")
+    show_view = show_p.add_mutually_exclusive_group()
+    show_view.add_argument("--json", action="store_true", help="print the stored report.json")
+    show_view.add_argument("--open", action="store_true", help="open the HTML report in a browser")
+    show_view.add_argument(
+        "-o", "--output", default=None, help="save a copy; .md, .html or .json picks the format"
+    )
 
     plan_p = sub.add_parser(
         "plan", help="print a run's revision plan as a checklist (default: latest)"
@@ -215,9 +227,9 @@ def build_parser() -> argparse.ArgumentParser:
     plan_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
     plan_p.add_argument("--json", action="store_true", help="machine-readable action items")
 
-    open_p = sub.add_parser("open", help="open a run's HTML report in the browser")
-    open_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
-    open_p.add_argument("--md", action="store_true", help="open the Markdown file instead")
+    open_p = sub.add_parser("open")  # hidden 0.4 alias of `show --open`
+    open_p.add_argument("run", nargs="?", default=None)
+    open_p.add_argument("--md", action="store_true")
 
     diff_p = sub.add_parser(
         "diff",
@@ -231,29 +243,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="match revision-plan items by meaning with one call to the AC's backend",
     )
 
-    note_p = sub.add_parser("note", help="attach a note to a run (shown in lists and dashboard)")
+    note_p = sub.add_parser("note", help="attach a note to a run (shown in lists and overviews)")
     note_p.add_argument("run", help="run reference")
     note_p.add_argument("text", help='e.g. "after adding the Perceiver baseline"')
 
-    rm_p = sub.add_parser("rm", help="delete archived runs")
-    rm_p.add_argument("runs", nargs="+", help="run references")
+    rm_p = sub.add_parser("rm", help="delete archived runs (a whole paper: projects rm)")
+    rm_p.add_argument("runs", nargs="+", help="run references, e.g. mamba#3 or mamba~1")
     rm_p.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
 
-    exp_p = sub.add_parser("export", help="copy a run's report out of the archive")
-    exp_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
-    exp_p.add_argument(
-        "-f",
-        "--format",
-        default=None,
-        choices=["md", "html", "json"],
-        help="report format (default: the -o file's extension, else html)",
-    )
-    exp_p.add_argument(
-        "-o", "--output", default=None, help="file path (default: ./<project>-<n>.<ext>)"
-    )
+    exp_p = sub.add_parser("export")  # hidden 0.4 alias of `show -o`
+    exp_p.add_argument("run", nargs="?", default=None)
+    exp_p.add_argument("-f", "--format", default=None, choices=["md", "html", "json"])
+    exp_p.add_argument("-o", "--output", default=None)
 
-    dash_p = sub.add_parser("dashboard", help="write and open a local HTML overview of all runs")
-    dash_p.add_argument("--no-open", action="store_true", help="write the file, don't open it")
+    dash_p = sub.add_parser("dashboard")  # hidden 0.4 alias of `projects --open`
+    dash_p.add_argument("--no-open", action="store_true")
 
     key_p = sub.add_parser("key", help="store or remove an API key (status: prebuttal backends)")
     key_sub = key_p.add_subparsers(dest="key_cmd", required=True, metavar="{set,unset}")
@@ -417,6 +421,8 @@ def cmd_projects(args) -> int:
         print(f"deleted {what} (files under ./prebuttal-reports are left alone)")
         return EXIT_OK
 
+    if args.open:
+        return _overview(open_it=True)
     projects = project_summaries()
     if args.json:
         data = [
@@ -435,7 +441,7 @@ def cmd_projects(args) -> int:
         return EXIT_OK
     print(render_projects_table(projects))
     if projects:
-        print("\nRuns of one project: prebuttal runs <project> · overview: prebuttal dashboard")
+        print("\nRuns of one project: prebuttal runs <project> · in a browser: --open")
     return EXIT_OK
 
 
@@ -479,6 +485,14 @@ def cmd_show(args) -> int:
     rec = _resolve_run_or_exit(args.run)
     if rec is None:
         return EXIT_USAGE
+    if args.open:
+        return _open_report(rec)
+    if args.output:
+        ext = Path(args.output).suffix.lstrip(".").lower()
+        if ext not in FORMATS:
+            print("error: -o needs a .md, .html or .json file name", file=sys.stderr)
+            return EXIT_USAGE
+        return _save_report(rec, ext, Path(args.output))
     name = "report.json" if args.json else "report.md"
     try:
         print((rec.dir_path / name).read_text(encoding="utf-8"))
@@ -524,18 +538,40 @@ def _open_in_browser(path: Path) -> None:
         print("(could not open a browser here — open the file above yourself)")
 
 
-def cmd_open(args) -> int:
-    rec = _resolve_run_or_exit(args.run)
-    if rec is None:
-        return EXIT_USAGE
+def _open_report(rec, *, md: bool = False) -> int:
     try:
-        path = rec.dir_path / "report.md" if args.md else ensure_html(rec)
+        path = rec.dir_path / "report.md" if md else ensure_html(rec)
     except (OSError, ValueError, KeyError) as e:
         print(f"error: cannot open {rec.label}: {e}", file=sys.stderr)
         return EXIT_USAGE
     print(f"{rec.label}: {path}")
     _open_in_browser(path)
     return EXIT_OK
+
+
+def _save_report(rec, fmt: str, dest: Path) -> int:
+    import shutil
+
+    try:
+        src = ensure_html(rec) if fmt == "html" else rec.dir_path / f"report.{fmt}"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dest)
+    except (OSError, ValueError, KeyError) as e:
+        print(f"error: cannot save {rec.label}: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"{rec.label} → {dest}")
+    return EXIT_OK
+
+
+def _renamed(old: str, new: str) -> None:
+    _log(f"[prebuttal] `{old}` is now `{new}`; this alias goes in 0.6")
+
+
+def cmd_open(args) -> int:
+    """Hidden 0.4 alias of `show --open`."""
+    _renamed("prebuttal open", "prebuttal show --open")
+    rec = _resolve_run_or_exit(args.run)
+    return EXIT_USAGE if rec is None else _open_report(rec, md=args.md)
 
 
 def cmd_diff(args) -> int:
@@ -623,8 +659,18 @@ def _confirm(question: str, yes: bool) -> bool:
 
 
 def cmd_rm(args) -> int:
+    projects = {r.project for r in load_history()}
     recs = []
     for ref in args.runs:
+        if ref.strip() in projects:
+            # a bare project name means "its newest run" elsewhere; here that
+            # is one letter away from `projects rm`, which deletes them all
+            print(
+                f"error: '{ref}' is a project — name the run (`{ref}#3`, `{ref}~1`), "
+                f"or delete the whole project with `prebuttal projects rm {ref}`",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
         rec = _resolve_run_or_exit(ref)
         if rec is None:
             return EXIT_USAGE
@@ -638,30 +684,27 @@ def cmd_rm(args) -> int:
 
 
 def cmd_export(args) -> int:
-    import shutil
-
+    """Hidden 0.4 alias of `show -o`."""
+    _renamed("prebuttal export", "prebuttal show -o FILE")
     rec = _resolve_run_or_exit(args.run)
     if rec is None:
         return EXIT_USAGE
-    # --format wins; without it, the -o extension picks (a .md path must not
-    # receive HTML), and html is the fallback default.
+    # --format wins; without it, the -o extension picks, and html is the fallback
     fmt = args.format
     if fmt is None:
         ext = Path(args.output or "").suffix.lstrip(".").lower()
         fmt = ext if ext in FORMATS else "html"
-    try:
-        src = ensure_html(rec) if fmt == "html" else rec.dir_path / f"report.{fmt}"
-        dest = Path(args.output or f"{rec.project}-{rec.run_no}.{fmt}")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src, dest)
-    except (OSError, ValueError, KeyError) as e:
-        print(f"error: cannot export {rec.label}: {e}", file=sys.stderr)
-        return EXIT_USAGE
-    print(f"{rec.label} → {dest}")
-    return EXIT_OK
+    return _save_report(rec, fmt, Path(args.output or f"{rec.project}-{rec.run_no}.{fmt}"))
 
 
 def cmd_dashboard(args) -> int:
+    """Hidden 0.4 alias of `projects --open`."""
+    _renamed("prebuttal dashboard", "prebuttal projects --open")
+    return _overview(open_it=not args.no_open)
+
+
+def _overview(*, open_it: bool) -> int:
+    """Write the HTML overview of every project and run; open it if asked."""
     projects = project_summaries()
     for p in projects:  # older runs have no report.html yet
         for r in p.runs:
@@ -672,10 +715,10 @@ def cmd_dashboard(args) -> int:
         make_private_dir(path.parent)
         path.write_text(render_dashboard(projects), encoding="utf-8")
     except OSError as e:
-        print(f"error: cannot write the dashboard: {e}", file=sys.stderr)
+        print(f"error: cannot write the overview: {e}", file=sys.stderr)
         return EXIT_USAGE
-    print(f"Dashboard: {path}")
-    if not args.no_open:
+    print(f"Overview: {path}")
+    if open_it:
         _open_in_browser(path)
     return EXIT_OK
 
@@ -971,6 +1014,13 @@ def cmd_run(args) -> int:
     venue = get_venue(cfg.venue)
     if venue.custom:
         _log(f"[prebuttal] venue: {venue.name} (custom, {venue.origin})")
+    if args.format:
+        _log(
+            "[prebuttal] `--format` is now `[output] formats = [...]` in prebuttal.toml; "
+            "this flag goes in 0.6"
+        )
+    if args.stdout:
+        _renamed("prebuttal run --stdout", "prebuttal show (after the run)")
     # validate output choices before any (possibly paid) review runs
     try:
         formats = parse_formats(args.format) if args.format else cfg.output_formats
@@ -1165,7 +1215,7 @@ def _deliver(
     except OSError as e:
         print(f"error: cannot write report: {e}", file=sys.stderr)
         if rec is not None:
-            print(f"The review is archived: `prebuttal open {rec.label}`", file=sys.stderr)
+            print(f"The review is archived: `prebuttal show {rec.label} --open`", file=sys.stderr)
         return EXIT_USAGE
 
     agg = report.aggregate
@@ -1194,7 +1244,7 @@ def _deliver(
     for i, path in enumerate(written):
         print(f"{'Report:' if i == 0 else '':<10}{path}")
     if rec is not None:
-        nxt = "prebuttal open · prebuttal plan · prebuttal dashboard"
+        nxt = "prebuttal show --open · prebuttal plan · prebuttal projects --open"
         if rec.run_no > 1:
             nxt = "prebuttal diff · " + nxt
         print(f"Next:     {nxt}")
@@ -1309,7 +1359,7 @@ _REMOVED_FLAGS = {
     "--out": (
         "each run now gets its own folder under prebuttal-reports/<project>/ "
         "(nothing is overwritten); use --out-dir DIR for another location, "
-        "--json PATH for a file at a fixed path, or `prebuttal export -o FILE` afterwards"
+        "--json PATH for a file at a fixed path, or `prebuttal show -o FILE` afterwards"
     ),
 }
 
