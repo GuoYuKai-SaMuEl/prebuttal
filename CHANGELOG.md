@@ -10,6 +10,8 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-27
+
 ### Fixed
 - **Reviewer pack:** the title and the `## Abstract` heading were glued onto
   one line (`# Submission under review — T## Abstract...`).
@@ -354,7 +356,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.1.0...v0.2.0
