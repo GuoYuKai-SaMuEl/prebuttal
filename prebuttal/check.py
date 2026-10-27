@@ -323,6 +323,38 @@ def _keys(found: list[str]) -> set[str]:
 _BIB_KEY = re.compile(r"@\s*[a-zA-Z]+\s*\{\s*([^,\s]+)\s*,")
 _BIBITEM = re.compile(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 _TODO_CMD = re.compile(r"\\(?:todo|TODO|fixme|FIXME)\b")
+# venue styles that hide \author in their default (submission) mode; any
+# package or class loaded with a review / anonymous / blind option does too
+_LOAD = re.compile(
+    r"^[^%\n]*\\(?:usepackage|documentclass)\s*(?:\[([^\]]*)\])?\s*\{([^{}]*)\}", re.M
+)
+_ANON_STYLE = re.compile(r"neurips_?\d*|iclr\d{4}_conference|icml\d{4}")
+_AUTHOR = re.compile(r"\\author\s*(?:\[[^\]]*\])?\s*\{")
+
+
+def _hides_authors(tex: str) -> bool:
+    for m in _LOAD.finditer(tex):
+        if re.search(r"\b(review|anonymous|blind)\b", (m.group(1) or "").lower()):
+            return True
+        if any(_ANON_STYLE.fullmatch(n.strip()) for n in m.group(2).split(",")):
+            return True
+    return False
+
+
+def _named_authors(tex: str) -> str:
+    """The \\author{...} text when it names someone ("" if absent or anonymous)."""
+    m = _AUTHOR.search(tex)
+    if not m:
+        return ""
+    depth, i = 1, m.end()
+    while i < len(tex) and depth:
+        depth += {"{": 1, "}": -1}.get(tex[i], 0)
+        i += 1
+    text = re.sub(r"\\[a-zA-Z@]+\*?|\\\\|[{}~]", " ", tex[m.end() : i - 1])
+    text = " ".join(text.split())
+    if not re.search(r"[^\W\d_]", text) or "anonymous" in text.casefold():
+        return ""
+    return text
 
 
 def check_latex(path: Path, rules: CheckRules) -> CheckResult:
@@ -353,6 +385,15 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
                     "camera-ready / preprint mode, which prints the author names",
                 )
                 break
+        else:
+            names = _named_authors(tex)
+            if names and not _hides_authors(tex):
+                result.add(
+                    WARNING,
+                    "anonymity",
+                    f"{where}: \\author{{{names[:60]}}} is printed — no venue style in "
+                    "submission mode hides it; use the venue's template or anonymize it",
+                )
         heads = [h for h in _SECTION.findall(tex) if _heading_matches(h, "Acknowledgment")]
         if heads:
             result.add(

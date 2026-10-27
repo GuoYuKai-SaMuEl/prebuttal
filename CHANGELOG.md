@@ -25,7 +25,10 @@ the tool must not leak your keys.
   impact statement / ARR limitations section) and leftovers (`??`, `[?]`,
   TODO, hidden text). LaTeX projects are checked without compiling: every
   `\ref` needs a `\label` and every `\cite` a bibliography entry (macro
-  parameters like `\ref{#1}` and `\nocite{*}` aside). Two-column pages count
+  parameters like `\ref{#1}` and `\nocite{*}` aside), and a named
+  `\author{...}` is flagged unless a venue style in submission mode
+  (`neurips_*`, `iclr*_conference`, `icml*`, a `[review]` / `[anonymous]`
+  option) hides it. Two-column pages count
   when their left column is still main text. Exit code 6
   when something can get the paper desk-rejected.
 - `prebuttal run` performs the same check on your own draft (a local PDF
@@ -57,6 +60,11 @@ the tool must not leak your keys.
 - `prebuttal rm mamba` deleted the newest run of `mamba` — one word away
   from `prebuttal projects rm mamba`, which deletes them all. `rm` now
   refuses a bare project name and asks for the run (`mamba#3`, `mamba~1`).
+- The `prebuttal.toml` that `prebuttal init` writes no longer triggers the
+  "use this file's settings?" question on the first run (it still comes
+  back once the file is edited). Help texts now say what a run reference
+  looks like, which venue `check` defaults to, where the run history lives
+  (`$PREBUTTAL_HOME`) and how projects are named.
 - Report and share-page notes are labelled "Notes" instead of "Ingestion
   warnings", since they now include the pre-flight check.
 

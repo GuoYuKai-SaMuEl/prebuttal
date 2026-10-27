@@ -90,6 +90,9 @@ def _log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
+RUN_REF = "a run: name#3, name~1 (one before the newest) or an id prefix"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="prebuttal",
@@ -132,12 +135,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-y",
         "--yes",
         action="store_true",
-        help="skip the plan confirmation prompt (auto mode; non-interactive never prompts)",
+        help="skip the plan confirmation prompt (auto mode; non-interactive never prompts). "
+        "A prebuttal.toml found in this folder still asks once — pass it with -c to skip",
     )
     run.add_argument(
         "--project",
         default=None,
-        help="project name (default: one per paper, found from its path / arXiv id)",
+        help="project name (default: one per paper — the same path / arXiv id lands in the "
+        "same project, named after the title)",
     )
     run.add_argument(
         "--note", default="", help='what changed in this revision, e.g. "added ablation"'
@@ -156,7 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--no-save",
         action="store_true",
-        help="do not archive this run to the run history (~/.prebuttal)",
+        help="do not archive this run to the run history (~/.prebuttal, or $PREBUTTAL_HOME)",
     )
 
     retry_p = sub.add_parser(
@@ -164,7 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="re-run only the failed reviewers of a run, then the AC (default: latest)",
         allow_abbrev=False,
     )
-    retry_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
+    retry_p.add_argument("run", nargs="?", default=None, help=RUN_REF + " (default: latest)")
 
     check_p = sub.add_parser(
         "check",
@@ -172,7 +177,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check_p.add_argument("paper", help="path to .pdf, LaTeX project dir, or arXiv link/id")
     check_p.add_argument(
-        "--venue", default=None, help="whose rules to check against (as for `run`; default neurips)"
+        "--venue",
+        default=None,
+        help="whose rules to check against (as for `run`; default: prebuttal.toml, else neurips)",
     )
 
     backends_p = sub.add_parser(
@@ -188,7 +195,7 @@ def build_parser() -> argparse.ArgumentParser:
     proj_p = sub.add_parser(
         "projects", help="papers (one project each): list them, --open the overview, rename|rm"
     )
-    proj_sub = proj_p.add_subparsers(dest="proj_cmd")
+    proj_sub = proj_p.add_subparsers(dest="proj_cmd", metavar="[list|rename|rm]")
     proj_sub.add_parser("list", help="list projects (default)")
     ren = proj_sub.add_parser("rename", help="rename a project")
     ren.add_argument("old")
@@ -213,7 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
     show_p = sub.add_parser(
         "show", help="a run's report: print it, open it in the browser, or save a copy"
     )
-    show_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
+    show_p.add_argument("run", nargs="?", default=None, help=RUN_REF + " (default: latest)")
     show_view = show_p.add_mutually_exclusive_group()
     show_view.add_argument("--json", action="store_true", help="print the stored report.json")
     show_view.add_argument("--open", action="store_true", help="open the HTML report in a browser")
@@ -224,7 +231,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan_p = sub.add_parser(
         "plan", help="print a run's revision plan as a checklist (default: latest)"
     )
-    plan_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
+    plan_p.add_argument("run", nargs="?", default=None, help=RUN_REF + " (default: latest)")
     plan_p.add_argument("--json", action="store_true", help="machine-readable action items")
 
     open_p = sub.add_parser("open")  # hidden 0.4 alias of `show --open`
@@ -235,8 +242,13 @@ def build_parser() -> argparse.ArgumentParser:
         "diff",
         help="compare two runs (default: latest vs the run before it, same project)",
     )
-    diff_p.add_argument("run_a", nargs="?", default=None)
-    diff_p.add_argument("run_b", nargs="?", default=None)
+    diff_p.add_argument(
+        "run_a",
+        nargs="?",
+        default=None,
+        help="older run (default: the one before run_b, same project)",
+    )
+    diff_p.add_argument("run_b", nargs="?", default=None, help=RUN_REF + " (default: latest)")
     diff_p.add_argument(
         "--llm",
         action="store_true",
@@ -244,7 +256,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     note_p = sub.add_parser("note", help="attach a note to a run (shown in lists and overviews)")
-    note_p.add_argument("run", help="run reference")
+    note_p.add_argument("run", help=RUN_REF)
     note_p.add_argument("text", help='e.g. "after adding the Perceiver baseline"')
 
     rm_p = sub.add_parser("rm", help="delete archived runs (a whole paper: projects rm)")
@@ -271,7 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("models")  # hidden 0.4 alias of `backends <name>`
 
     ven_p = sub.add_parser("venues", help="list review forms; add your own venue")
-    ven_sub = ven_p.add_subparsers(dest="venues_cmd")
+    ven_sub = ven_p.add_subparsers(dest="venues_cmd", metavar="[new|show]")
     ven_new = ven_sub.add_parser("new", help="write a venue template to edit")
     ven_new.add_argument("key", help="short name, e.g. cvpr or lab-review")
     ven_new.add_argument(
@@ -388,6 +400,9 @@ def cmd_init(args) -> int:
         print(f"{path} already exists (use --force to overwrite)", file=sys.stderr)
         return EXIT_USAGE
     path.write_text(DEFAULT_CONFIG_TOML, encoding="utf-8")
+    from . import trust
+
+    trust.remember(str(path))  # our own sample: no consent question for it
     print(f"wrote {path} — edit reviewers and backends to taste")
     return EXIT_OK
 

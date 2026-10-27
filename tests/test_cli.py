@@ -238,6 +238,18 @@ def test_init(tmp_path, monkeypatch):
     assert cli.main(["init", "--force"]) == cli.EXIT_OK
 
 
+def test_init_config_needs_no_consent(tmp_path, monkeypatch):
+    """The sample `init` writes is ours: no trust question until it is edited."""
+    from prebuttal import trust
+
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["init"]) == cli.EXIT_OK
+    assert trust.is_trusted("prebuttal.toml")
+    with open("prebuttal.toml", "a", encoding="utf-8") as f:
+        f.write("\n# edited\n")
+    assert not trust.is_trusted("prebuttal.toml")
+
+
 def test_ingest_error_exit_code(tmp_path, monkeypatch, fake_statuses):
     monkeypatch.chdir(tmp_path)
     rc = cli.main(["run", str(tmp_path / "no-such-paper.pdf")])

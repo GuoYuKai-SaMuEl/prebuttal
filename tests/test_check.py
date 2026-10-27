@@ -179,6 +179,44 @@ def test_latex_project_checks(tmp_path):
     assert any("page limit" in s for s in result.skipped)
 
 
+AUTHOR_TEX = r"""\documentclass{article}
+%s
+\author{Alice Smith \and Bob Jones \\ University of Awesome}
+\begin{document}
+\section{Introduction}
+Text.
+\end{document}
+"""
+
+
+@pytest.mark.parametrize(
+    "preamble, flagged",
+    [
+        ("", True),
+        (r"\usepackage{iclr2027_conference}", False),
+        (r"\usepackage{neurips_2026}", False),
+        (r"\usepackage{icml2026}", False),
+        (r"\usepackage[review]{acl}", False),
+        (r"\usepackage{acl}", True),  # acl.sty without [review] is the final version
+        (r"\usepackage{hyperref,amsmath}", True),
+    ],
+)
+def test_latex_author_names_without_an_anonymizing_style(tmp_path, preamble, flagged):
+    (tmp_path / "main.tex").write_text(AUTHOR_TEX % preamble, encoding="utf-8")
+    result = check_latex(tmp_path, get_venue("iclr").rules)
+    hits = [f for f in result.findings if "\\author{" in f.message]
+    assert bool(hits) == flagged
+    if flagged:
+        assert "Alice Smith" in hits[0].message and hits[0].level == WARNING
+
+
+def test_anonymous_author_is_not_flagged(tmp_path):
+    tex = (AUTHOR_TEX % "").replace(r"Alice Smith \and Bob Jones \\ University", "Anonymous")
+    (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
+    result = check_latex(tmp_path, get_venue("iclr").rules)
+    assert not any("\\author{" in f.message for f in result.findings)
+
+
 def test_commented_out_switch_is_not_flagged(tmp_path):
     tex = MAIN_TEX.replace(r"\usepackage[final]{neurips_2026}", "")
     (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
