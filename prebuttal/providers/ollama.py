@@ -63,9 +63,14 @@ class OllamaProvider(BaseProvider):
             r = httpx.post(f"{self.base_url}/api/chat", json=payload, timeout=self.timeout_s)
         except httpx.HTTPError as e:
             raise TransientProviderError(f"cannot reach Ollama at {self.base_url}: {e}") from e
+        if r.status_code >= 500:  # e.g. the model is still loading or ran out of memory
+            raise TransientProviderError(f"Ollama HTTP {r.status_code}: {r.text[:300]}")
         if r.status_code != 200:
             raise ProviderError(f"Ollama HTTP {r.status_code}: {r.text[:300]}")
-        data = r.json()
-        text = data.get("message", {}).get("content", "")
+        try:
+            data = r.json()
+        except ValueError as e:
+            raise ProviderError(f"non-JSON Ollama response: {r.text[:200]}") from e
+        text = (data.get("message") or {}).get("content", "")
         usage = Usage(data.get("prompt_eval_count", 0), data.get("eval_count", 0))
         return text, usage

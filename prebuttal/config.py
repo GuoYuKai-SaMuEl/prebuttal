@@ -191,6 +191,22 @@ def default_reviewers(n: int = 3) -> list[ReviewerConfig]:
     return out
 
 
+def resize_reviewers(current: list[ReviewerConfig], n: int) -> list[ReviewerConfig]:
+    """Keep the configured reviewers (backend, model, persona...) and only drop
+    the extra ones or add default ones, instead of discarding the setup."""
+    if n <= len(current):
+        return list(current[:n])
+    out = list(current)
+    taken = {r.id for r in out}
+    for extra in default_reviewers(n)[len(out) :]:
+        num = len(out) + 1
+        while f"R{num}" in taken:
+            num += 1
+        out.append(replace(extra, id=f"R{num}"))
+        taken.add(f"R{num}")
+    return out
+
+
 def check_effort(value: Any, where: str) -> str:
     from .models import EFFORT_LEVELS
 
@@ -234,7 +250,15 @@ def load_config(path: str | Path | None = None) -> RunConfig:
     except tomllib.TOMLDecodeError as e:  # pragma: no cover - message passthrough
         raise ConfigError(f"invalid TOML in {path}: {e}") from e
     cfg.config_path = str(path)
+    try:
+        _apply_toml(cfg, raw, path)
+    except (ValueError, TypeError, AttributeError) as e:
+        # a wrong type (seed = "x", reviewer = "R1", ...) is a config error, not a crash
+        raise ConfigError(f"invalid value in {path}: {e}") from e
+    return cfg
 
+
+def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
     d = raw.get("default", {})
     if "venue" in d:
         cfg.venue = str(d["venue"])
@@ -264,6 +288,7 @@ def load_config(path: str | Path | None = None) -> RunConfig:
                 backend=str(entry.get("backend", "auto")),
                 model=str(entry.get("model", "") or ""),
                 temperature=float(entry.get("temperature", 0.4)),
+                seed=int(entry["seed"]) if entry.get("seed") is not None else None,
                 effort=check_effort(entry.get("effort"), f"{path} reviewer {rid}"),
             )
         )
@@ -283,9 +308,10 @@ def load_config(path: str | Path | None = None) -> RunConfig:
         )
 
     for name, spec in raw.get("agents", {}).items():
-        cfg.agents[str(name)] = AgentSpec(
-            command=_as_list(spec.get("command")), stdin=bool(spec.get("stdin", True))
-        )
+        command = _as_list(spec.get("command"))
+        if not command:
+            raise ConfigError(f'[agents.{name}] in {path} needs command = ["program", ...]')
+        cfg.agents[str(name)] = AgentSpec(command=command, stdin=bool(spec.get("stdin", True)))
 
     relay = raw.get("relay", {})
     if relay:
@@ -312,8 +338,6 @@ def load_config(path: str | Path | None = None) -> RunConfig:
     share = raw.get("share", {})
     if "repo_url" in share:
         cfg.repo_url = str(share["repo_url"])
-
-    return cfg
 
 
 def reviewer_seed(cfg: RunConfig, rcfg: ReviewerConfig, index: int) -> int:
@@ -370,7 +394,7 @@ def apply_overrides(
     if reviewers_count is not None and reviewers_count != len(cfg.reviewers):
         if not 1 <= reviewers_count <= 5:
             raise ConfigError("--reviewers must be between 1 and 5")
-        cfg.reviewers = default_reviewers(reviewers_count)
+        cfg.reviewers = resize_reviewers(cfg.reviewers, reviewers_count)
     if backend is not None:
         cfg.reviewers = [replace(r, backend=backend) for r in cfg.reviewers]
         cfg.ac = replace(cfg.ac, backend=backend)

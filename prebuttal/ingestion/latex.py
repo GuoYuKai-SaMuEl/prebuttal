@@ -36,17 +36,31 @@ def _strip_comments(tex: str) -> str:
 
 
 def _merge_inputs(
-    tex: str, root_dir: Path, seen: set[Path], missing: list[str], cur_dir: Path | None = None
+    tex: str,
+    root_dir: Path,
+    seen: set[Path],
+    missing: list[str],
+    cur_dir: Path | None = None,
+    *,
+    allowed: Path | None = None,
+    blocked: list[str] | None = None,
 ) -> str:
-    """Inline ``\\input``/``\\include`` recursively.
+    """Inline ``\\input``/``\\include`` recursively (braced or ``\\input file``).
 
     Like LaTeX, paths resolve against the root file's directory at every
     nesting level; the including file's own directory is only a fallback.
     Unresolvable inputs are recorded in ``missing`` instead of vanishing.
+
+    The source may come from someone else (an arXiv tarball, a co-author's
+    repo) and the merged text is sent to a model provider, so files outside
+    ``allowed`` (the project folder; symlinks resolved) are never read — they
+    are recorded in ``blocked`` instead.
     """
+    allowed = (allowed or root_dir).resolve()
+    blocked = [] if blocked is None else blocked
 
     def repl(m: re.Match) -> str:
-        name = m.group(1).strip()
+        name = (m.group(1) or m.group(2)).strip()
         dirs = [root_dir] if cur_dir in (None, root_dir) else [root_dir, cur_dir]
         found = False
         for d in dirs:
@@ -55,15 +69,26 @@ def _merge_inputs(
                 if not cand.is_file():
                     continue
                 found = True
+                if not cand.is_relative_to(allowed):
+                    if name not in blocked:
+                        blocked.append(name)
+                    return ""
                 if cand not in seen:
                     seen.add(cand)
                     sub = _strip_comments(_read_text(cand))
-                    return _merge_inputs(sub, root_dir, seen, missing, cand.parent)
+                    return _merge_inputs(
+                        sub, root_dir, seen, missing, cand.parent, allowed=allowed, blocked=blocked
+                    )
         if not found:
             missing.append(name)
         return ""
 
-    return re.sub(r"\\(?:input|include)\{([^{}]+)\}", repl, tex)
+    return _INPUT_RE.sub(repl, tex)
+
+
+# \input{file} / \include{file}, and TeX's primitive form `\input file`
+# (braces or whitespace required, so \includegraphics and \inputencoding never match)
+_INPUT_RE = re.compile(r"\\(?:input|include)(?:\s*\{([^{}]+)\}|\s+([^\s{}\\%]+))")
 
 
 def find_root_tex(directory: Path) -> Path:
@@ -415,11 +440,24 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
 
     tex = _strip_comments(_read_text(root))
     missing_inputs: list[str] = []
-    tex = _merge_inputs(tex, base, {root.resolve()}, missing_inputs)
+    blocked_inputs: list[str] = []
+    tex = _merge_inputs(
+        tex,
+        base,
+        {root.resolve()},
+        missing_inputs,
+        allowed=path if path.is_dir() else base,
+        blocked=blocked_inputs,
+    )
 
     warnings: list[str] = [
         f"\\input{{{name}}} not found relative to {base.name}/ — its content is missing"
         for name in missing_inputs
+    ]
+    warnings += [
+        f"\\input{{{name}}} points outside the paper's folder — not read (copy the file "
+        "into the project if it belongs to the paper)"
+        for name in blocked_inputs
     ]
 
     doc_m = re.search(r"\\begin\{document\}", tex)

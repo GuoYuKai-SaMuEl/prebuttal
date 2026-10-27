@@ -41,6 +41,14 @@ def _child_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in applied}
 
 
+def _is_batch_launcher(name: str) -> bool:
+    """True when ``name`` runs through cmd.exe (a .cmd/.bat file on Windows)."""
+    if os.name != "nt":
+        return False
+    exe = shutil.which(name) or name
+    return exe.lower().endswith((".cmd", ".bat"))
+
+
 def _run(
     cmd: list[str], prompt: str, *, stdin: bool, timeout_s: float, cwd: str | None = None
 ) -> subprocess.CompletedProcess:
@@ -136,6 +144,13 @@ class AgentCLIProvider(BaseProvider):
                 raise ProviderError(
                     f"prompt too long for argv ({len(prompt)} chars); "
                     "configure this agent with stdin = true"
+                )
+            if _is_batch_launcher(cmd[0]):
+                # cmd.exe re-parses a .cmd/.bat command line: `&`, `|`, `%VAR%` in
+                # the (untrusted) paper text would be run as commands
+                raise ProviderError(
+                    f"{cmd[0]} is a Windows batch launcher, which cannot safely take the "
+                    "paper as an argument; configure this agent with stdin = true"
                 )
             proc = _run([*cmd, prompt], "", stdin=False, timeout_s=self.timeout_s, cwd=cwd)
         if proc.returncode != 0:

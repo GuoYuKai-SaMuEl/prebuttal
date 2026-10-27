@@ -164,3 +164,37 @@ timeout_s = 30
     data = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
     assert data["aggregate"]["mean"] == 4.67
     assert all(r["backend"] == "relay" for r in data["reviewers"])
+
+
+def test_relay_waits_for_a_half_written_answer(tmp_path):
+    """A responder that is still writing must not be read mid-file."""
+    spool = tmp_path / "s"
+    provider = RelayProvider(spool_dir=spool, timeout_s=5, poll_s=0.1)
+    full = '{"rating": 5, "confidence": 4, "summary": "' + "x" * 400 + '"}'
+
+    def writer():
+        while not list(spool.glob("*.req.md")):
+            time.sleep(0.01)
+        req = next(iter(spool.glob("*.req.md")))
+        ans = req.with_name(req.name.replace(".req.md", ".ans.md"))
+        # the file grows faster than the poll interval: every poll sees a new prefix
+        for end in range(40, len(full), 20):
+            ans.write_text(full[:end], encoding="utf-8")
+            time.sleep(0.03)
+        ans.write_text(full, encoding="utf-8")
+
+    t = threading.Thread(target=writer, daemon=True)
+    t.start()
+    comp = provider.complete(system="s", user="u", retries=0)
+    t.join(2)
+    assert comp.text == full
+
+
+def test_relay_accepts_stable_non_json_answer(tmp_path):
+    """Prose around the JSON is the parser's job; once the file stops changing, take it."""
+    spool = tmp_path / "s"
+    answer = "Here you go:\n```json\n" + ANSWER + "\n```\n"
+    with Responder(spool, payload_for=lambda _req: answer):
+        provider = RelayProvider(spool_dir=spool, timeout_s=5, poll_s=0.05)
+        comp = provider.complete(system="s", user="u", retries=0)
+    assert comp.text == answer

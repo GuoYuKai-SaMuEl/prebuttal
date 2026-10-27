@@ -196,7 +196,7 @@ def load_history() -> list[RunRecord]:
         try:
             data = json.loads(line)
             rec = RunRecord(**{k: v for k, v in data.items() if k in _FIELDS})
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, AttributeError):
             continue  # skip corrupt lines, never crash history reads
         if rec.scale is None:  # runs archived before 0.2.0 have no scale
             rec.scale = _venue_scale(rec.venue)
@@ -213,9 +213,27 @@ def load_history() -> list[RunRecord]:
     return out
 
 
+def _unreadable_history_lines() -> list[str]:
+    """Lines load_history() skips; a rewrite keeps them rather than deleting them."""
+    p = history_path()
+    if not p.is_file():
+        return []
+    out = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            RunRecord(**{k: v for k, v in json.loads(line).items() if k in _FIELDS})
+        except (ValueError, TypeError, AttributeError):
+            out.append(line)
+    return out
+
+
 def _rewrite_history(records: list[RunRecord]) -> None:
     ordered = sorted(records, key=_order)
     lines = [json.dumps(r.__dict__, ensure_ascii=False) for r in ordered]
+    lines += _unreadable_history_lines()
     atomic_write(history_path(), "".join(line + "\n" for line in lines))
 
 
@@ -414,6 +432,20 @@ def _load_run_json(rec: RunRecord) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def _by_persona(reviewers: list[dict]) -> dict[str, dict]:
+    """Reviewers keyed by persona; a repeated persona gets ``persona #2``, ...
+    so two reviewers sharing one never overwrite each other."""
+    out: dict[str, dict] = {}
+    for r in reviewers:
+        base = str(r.get("persona") or "?")
+        key, n = base, 1
+        while key in out:
+            n += 1
+            key = f"{base} #{n}"
+        out[key] = r
+    return out
+
+
 def render_diff(a: RunRecord, b: RunRecord) -> str:
     """Human-readable A→B comparison: scores, per-reviewer ratings, weakness movement."""
     da, db = _load_run_json(a), _load_run_json(b)
@@ -451,8 +483,7 @@ def render_diff(a: RunRecord, b: RunRecord) -> str:
         out.append(line)
         out.append("")
 
-    ra = {r.get("persona"): r for r in da.get("reviewers", [])}
-    rb = {r.get("persona"): r for r in db.get("reviewers", [])}
+    ra, rb = _by_persona(da.get("reviewers", [])), _by_persona(db.get("reviewers", []))
     out.append("## Reviewer ratings (A → B)")
     for persona in sorted(set(ra) | set(rb)):
         x, y = ra.get(persona), rb.get(persona)

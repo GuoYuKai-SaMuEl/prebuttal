@@ -91,12 +91,16 @@ def render_pack(
 
     allowances: dict[int, int | None] = {i: None for i in range(len(sections))}
 
-    def _render(i: int) -> str:
+    def _render(i: int, final: bool = False) -> str:
+        """``final``: the real render. Budgeting renders size sections by their
+        truncated length, so the (paid) summarizer runs once per section, at the end."""
         sec = sections[i]
         body = sec.text
         allow = allowances[i]
         if allow is not None and len(body) > allow:
-            summarized = summarizer(sec.heading, body) if (summarizer and allow > 0) else None
+            summarized = (
+                summarizer(sec.heading, body) if (final and summarizer and allow > 0) else None
+            )
             if summarized:
                 body = summarized
             else:
@@ -117,8 +121,8 @@ def render_pack(
             if current is None or current > step:
                 allowances[i] = step
 
-    body_parts = ["".join(head)]
-    body_parts += [_render(i) for i in range(len(sections))]
+    body_parts = ["\n".join(head)]
+    body_parts += [_render(i, final=True) for i in range(len(sections))]
     body_parts.append(_tables_md(paper))
     body_parts.append(_figures_md(paper))
     return "\n".join(body_parts)

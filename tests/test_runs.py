@@ -204,3 +204,31 @@ def test_scale_backfill_for_pre_020_records(latex_project):
     projects = render_projects_table(project_summaries(list(recs.values())))
     row = next(line for line in projects.splitlines() if line.startswith(rec1.project))
     assert " → " not in row
+
+
+def test_rewriting_history_keeps_unreadable_lines(latex_project):
+    from prebuttal.runs import set_note
+
+    _report, rec = _archive(latex_project)
+    with history_path().open("a", encoding="utf-8") as fh:
+        fh.write("{not json\n")
+        fh.write("[1, 2]\n")
+    assert [r.id for r in load_history()] == [rec.id]  # skipped, not a crash
+    set_note(rec.id, "after ablation")
+    lines = history_path().read_text(encoding="utf-8").splitlines()
+    assert "{not json" in lines and "[1, 2]" in lines
+    assert load_history()[0].note == "after ablation"
+
+
+def test_diff_keeps_reviewers_that_share_a_persona(latex_project):
+    _ra, rec_a = _archive(latex_project)
+    _rb, rec_b = _archive(latex_project, rating_shift=1)
+    for rec in (rec_a, rec_b):
+        p = Path(rec.dir) / "report.json"
+        data = json.loads(p.read_text(encoding="utf-8"))
+        for r in data["reviewers"]:
+            r["persona"] = "adversarial"
+        p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    text = render_diff(rec_a, rec_b)
+    for key in ("- adversarial:", "- adversarial #2:", "- adversarial #3:"):
+        assert key in text

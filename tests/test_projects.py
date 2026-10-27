@@ -44,8 +44,11 @@ def test_default_run_writes_md_and_html_into_a_fresh_folder(run, tmp_path):
     assert run_dir.name.endswith("_iclr")
     assert (run_dir / "report.md").is_file() and (run_dir / "report.html").is_file()
     assert not (run_dir / "report.json").exists()  # JSON lives in the archive
-    assert (proj / "latest.md").read_text() == (run_dir / "report.md").read_text()
-    assert "*" in (reports / ".gitignore").read_text()  # unpublished work stays out of git
+    assert (proj / "latest.md").read_text(encoding="utf-8") == (run_dir / "report.md").read_text(
+        encoding="utf-8"
+    )
+    # unpublished work stays out of git
+    assert "*" in (reports / ".gitignore").read_text(encoding="utf-8")
     assert f"Saved:    {PROJECT}#1" in out
     assert "Report:" in out and "report.md" in out
     assert "prebuttal diff" not in out  # nothing to diff on the first run

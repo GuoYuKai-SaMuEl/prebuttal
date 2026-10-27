@@ -1,3 +1,5 @@
+import pytest
+
 from prebuttal.config import (
     ConfigError,
     apply_overrides,
@@ -125,3 +127,56 @@ def test_reviewer_seed_sequence():
 def test_default_reviewers_clamp():
     assert len(default_reviewers(9)) == 5
     assert len(default_reviewers(0)) == 1
+
+
+def _toml(tmp_path, text):
+    f = tmp_path / "prebuttal.toml"
+    f.write_text(text, encoding="utf-8")
+    return f
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '[default]\nseed = "abc"\n',
+        'reviewer = "R1"\n',
+        '[[reviewer]]\nid = "R1"\ntemperature = "hot"\n',
+    ],
+)
+def test_wrong_value_types_are_config_errors(tmp_path, text):
+    with pytest.raises(ConfigError, match="invalid value"):
+        load_config(_toml(tmp_path, text))
+
+
+def test_agent_without_command_rejected(tmp_path):
+    with pytest.raises(ConfigError, match="needs command"):
+        load_config(_toml(tmp_path, "[agents.mine]\nstdin = true\n"))
+
+
+def test_reviewer_seed_from_toml(tmp_path):
+    cfg = load_config(
+        _toml(tmp_path, '[[reviewer]]\nid = "R1"\nseed = 7\n[[reviewer]]\nid = "R2"\n')
+    )
+    assert cfg.reviewers[0].seed == 7
+    assert reviewer_seed(cfg, cfg.reviewers[0], 0) == 7
+    assert cfg.reviewers[1].seed is None
+
+
+def test_reviewers_count_keeps_configured_reviewers(tmp_path):
+    cfg = load_config(
+        _toml(
+            tmp_path,
+            '[[reviewer]]\nid = "A"\npersona = "adversarial"\nbackend = "api-gemini"\n'
+            'model = "m1"\n[[reviewer]]\nid = "R2"\nbackend = "ollama"\n',
+        )
+    )
+    grown = apply_overrides(cfg, reviewers_count=4).reviewers
+    assert [r.id for r in grown] == ["A", "R2", "R3", "R4"]
+    assert (grown[0].backend, grown[0].model, grown[0].persona) == (
+        "api-gemini",
+        "m1",
+        "adversarial",
+    )
+    assert grown[1].backend == "ollama"
+    shrunk = apply_overrides(load_config(tmp_path / "prebuttal.toml"), reviewers_count=1)
+    assert [(r.id, r.backend) for r in shrunk.reviewers] == [("A", "api-gemini")]

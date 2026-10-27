@@ -16,6 +16,7 @@ Protocol: for every ``<stem>.req.md`` write ONLY the requested JSON object to
 from __future__ import annotations
 
 import itertools
+import json
 import os
 import time
 from pathlib import Path
@@ -45,6 +46,13 @@ _PROTOCOL_NOTE = """
 [relay protocol] This file is a review request. Write your answer — ONLY the
 JSON object the instructions above ask for — to the file: {ans_name}
 """
+
+
+def _is_json_object(text: str) -> bool:
+    try:
+        return isinstance(json.loads(text), dict)
+    except ValueError:
+        return False
 
 
 def _classify(prompt: str) -> str:
@@ -96,11 +104,15 @@ class RelayProvider(BaseProvider):
             encoding="utf-8",
         )
         deadline = time.monotonic() + self.timeout_s
+        prev: str | None = None
         while time.monotonic() < deadline:
             if ans.is_file():
                 text = ans.read_text(encoding="utf-8", errors="replace")
-                if text.strip():
+                # A responder may still be writing: take the answer once it is a
+                # complete JSON object, or once it stopped changing between polls.
+                if text.strip() and (text == prev or _is_json_object(text)):
                     return text, Usage()
+                prev = text
             time.sleep(self.poll_s)
         raise ProviderError(
             f"relay: no answer for {req.name} within {self.timeout_s:.0f}s — "

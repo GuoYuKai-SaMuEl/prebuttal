@@ -10,6 +10,31 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- **Reviewer pack:** the title and the `## Abstract` heading were glued onto
+  one line (`# Submission under review — T## Abstract...`).
+- **`compress = true`** summarized each cut section many times over (every
+  budget pass re-ran the paid summarizer); it now runs once per section.
+- **LaTeX `\input`/`\include` can no longer read files outside the paper's
+  folder** (e.g. `\input{../../.ssh/id_rsa}` in someone else's source); such
+  inputs are skipped with a warning. The brace-less `\input file` form is now
+  inlined too instead of silently dropped.
+- **Ctrl-C** during a run exits at once instead of waiting for in-flight
+  calls (up to the 30-minute relay timeout).
+- An unexpected error in one reviewer or the area chair no longer crashes the
+  run and loses the other (paid) reviews; Ollama 5xx are retried and a
+  non-JSON Ollama response is a clean error.
+- **Relay:** a half-written `.ans.md` is no longer read; the answer is taken
+  once it is a complete JSON object or stops changing.
+- Custom agents with `stdin = false` refuse Windows `.cmd`/`.bat` launchers,
+  where cmd.exe would interpret `&`, `|`, `%VAR%` in the paper text.
+- **Config:** wrong value types are reported as config errors instead of a
+  traceback; `[agents.x]` without `command` is rejected; `seed` in
+  `[[reviewer]]` is now honoured; `--reviewers N` keeps the configured
+  reviewers (backends, models) and only adds or drops some.
+- `prebuttal note` / `rename` / `rm` no longer delete unreadable lines from
+  the run history; `prebuttal diff` keeps reviewers that share a persona.
+
 ## [0.3.0] — 2026-10-26
 
 ### Added

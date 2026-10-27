@@ -61,6 +61,24 @@ def test_pack_deterministic():
     assert a == b
 
 
+def test_pack_title_and_abstract_on_separate_lines():
+    pack = render_pack(_paper())
+    assert pack.startswith("# Submission under review — Pack Test\n\n## Abstract\n\n")
+
+
+def test_pack_summarizer_runs_once_per_cut_section():
+    calls: list[str] = []
+
+    def summarize(heading: str, text: str) -> str:
+        calls.append(heading)
+        return f"summary of {heading}"
+
+    pack = render_pack(_paper(big=True), budget_chars=20_000, summarizer=summarize)
+    assert calls, "a tight budget must summarize something"
+    assert len(calls) == len(set(calls)), f"a section was summarized twice: {calls}"
+    assert all(f"summary of {h}" in pack for h in calls)
+
+
 def test_estimate_tokens():
     assert estimate_tokens(4000) == 1000
 

@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from typing import Any
 
@@ -369,22 +369,43 @@ def run_reviews(
     log: Log,
 ) -> list[Review]:
     reviews: list[Review] = [None] * len(cfg.reviewers)  # type: ignore[list-item]
+
+    def work(idx: int, rcfg, provider: BaseProvider, delay: float) -> None:
+        try:
+            reviews[idx] = run_one_reviewer(rcfg, idx, venue, pack, provider, cfg, log, delay)
+        except Exception as e:  # a bug in one reviewer must not lose the others' (paid) work
+            log(f"[{rcfg.id}] FAILED: unexpected {type(e).__name__}: {e}")
+            reviews[idx] = Review(
+                reviewer_id=rcfg.id,
+                persona=rcfg.persona,
+                backend=provider.backend,
+                model=provider.model,
+                temperature=rcfg.temperature,
+                seed=reviewer_seed(cfg, rcfg, idx),
+                error=f"unexpected {type(e).__name__}: {e}",
+            )
+
+    # Daemon threads, not a ThreadPoolExecutor: an executor joins its workers
+    # on exit, so Ctrl-C would wait for every in-flight call (a relay poll can
+    # take 30 minutes).
+    threads = []
     # ":free" models draw from a shared, burst-hostile upstream pool: dispatch
     # them a few seconds apart instead of all in the same instant.
     free_seen = 0
-    with ThreadPoolExecutor(max_workers=max(1, len(cfg.reviewers))) as pool:
-        futures = {}
-        for idx, rcfg in enumerate(cfg.reviewers):
-            provider = providers[rcfg.id]
-            delay = 0.0
-            if provider.model.endswith(":free"):
-                delay = free_seen * 6.0
-                free_seen += 1
-            fut = pool.submit(run_one_reviewer, rcfg, idx, venue, pack, provider, cfg, log, delay)
-            futures[fut] = idx
-        for fut in as_completed(futures):
-            idx = futures[fut]
-            reviews[idx] = fut.result()
+    for idx, rcfg in enumerate(cfg.reviewers):
+        provider = providers[rcfg.id]
+        delay = 0.0
+        if provider.model.endswith(":free"):
+            delay = free_seen * 6.0
+            free_seen += 1
+        t = threading.Thread(
+            target=work, args=(idx, rcfg, provider, delay), name=f"prebuttal-{rcfg.id}", daemon=True
+        )
+        t.start()
+        threads.append(t)
+    for t in threads:
+        while t.is_alive():
+            t.join(0.25)  # short joins keep Ctrl-C deliverable (notably on Windows)
     return reviews
 
 
@@ -413,10 +434,11 @@ def run_meta(
             max_tokens=min(cfg.max_tokens, 6000),  # meta-review + revision plan
             retries=free_tier_retries(provider, cfg.retries),
         )
-    except ProviderError as e:
-        meta.error = str(e)
+    except Exception as e:  # never lose the finished reviews to a crash here
+        unexpected = not isinstance(e, ProviderError)
+        meta.error = f"unexpected {type(e).__name__}: {e}" if unexpected else str(e)
         meta.duration_s = time.monotonic() - t0
-        log(f"[AC] FAILED: {e}")
+        log(f"[AC] FAILED: {meta.error}")
         return meta
 
     meta.usage = comp.usage

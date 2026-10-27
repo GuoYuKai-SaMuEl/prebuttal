@@ -679,3 +679,41 @@ def test_overload_retry_budget_and_repair_pass(monkeypatch):
     with pytest.raises(ProviderError):
         provider.complete(system="S", user="U", retries=0)  # repair pass: no retries
     assert calls["n"] == 1
+
+
+def test_agent_cli_refuses_paper_in_argv_of_a_batch_launcher(monkeypatch):
+    """cmd.exe re-parses .cmd/.bat arguments: paper text must never go there."""
+    from prebuttal.providers import agent_cli
+    from prebuttal.providers.agent_cli import AgentCLIProvider
+    from prebuttal.providers.base import ProviderError
+
+    monkeypatch.setattr(agent_cli.os, "name", "nt")
+    monkeypatch.setattr(agent_cli.shutil, "which", lambda name: r"C:\tools\myagent.CMD")
+    ran: list = []
+    monkeypatch.setattr(agent_cli.subprocess, "run", lambda *a, **k: ran.append(a))
+    p = AgentCLIProvider("agent-mine", ["myagent"], stdin=False)
+    with pytest.raises(ProviderError, match="stdin = true"):
+        p.complete(system="s", user="Table & | %PATH%", retries=0)
+    assert ran == []
+
+
+def test_ollama_bad_responses_are_provider_errors(monkeypatch):
+    from prebuttal.providers import ollama
+    from prebuttal.providers.base import ProviderError, TransientProviderError
+
+    class R:
+        def __init__(self, code, text):
+            self.status_code, self.text = code, text
+
+        def json(self):
+            import json as _json
+
+            return _json.loads(self.text)
+
+    p = ollama.OllamaProvider(model="m")
+    monkeypatch.setattr(ollama.httpx, "post", lambda *a, **k: R(200, "<html>proxy</html>"))
+    with pytest.raises(ProviderError, match="non-JSON"):
+        p._complete(system="s", user="u", temperature=0, seed=None, max_tokens=10)
+    monkeypatch.setattr(ollama.httpx, "post", lambda *a, **k: R(500, "loading model"))
+    with pytest.raises(TransientProviderError):
+        p._complete(system="s", user="u", temperature=0, seed=None, max_tokens=10)

@@ -147,6 +147,52 @@ def test_input_relative_to_including_file_still_works(tmp_path):
     assert paper.warnings == [] or not any("not found" in w for w in paper.warnings)
 
 
+def test_input_outside_the_project_is_not_read(tmp_path):
+    """The merged text goes to a model provider: a hostile source must not be
+    able to pull in ~/.ssh keys or other local files via \\input."""
+    secret = tmp_path / "secret.txt"
+    secret.write_text("TOP-SECRET-KEY\n", encoding="utf-8")
+    proj = tmp_path / "paper"
+    proj.mkdir()
+    (proj / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}\\section{Intro}\n"
+        f"A \\input{{../secret.txt}} B \\input{{{secret.as_posix()}}} C\n"
+        "\\end{document}",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(proj)
+    text = paper.sections[0].text
+    assert "TOP-SECRET-KEY" not in text
+    assert "A B C" in " ".join(text.split())
+    assert sum("outside the paper's folder" in w for w in paper.warnings) == 2
+
+
+def test_input_from_a_subfolder_root_may_reach_the_project_folder(tmp_path):
+    """The project folder passed on the command line is the boundary, not the
+    root file's own folder."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "shared.tex").write_text("SHARED-TEXT\n", encoding="utf-8")
+    (tmp_path / "src" / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}\\section{Intro}"
+        "\\input{../shared}\\end{document}",
+        encoding="utf-8",
+    )
+    assert "SHARED-TEXT" in ingest_latex_source(tmp_path).sections[0].text
+
+
+def test_bare_input_without_braces(tmp_path):
+    (tmp_path / "sections").mkdir()
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\section{Intro}\n"
+        "\\input sections/body\n\\includegraphics{fig.png}\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "sections" / "body.tex").write_text("BARE-INPUT-TEXT\n", encoding="utf-8")
+    paper = ingest_latex_source(tmp_path)
+    assert "BARE-INPUT-TEXT" in paper.sections[0].text
+    assert not any("fig.png" in w for w in paper.warnings)
+
+
 def test_single_tex_file(tmp_path):
     (tmp_path / "solo.tex").write_text(
         r"\documentclass{article}\begin{document}\title{Solo}\maketitle"
