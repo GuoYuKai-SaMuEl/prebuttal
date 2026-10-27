@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import html
+import re
 
 from .models import ReviewReport, param_support
 from .venues import Venue
+
+# the warning prebuttal.ingestion.hidden writes for text hidden from readers
+_HIDDEN_RE = re.compile(r"(LIKELY PROMPT INJECTION|text hidden from human readers)\b")
 
 _SUMMARY_CHARS = 520
 _ITEM_CHARS = 220
@@ -108,6 +112,17 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
 
     backends = " · ".join(f"{_e(rev.reviewer_id)}: {_e(rev.backend)}" for rev in r.reviews)
 
+    # hidden text first and loud: this page is what gets forwarded to co-authors
+    hidden = [w for w in r.paper.warnings if _HIDDEN_RE.match(w)]
+    notes = [w for w in r.paper.warnings if not _HIDDEN_RE.match(w)]
+    warn_html = "".join(f'\n  <div class="alert">⚠ {_e(w)}</div>' for w in hidden)
+    if notes:
+        lis = "".join(f"<li>{_e(w)}</li>" for w in notes)
+        warn_html += (
+            f'\n  <details class="notes"><summary>Ingestion notes ({len(notes)})</summary>'
+            f"<ul>{lis}</ul></details>"
+        )
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -143,6 +158,10 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   .meta {{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }}
   .meta h2 {{ font-size:16px; margin:0 0 8px; }}
   .est {{ font-weight:700; margin-bottom:6px; }}
+  .alert {{ background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px;
+           padding:10px 14px; margin:14px 0; font-size:14px; font-weight:600; }}
+  .notes {{ color:var(--mut); font-size:13px; margin:10px 0; }}
+  .notes ul {{ margin:6px 0 0; padding-left:18px; }}
   .plan ol {{ margin:0; padding-left:20px; }} .plan li {{ margin:0 0 10px; }}
   .prio {{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
           border-radius:999px; padding:1px 8px; margin-right:4px; }}
@@ -162,7 +181,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     <h1>{title}</h1>
     <div class="meta-line">{venue_name} · simulated review · {r.run.generated_at}{seed_note}</div>
     <div class="meta-line">backends: {backends}</div>
-  </header>
+  </header>{warn_html}
   <div class="hero">{score_html}
     <div class="hero-note">Three independent AI reviewers, isolated contexts, plus an
     area chair. This is a <b>pre-submission stress test</b>, not a prediction.</div>

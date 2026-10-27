@@ -27,7 +27,8 @@ releases (0.2, 0.3, …) are substantial new features.
   the first ingestion warning, flagged as **likely prompt injection** when it
   addresses reviewers or AI systems, and quoted to the reviewers in a tool
   note so protocol rule 6 can apply. No false alarms on the Transformer, ViT,
-  LoRA, DPO and Mamba PDFs.
+  LoRA, DPO and Mamba PDFs. The HTML share page shows it as a
+  red alert at the top (other ingestion notes folded below it).
 - **`prebuttal diff --llm`** matches the previous run's revision plan
   against the new run by meaning, with one call to the AC's backend
   (`--backend` / `--model` to pick another): an issue reworded in round B no
