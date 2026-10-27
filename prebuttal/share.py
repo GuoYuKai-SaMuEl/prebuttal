@@ -123,7 +123,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     if notes:
         lis = "".join(f"<li>{_e(w)}</li>" for w in notes)
         warn_html += (
-            f'\n  <details class="notes"><summary>Ingestion notes ({len(notes)})</summary>'
+            f'\n  <details class="notes"><summary>Notes ({len(notes)})</summary>'
             f"<ul>{lis}</ul></details>"
         )
 

@@ -38,7 +38,13 @@ def parse_arxiv_id(source: str) -> str | None:
 MAX_PDF_BYTES = 100 * 1024 * 1024
 
 
+# the last paper fetched: `run` ingests it and then checks it — one download
+_LAST: dict[str, bytes] = {}
+
+
 def fetch_pdf_bytes(arxiv_id: str, *, max_bytes: int = MAX_PDF_BYTES) -> bytes:
+    if arxiv_id in _LAST and len(_LAST[arxiv_id]) <= max_bytes:
+        return _LAST[arxiv_id]
     url = f"https://arxiv.org/pdf/{arxiv_id}"
     try:
         with httpx.stream(
@@ -60,7 +66,9 @@ def fetch_pdf_bytes(arxiv_id: str, *, max_bytes: int = MAX_PDF_BYTES) -> bytes:
         raise ArxivError(f"cannot reach arxiv.org: {e}") from e
     if not buf[:5] == b"%PDF-":
         raise ArxivError(f"{url} did not return a PDF (got {ctype})")
-    return bytes(buf)
+    _LAST.clear()
+    _LAST[arxiv_id] = bytes(buf)
+    return _LAST[arxiv_id]
 
 
 def fetch_title(arxiv_id: str) -> str | None:

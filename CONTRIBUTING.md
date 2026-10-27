@@ -33,7 +33,10 @@ Forms are plain text: `prebuttal/venues/forms/<venue>.md` (what the reviewer
 sees) plus an entry in `prebuttal/venues/__init__.py` (fields, scales, anchor
 labels — what the JSON parser and report renderer use). Scales drift every
 year; PRs that re-anchor them against the official reviewer guidelines are
-especially welcome (link the official page in the PR).
+especially welcome (link the official page in the PR). The same goes for each
+venue's `CheckRules` (page limit, required sections, camera-ready markers that
+`prebuttal check` uses): update them when a new call comes out, and set
+`source` to that call's URL.
 
 ### 2. Add a persona
 

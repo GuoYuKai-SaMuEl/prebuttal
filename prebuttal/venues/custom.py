@@ -25,6 +25,11 @@ writes a commented template.  A file looks like::
     max = 6                       # scores run from 1 to max
     anchors = { "1" = "Reject", "6" = "Strong accept" }
 
+    [checks]                      # optional: what `prebuttal check` holds it to
+    double_blind = true
+    page_limit = 8                # main-text pages
+    required_sections = ["Limitations"]
+
 The form text is shown to reviewers verbatim, exactly like the built-in forms;
 the fields drive the JSON reviewers must return and every report.
 """
@@ -38,14 +43,15 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from . import VENUES, Venue, VenueError, VenueField
+from . import VENUES, CheckRules, Venue, VenueError, VenueField
 
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 KINDS = ("text", "list", "score")
 MAX_FORM_CHARS = 20_000
 
-_TOP_KEYS = {"name", "form", "form_text", "rating", "confidence", "fields"}
+_TOP_KEYS = {"name", "form", "form_text", "rating", "confidence", "fields", "checks"}
+_CHECK_KEYS = {"double_blind", "page_limit", "required_sections", "uncounted"}
 _FIELD_KEYS = {"key", "label", "kind", "required", "max", "half_steps", "anchors"}
 
 
@@ -151,6 +157,35 @@ def venue_from_spec(key: str, spec: dict[str, Any], *, form: str | None, origin:
         form_file="",
         form_body=form,
         origin=origin,
+        rules=_checks(spec.get("checks", {})),
+    )
+
+
+def _checks(c: Any) -> CheckRules:
+    if not isinstance(c, dict):
+        raise VenueError("[checks] must be a table")
+    unknown = set(c) - _CHECK_KEYS
+    if unknown:
+        raise VenueError(f"[checks]: unknown setting(s) {', '.join(sorted(unknown))}")
+    blind = c.get("double_blind", True)
+    if not isinstance(blind, bool):
+        raise VenueError("[checks]: double_blind must be true or false")
+    limit = c.get("page_limit")
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit < 1):
+        raise VenueError("[checks]: page_limit must be a whole number of pages")
+    lists = {}
+    for k in ("required_sections", "uncounted"):
+        v = c.get(k, [])
+        if not isinstance(v, list) or not all(isinstance(s, str) and s.strip() for s in v):
+            raise VenueError(f'[checks]: {k} must be a list of headings, e.g. ["Limitations"]')
+        lists[k] = tuple(s.strip() for s in v)
+    base = CheckRules()
+    return CheckRules(
+        double_blind=blind,
+        page_limit=limit,
+        required_sections=lists["required_sections"],
+        # the venue's own uncounted headings come on top of References & co.
+        uncounted=base.uncounted + lists["uncounted"],
     )
 
 
@@ -258,6 +293,7 @@ def _q(s: str) -> str:
 
 def render_template(key: str, base: Venue | None = None) -> tuple[str, str]:
     """(venue TOML, form markdown) for ``prebuttal venues new``."""
+    rules = base.rules if base is not None else CheckRules(page_limit=None)
     if base is not None:
         name = f"{base.name} (custom)"
         fields = base.fields
@@ -330,4 +366,20 @@ def render_template(key: str, base: Venue | None = None) -> tuple[str, str]:
                 lines.append("[fields.anchors]")
                 for k in sorted(f.anchors, key=float):
                     lines.append(f"{_q(k)} = {_q(f.anchors[k])}")
+    lines += [
+        "",
+        "# What `prebuttal check` holds a submission to (all optional).",
+        "[checks]",
+        f"double_blind = {'true' if rules.double_blind else 'false'}",
+    ]
+    if rules.page_limit:
+        lines.append(f"page_limit = {rules.page_limit}  # main-text pages")
+    else:
+        lines.append("# page_limit = 8  # main-text pages")
+    extra = [s for s in rules.uncounted if s not in CheckRules().uncounted]
+    lines.append(f"required_sections = [{', '.join(_q(s) for s in rules.required_sections)}]")
+    lines.append(
+        f"uncounted = [{', '.join(_q(s) for s in extra)}]  "
+        "# headings after which pages stop counting (References always do)"
+    )
     return "\n".join(lines) + "\n", form

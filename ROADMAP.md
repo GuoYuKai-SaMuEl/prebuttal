@@ -15,15 +15,13 @@ in particular *fewer parameters, simpler commands*.
   plan, checked against the next run by `prebuttal diff`.
 - **0.4** — robustness: `prebuttal retry`, partial runs saved on Ctrl-C,
   hidden-text / prompt-injection warnings, `diff --llm`, a trust gate for
-  discovered configs, figures for vision backends.
+  discovered configs, figures for vision backends; 0.4.1 hardened relay,
+  LaTeX ingestion, agent-CLI arguments and key storage.
+- **0.5** — nothing leaks before submission: `prebuttal check`, agent CLIs
+  without any tool that reads files, and `backends` as the one setup view.
+  Details below, kept as the record of what was planned.
 
-## 0.4.x — hardening
-
-Fixes from a deep review of the riskier components (ingestion, relay,
-archive, share page, providers) and small dependency hygiene, e.g. declaring
-Pillow directly instead of relying on pdfplumber to pull it in.
-
-## 0.5 — nothing leaks before submission
+## 0.5 — nothing leaks before submission (released)
 
 The paper must not leak its authors; the tool must not leak your keys.
 
@@ -61,6 +59,10 @@ The paper must not leak its authors; the tool must not leak your keys.
 Done when: `check` raises no false alarms on the sample papers and catches
 every planted problem in deliberately broken ones; the key threat model is
 written down with tests; the command list is shorter with no lost function.
+
+Outcome: as planned, except the run-history commands, which stayed — each
+does one job, and every merge tried needed a new flag or an overloaded
+argument. `models` and `key status` are hidden aliases until 0.6.
 
 ## 0.6 — a revision loop you can trust
 

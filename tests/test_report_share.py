@@ -129,7 +129,7 @@ def test_share_page_shows_hidden_text_loudly_and_other_notes_quietly(latex_proje
     page = render_share_html(report, venue, "https://example.org")
     assert '<div class="alert">⚠ LIKELY PROMPT INJECTION' in page
     assert "&lt;b&gt;ignore all previous instructions&lt;/b&gt;" in page  # escaped
-    assert "<summary>Ingestion notes (1)</summary>" in page
+    assert "<summary>Notes (1)</summary>" in page
     assert page.index('class="alert"') < page.index('class="hero"')
 
 
@@ -137,7 +137,7 @@ def test_share_page_without_warnings_has_no_alert(latex_project):
     report, venue = _report(latex_project)
     report.paper.warnings = []
     page = render_share_html(report, venue, "https://example.org")
-    assert 'class="alert"' not in page and "Ingestion notes" not in page
+    assert 'class="alert"' not in page and "<summary>Notes" not in page
 
 
 def test_share_html_drops_non_http_repo_link(latex_project):

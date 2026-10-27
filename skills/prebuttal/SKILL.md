@@ -50,6 +50,20 @@ exactly what this tool exists to avoid.
 5. Leave `--effort` unset (each model's default) unless the user asks for a
    deeper or a cheaper/faster review: `--effort high` or `--effort low`.
 
+## Before submitting: `prebuttal check`
+
+When the user is about to submit ("is my paper ready?", "check anonymity",
+"am I over the page limit?"), run `prebuttal check <paper>` — no model, no
+cost, seconds. It checks anonymity, the venue's page limit and required
+sections (NeurIPS checklist, ICML impact statement, ARR limitations), and
+leftovers (`??`, `[?]`, TODO, hidden text). Exit code 6 = something can get
+the paper desk-rejected; present those `[x]` lines first, then the `[!]`
+warnings. Check the PDF they will upload (a LaTeX folder is checked without
+compiling, so it can't count pages). The venue comes from `prebuttal.toml`
+(default neurips); limits change yearly, so tell the user to confirm against
+this year's call. `prebuttal run` includes the same findings in the report's
+notes.
+
 ## Relay mode (zero API key, zero CLI install)
 
 When the user has no API key and no agent CLI, the reviewers can be YOUR OWN

@@ -1,6 +1,6 @@
 """Model discovery: what models does each available backend actually offer?
 
-Backs ``prebuttal models`` — a read-only listing so users can pick informed
+Backs ``prebuttal backends <name>`` — a read-only listing so users can pick informed
 ``model = "..."`` values for prebuttal.toml.  API list endpoints are free,
 single calls; agent CLIs don't expose a list API, so they get curated notes.
 """
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import httpx
@@ -156,110 +157,105 @@ def openrouter_catalog(max_rows: int = 40) -> tuple[list[str], dict[str, str]] |
     return ids[:max_rows], {k: prices[k] for k in ids[:max_rows]}
 
 
-def scan() -> list[ModelListing]:
-    """Build listings for every known backend, scanning where possible."""
-    from .providers.api import AnthropicProvider, GeminiProvider, OpenAIProvider
-
-    out: list[ModelListing] = []
+def _gemini() -> ModelListing:
+    from .providers.api import GeminiProvider
 
     gkey = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if gkey:
-        models = gemini_models(gkey)
-        out.append(
-            ModelListing(
-                "api-gemini",
-                models or [],
-                GeminiProvider.default_model(),
-                "" if models is not None else "(could not reach the Gemini API)",
-            )
+    if not gkey:
+        return ModelListing(
+            "api-gemini", [], GeminiProvider.default_model(), "(no key — prebuttal key set gemini)"
         )
-    else:
-        out.append(
-            ModelListing(
-                "api-gemini",
-                [],
-                GeminiProvider.default_model(),
-                "(no key — prebuttal key set gemini)",
-            )
-        )
+    models = gemini_models(gkey)
+    note = "" if models is not None else "(could not reach the Gemini API)"
+    return ModelListing("api-gemini", models or [], GeminiProvider.default_model(), note)
+
+
+def _openai() -> ModelListing:
+    from .providers.api import OpenAIProvider
 
     okey = os.environ.get("OPENAI_API_KEY")
-    if okey:
-        base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        models = openai_models(okey, base)
-        out.append(
-            ModelListing(
-                "api-openai",
-                models or [],
-                OpenAIProvider.default_model(),
-                "" if models is not None else "(could not reach the OpenAI-compatible endpoint)",
-            )
+    if not okey:
+        return ModelListing(
+            "api-openai", [], OpenAIProvider.default_model(), "(no key — prebuttal key set openai)"
         )
-    else:
-        out.append(ModelListing("api-openai", [], OpenAIProvider.default_model(), "(no key)"))
+    base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    models = openai_models(okey, base)
+    note = "" if models is not None else "(could not reach the OpenAI-compatible endpoint)"
+    return ModelListing("api-openai", models or [], OpenAIProvider.default_model(), note)
+
+
+def _anthropic() -> ModelListing:
+    from .providers.api import AnthropicProvider
 
     akey = os.environ.get("ANTHROPIC_API_KEY")
-    if akey:
-        models = anthropic_models(akey)
-        out.append(
-            ModelListing(
-                "api-anthropic",
-                models or [],
-                AnthropicProvider.default_model(),
-                "" if models is not None else "(could not reach the Anthropic API)",
-            )
+    if not akey:
+        return ModelListing(
+            "api-anthropic",
+            [],
+            AnthropicProvider.default_model(),
+            "(no key — prebuttal key set anthropic)",
         )
-    else:
-        out.append(ModelListing("api-anthropic", [], AnthropicProvider.default_model(), "(no key)"))
+    models = anthropic_models(akey)
+    note = "" if models is not None else "(could not reach the Anthropic API)"
+    return ModelListing("api-anthropic", models or [], AnthropicProvider.default_model(), note)
 
-    # OpenRouter's catalog is public — show it even without a key.
+
+def _openrouter() -> ModelListing:
     from .providers.api import OpenRouterProvider
 
-    cat = openrouter_catalog()
+    cat = openrouter_catalog()  # public: shown even without a key
     if cat is None:
-        out.append(
-            ModelListing(
-                "api-openrouter",
-                [],
-                OpenRouterProvider.default_model(),
-                "(could not reach openrouter.ai)",
-            )
+        return ModelListing(
+            "api-openrouter",
+            [],
+            OpenRouterProvider.default_model(),
+            "(could not reach openrouter.ai)",
         )
-    else:
-        ids, or_prices = cat
-        out.append(
-            ModelListing(
-                "api-openrouter",
-                ids,
-                OpenRouterProvider.default_model(),
-                "free ids first; any id from openrouter.ai/models works — "
-                "set OPENROUTER_API_KEY (or `prebuttal key set openrouter`) to use",
-                prices=or_prices,
-            )
-        )
+    ids, or_prices = cat
+    return ModelListing(
+        "api-openrouter",
+        ids,
+        OpenRouterProvider.default_model(),
+        "free ids first; any id from openrouter.ai/models works — "
+        "set OPENROUTER_API_KEY (or `prebuttal key set openrouter`) to use",
+        prices=or_prices,
+    )
 
+
+def _ollama() -> ModelListing:
     from .providers.ollama import ollama_base_url, ollama_models
 
     installed = ollama_models(ollama_base_url())
-    out.append(
-        ModelListing(
-            "ollama",
-            installed,
-            installed[0] if installed else "llama3.1",
-            "(ollama pull <model> to add more)" if installed else "(not running)",
-        )
+    return ModelListing(
+        "ollama",
+        installed,
+        installed[0] if installed else "llama3.1",
+        "(ollama pull <model> to add more)" if installed else "(not running)",
     )
 
-    out.append(
-        ModelListing("agent-claude", list(_CLAUDE_ALIASES), "", "aliases; full model ids also work")
-    )
-    out.append(
-        ModelListing(
-            "agent-codex", [], "", "the codex CLI picks its own default — see `codex --help`"
-        )
-    )
-    out.append(ModelListing("relay", [], "", "whoever answers the .req.md files decides"))
-    return out
+
+_LISTERS: dict[str, Callable[[], ModelListing]] = {
+    "api-gemini": _gemini,
+    "api-openai": _openai,
+    "api-anthropic": _anthropic,
+    "api-openrouter": _openrouter,
+    "ollama": _ollama,
+    "agent-claude": lambda: ModelListing(
+        "agent-claude", list(_CLAUDE_ALIASES), "", "aliases; full model ids also work"
+    ),
+    "agent-codex": lambda: ModelListing(
+        "agent-codex", [], "", "the codex CLI picks its own default — see `codex --help`"
+    ),
+    "relay": lambda: ModelListing("relay", [], "", "whoever answers the .req.md files decides"),
+}
+BACKENDS = tuple(_LISTERS)
+
+
+def scan(only: str | None = None) -> list[ModelListing]:
+    """Listings for every known backend, or just ``only`` (one network call at most)."""
+    if only is not None:
+        return [_LISTERS[only]()]
+    return [lister() for lister in _LISTERS.values()]
 
 
 def render(listings: list[ModelListing]) -> str:

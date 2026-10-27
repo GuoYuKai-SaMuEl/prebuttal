@@ -46,6 +46,7 @@ pip install prebuttal
 prebuttal run paper.pdf --venue iclr
 prebuttal run https://arxiv.org/abs/2510.12345 --venue neurips
 prebuttal run ./latex-src/ --venue acl
+prebuttal check paper.pdf          # desk-reject pre-flight: no model, no cost
 ```
 
 Prefer an isolated install for command-line tools? `pipx install prebuttal`
@@ -62,7 +63,7 @@ chose (`prebuttal backends` to inspect):
 | `agent-codex` (`codex exec`) | your Codex subscription, **zero API key** | gives cross-model reviews together with claude; runs locked down, ignoring `~/.codex/config.toml` (see [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md)) |
 | `api-gemini` | GEMINI_API_KEY | **free tier** — the cheapest "first key" path |
 | `api-openai` / `api-anthropic` | OPENAI_API_KEY / ANTHROPIC_API_KEY | BYO key |
-| `api-openrouter` | OPENROUTER_API_KEY | one key, hundreds of models — **`:free` ids cost nothing** (default is one); prices shown live in `prebuttal models` |
+| `api-openrouter` | OPENROUTER_API_KEY | one key, hundreds of models — **`:free` ids cost nothing** (default is one); prices shown live in `prebuttal backends api-openrouter` |
 | `ollama` | none | local & private — *unpublished papers never leave your machine* (with the default localhost host) |
 | `relay` | none | file protocol: prompts spool to disk and **you, your agent's subagents, or any system** write the answers — zero key, explicit only (`--backend relay`; never picked by auto) |
 
@@ -93,12 +94,41 @@ anything — press Enter to run, `e` to re-pick each reviewer's persona, backend
 and model via numbered menus, or `n` to abort. CI and pipes get the plan
 printed and proceed automatically; fully-explicit configs never prompt.
 
-`prebuttal models` lists every backend's actually-available models (live API
-scan + installed Ollama models + claude aliases) with the current default
-marked — pick one and set `model = "..."` per reviewer in prebuttal.toml.
+`prebuttal backends` is the one setup view: every backend, whether it's
+ready, where its access comes from (CLI login, env var or stored key —
+masked) and its default model. `prebuttal backends <name>` lists that
+backend's actually-available models (live API scan, installed Ollama models,
+claude aliases) with the default marked — pick one and set `model = "..."`
+per reviewer in prebuttal.toml.
 Built-in defaults are mid-tier models current at release time and change
 between versions — providers retire model ids quickly, so if a default stops
 working, upgrade prebuttal or pin a model yourself.
+
+## Before you submit: `prebuttal check`
+
+A deterministic desk-reject pre-flight — no model, no cost, a few seconds:
+
+```bash
+prebuttal check paper.pdf        # the PDF you will upload
+prebuttal check ./latex-src/     # the LaTeX project, without compiling
+```
+
+It holds the paper to the venue's rules (from `prebuttal.toml`, default
+`neurips`): **anonymity** (author names in the PDF metadata, e-mail addresses
+on page 1, a camera-ready or `[preprint]` build, a visible acknowledgements
+section, links to your own repository, "our previous work [12]"), **format**
+(main-text pages over the limit, a missing NeurIPS checklist / ICML impact
+statement / ARR limitations section) and **leftovers** (`??` references,
+`[?]` citations, TODOs, text hidden from human readers). A LaTeX project is
+checked without compiling — every `\ref` needs a `\label`, every `\cite` a
+bibliography entry — and the page limit needs the PDF. Exit code 6 means
+something can get the paper desk-rejected, so it drops into CI as is.
+
+`prebuttal run` does the same check first and lists what it found in the
+report's notes. Limits change every year: the output names the call each
+rule came from, so confirm against this year's CFP. Custom venues set their
+own rules in a `[checks]` table (`double_blind`, `page_limit`,
+`required_sections`).
 
 ## The reviewers
 
@@ -360,8 +390,10 @@ prebuttal key set gemini     # quick setup: hidden prompt, stored for next time
 
 Stored keys live in `~/.prebuttal/keys.env` (user-only permissions, like
 `~/.aws/credentials`); real environment variables always take precedence, so
-CI setups are unaffected. `prebuttal key status` shows what's set (masked),
-`prebuttal key unset <name>` removes one.
+CI setups are unaffected. `prebuttal backends` shows what's set (masked) and
+where it comes from; `prebuttal key unset <name>` removes a stored key. Agent
+CLIs never get stored keys in their environment and are given no tool that
+could read the file (see [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md)).
 
 | Variable | Purpose |
 |---|---|
@@ -384,6 +416,7 @@ reports, JSON, or share pages.
 | 3 | no review backend available |
 | 4 | partial failure (some reviewers or the AC failed; report still written) |
 | 5 | every reviewer failed |
+| 6 | `prebuttal check` found something that can get the paper desk-rejected |
 | 130 | interrupted (Ctrl+C); reviews that had finished are archived — `prebuttal retry` completes the run |
 
 ## Comparison
@@ -421,9 +454,9 @@ additions; **minor** releases are substantial new features; 1.0 only once the
 interface is battle-tested. Tentative, in short (details in
 [ROADMAP.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md)):
 
-1. **0.5 — nothing leaks before submission**: `prebuttal check` (anonymity,
-   page limits, leftover `??`), API keys out of reach of agent CLIs, and a
-   smaller command set
+1. **0.5 (current) — nothing leaks before submission**: `prebuttal check`
+   (anonymity, page limits, leftover `??`), agent CLIs with no tool that can
+   read your stored keys, and `backends` as the one setup view
 2. **0.6 — a revision loop you can trust**: repeated reviews, a diff that
    says when a change is within noise, meaning-based matching by default
 3. **0.7 — reach**: more venues, community personas, a GitHub Action for

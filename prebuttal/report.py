@@ -162,7 +162,7 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     out.append("")
 
     if r.paper.warnings:
-        out.append("**Ingestion warnings:** " + "; ".join(r.paper.warnings))
+        out.append("**Notes:** " + "; ".join(r.paper.warnings))
         out.append("")
 
     # --- revision plan (the AC's, distilled from all reviews)

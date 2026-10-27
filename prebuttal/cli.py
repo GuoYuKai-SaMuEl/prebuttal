@@ -3,10 +3,11 @@
 Commands:
   prebuttal run <paper>       review a PDF / LaTeX project / arXiv link
   prebuttal retry [run]       re-run only the reviewers that failed, then the AC
+  prebuttal check <paper>     desk-reject pre-flight (anonymity, page limit, ??) — no model
   prebuttal projects          list papers (one project per paper, runs grouped)
   prebuttal runs [project]    list runs; show / open / diff / note / rm / export them
   prebuttal dashboard         local HTML overview of every project and run
-  prebuttal backends          show detected backends
+  prebuttal backends [name]   what you can review with (auth, models)
   prebuttal init              write a sample prebuttal.toml
 
 Runs are referenced as ``latest`` (default), ``<project>`` (its newest run),
@@ -82,6 +83,7 @@ EXIT_USAGE = 2
 EXIT_NO_BACKEND = 3
 EXIT_PARTIAL = 4
 EXIT_ALL_FAILED = 5
+EXIT_CHECK_FAILED = 6  # `check` found something that can get the paper desk-rejected
 
 
 def _log(msg: str) -> None:
@@ -95,7 +97,8 @@ def build_parser() -> argparse.ArgumentParser:
         "plus an area chair, real conference review forms.",
     )
     parser.add_argument("--version", action="version", version=f"prebuttal {__version__}")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    # commands added without help= stay out of the listing (hidden aliases)
+    sub = parser.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
     # no abbreviations: `--out x` must not silently mean `--out-dir x`
     run = sub.add_parser(
@@ -166,7 +169,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     retry_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
 
-    sub.add_parser("backends", help="list detected review backends")
+    check_p = sub.add_parser(
+        "check",
+        help="desk-reject pre-flight: anonymity, page limit, required sections, ?? — no model",
+    )
+    check_p.add_argument("paper", help="path to .pdf, LaTeX project dir, or arXiv link/id")
+
+    backends_p = sub.add_parser(
+        "backends", help="what you can review with: backends, their auth and default models"
+    )
+    backends_p.add_argument(
+        "backend", nargs="?", default=None, help="list this backend's models instead"
+    )
 
     init = sub.add_parser("init", help="write a sample prebuttal.toml")
     init.add_argument("--force", action="store_true", help="overwrite existing file")
@@ -238,16 +252,16 @@ def build_parser() -> argparse.ArgumentParser:
     dash_p = sub.add_parser("dashboard", help="write and open a local HTML overview of all runs")
     dash_p.add_argument("--no-open", action="store_true", help="write the file, don't open it")
 
-    key_p = sub.add_parser("key", help="store API keys for quick setup")
-    key_sub = key_p.add_subparsers(dest="key_cmd", required=True)
+    key_p = sub.add_parser("key", help="store or remove an API key (status: prebuttal backends)")
+    key_sub = key_p.add_subparsers(dest="key_cmd", required=True, metavar="{set,unset}")
     key_set = key_sub.add_parser("set", help="store a key (prompted, hidden input)")
     key_set.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
     key_set.add_argument("--key", default=None, help="non-interactive: pass the key directly")
-    key_sub.add_parser("status", help="show which keys are set (masked)")
+    key_sub.add_parser("status")  # hidden 0.4 alias: `prebuttal backends` shows key status
     key_unset = key_sub.add_parser("unset", help="remove a stored key")
     key_unset.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
 
-    sub.add_parser("models", help="list available models per backend (* = current default)")
+    sub.add_parser("models")  # hidden 0.4 alias of `backends <name>`
 
     ven_p = sub.add_parser("venues", help="list review forms; add your own venue")
     ven_sub = ven_p.add_subparsers(dest="venues_cmd")
@@ -270,18 +284,51 @@ def build_parser() -> argparse.ArgumentParser:
 # ------------------------------------------------------------------ commands
 
 
+_API_KEYS = {
+    "api-gemini": "GEMINI_API_KEY",
+    "api-openai": "OPENAI_API_KEY",
+    "api-anthropic": "ANTHROPIC_API_KEY",
+    "api-openrouter": "OPENROUTER_API_KEY",
+}
+
+
+def _auth(s) -> str:
+    """Where a backend's access comes from, for the one setup view."""
+    var = _API_KEYS.get(s.backend)
+    if var:
+        src = key_store.source(var)
+        if not src:
+            return s.detail  # "not set (where to get one; `prebuttal key set ...`)"
+        where = "env var" if src == "env" else "stored key"
+        return f"{where} {var} ({key_store.mask(var)})"
+    if s.backend in ("agent-claude", "agent-codex"):
+        return "CLI login (subscription)" if s.available else s.detail
+    return s.detail
+
+
 def cmd_backends(args) -> int:
-    statuses = scan_backends(None)
-    print("Detected review backends:")
+    if args.backend:
+        return _backend_models(args.backend)
+    try:
+        cfg = load_config(None)  # only to list its [agents.*]; nothing runs here
+    except ConfigError:
+        cfg = None
+    statuses = scan_backends(cfg)
+    print("Review backends ([x] = ready):")
     for s in statuses:
-        print("  " + s.line())
+        mark = "x" if s.available else " "
+        model = f"  · model {s.default_model}" if s.available and s.default_model else ""
+        print(f"  [{mark}] {s.backend:<15} {_auth(s)}{model}")
     host_agent = detect_host_agent()
     if host_agent:
         print("\nHint: " + RELAY_AGENT_HINT.format(agent=host_agent))
-    avail = auto_candidates(statuses, None)
+    avail = auto_candidates(statuses, cfg)
     if avail:
-        print(f"\nAuto mode will draw from: {', '.join(s.backend for s in avail)}")
-        print("Run `prebuttal models` to see each backend's model choices.")
+        print(f"\nAuto mode draws from: {', '.join(s.backend for s in avail)}")
+        print(
+            "Models of one backend: prebuttal backends <name>  ·  "
+            "keys: prebuttal key set|unset <name>"
+        )
         return EXIT_OK
     print("\nNo automatic backend available. Install one of:")
     print("  npm i -g @anthropic-ai/claude-code   -> agent-claude (subscription)")
@@ -291,6 +338,32 @@ def cmd_backends(args) -> int:
     print("  ollama pull llama3.1 && ollama serve -> ollama (local, private)")
     print("Or answer the reviews yourself / via your agent: prebuttal run ... --backend relay")
     return EXIT_NO_BACKEND
+
+
+def cmd_check(args) -> int:
+    from .check import CheckError, check_source, render_check
+
+    # only the venue is read from a found prebuttal.toml: nothing runs, nothing is sent
+    venue = get_venue(load_config(None).venue)
+    try:
+        result = check_source(args.paper, venue)
+    except CheckError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    print(render_check(result, venue))
+    return EXIT_CHECK_FAILED if result.errors else EXIT_OK
+
+
+def _preflight(source: str, venue) -> list[str]:
+    """`check`'s findings for `run`'s report; never fails the run."""
+    from .check import CheckError, check_source, preflight_warnings
+
+    try:
+        found = preflight_warnings(check_source(source, venue))
+        # hidden text is already reported (loudly) by ingestion
+        return [w for w in found if "hidden from human readers" not in w]
+    except (CheckError, OSError, ValueError) as e:
+        return [f"Pre-flight check skipped: {e}"]
 
 
 def cmd_init(args) -> int:
@@ -661,9 +734,26 @@ def cmd_venues(args) -> int:
     return 0
 
 
+def _backend_models(name: str) -> int:
+    from .modelscan import BACKENDS, scan
+
+    if name not in BACKENDS:
+        print(f"error: unknown backend '{name}' — one of: {', '.join(BACKENDS)}", file=sys.stderr)
+        return EXIT_USAGE
+    (listing,) = scan(only=name)
+    print(listing.render(max_rows=60))
+    print(
+        f'\nUse one per reviewer in prebuttal.toml (backend = "{name}", model = "<id>"), '
+        "or for every role of one run: prebuttal run ... --model <id>"
+    )
+    return EXIT_OK
+
+
 def cmd_models(args) -> int:
+    """Hidden 0.4 alias: every backend's models at once."""
     from .modelscan import render, scan
 
+    _log("[prebuttal] `models` is now `prebuttal backends <name>`; this alias goes in 0.6")
     print(render(scan()))
     return EXIT_OK
 
@@ -771,6 +861,7 @@ def cmd_key(args) -> int:
     import getpass
 
     if args.key_cmd == "status":
+        _log("[prebuttal] `key status` is now part of `prebuttal backends`; this alias goes in 0.6")
         print("API key status (env vars take precedence over stored keys):")
         for name, var in key_store.KEY_MAP.items():
             masked = key_store.mask(var)
@@ -892,6 +983,10 @@ def cmd_run(args) -> int:
     )
     for w in paper.warnings:
         _log(f"[prebuttal] warning: {w}")
+    preflight = _preflight(args.paper, venue)
+    paper.warnings += preflight
+    for w in preflight:
+        _log(f"[prebuttal] {w}")
 
     statuses = scan_backends(cfg)
     try:
@@ -961,6 +1056,15 @@ def cmd_run(args) -> int:
     except ProviderError as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_NO_BACKEND
+
+    custom = sorted({b for b, _m in roles if b.startswith("agent-") and b[6:] in cfg.agents})
+    if custom and key_store.keys_path().is_file():
+        # built-in agents get no file-reading tool; prebuttal can't do that for these
+        _log(
+            f"[prebuttal] note: {', '.join(custom)} run as configured — if they can read "
+            f"files, a paper's hidden text could steer them to {key_store.keys_path()} "
+            "(see SECURITY.md)"
+        )
 
     if uses_relay:
         _log(
@@ -1234,6 +1338,7 @@ def main(argv=None) -> int:
             "export": cmd_export,
             "dashboard": cmd_dashboard,
             "retry": cmd_retry,
+            "check": cmd_check,
         }
         if args.cmd in commands:
             return commands[args.cmd](args)

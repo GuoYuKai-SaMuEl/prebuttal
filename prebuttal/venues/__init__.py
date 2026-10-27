@@ -46,6 +46,25 @@ class VenueField:
 
 
 @dataclass(frozen=True)
+class CheckRules:
+    """What `prebuttal check` holds a submission to (desk-reject pre-flight).
+
+    Limits change every year: each built-in venue names the call it was taken
+    from, and the check output says to confirm against the current CFP."""
+
+    double_blind: bool = True
+    page_limit: int | None = None  # main-text pages
+    # headings that end the counted main text (references, statements, ...)
+    uncounted: tuple[str, ...] = ("References", "Bibliography", "Acknowledgments")
+    required_sections: tuple[str, ...] = ()
+    # regexes on page 1 that only a camera-ready / de-anonymized build prints
+    final_markers: tuple[str, ...] = ()
+    # LaTeX switches that turn the template's camera-ready mode on
+    final_latex: tuple[str, ...] = ()
+    source: str = ""  # the call these rules were taken from
+
+
+@dataclass(frozen=True)
 class Venue:
     key: str
     name: str
@@ -55,6 +74,7 @@ class Venue:
     form_file: str
     form_body: str = ""  # custom venues: the form text itself
     origin: str = ""  # custom venues: the TOML file it came from ("" = built-in)
+    rules: CheckRules = field(default_factory=CheckRules)
 
     @property
     def custom(self) -> bool:
@@ -142,6 +162,17 @@ NEURIPS = Venue(
     rating_key="rating",
     confidence_key="confidence",
     form_file="neurips.md",
+    rules=CheckRules(
+        page_limit=9,
+        uncounted=("References", "Acknowledgments", "NeurIPS Paper Checklist"),
+        required_sections=("NeurIPS Paper Checklist",),
+        final_markers=(
+            r"^(?!.*Submitted to).*\d+(st|nd|rd|th) Conference on Neural Information",
+            r"^Preprint\. Under review\.",  # [preprint] prints the author names too
+        ),
+        final_latex=(r"^[^%]*\\usepackage\s*\[[^\]]*\b(final|preprint)\b[^\]]*\]\s*\{neurips",),
+        source="https://neurips.cc/Conferences/2026/CallForPapers",
+    ),
     fields=[
         _text("summary", "Paper Summary"),
         _list("strengths", "Strengths"),
@@ -168,6 +199,18 @@ ICLR = Venue(
     rating_key="rating",
     confidence_key="confidence",
     form_file="iclr.md",
+    rules=CheckRules(
+        page_limit=9,
+        uncounted=(
+            "References",
+            "Ethics Statement",
+            "Reproducibility Statement",
+            "Acknowledgments",
+        ),
+        final_markers=(r"Published as a conference paper at ICLR",),
+        final_latex=(r"^[^%]*\\iclrfinalcopy",),
+        source="https://iclr.cc/Conferences/2027/AuthorGuidelines",
+    ),
     fields=[
         _text("summary", "Summary"),
         _list("strengths", "Strengths"),
@@ -200,6 +243,14 @@ ICML = Venue(
     rating_key="rating",
     confidence_key="confidence",
     form_file="icml.md",
+    rules=CheckRules(
+        page_limit=8,
+        uncounted=("References", "Impact Statement", "Acknowledgements", "Acknowledgments"),
+        required_sections=("Impact Statement",),
+        final_markers=(r"Proceedings of the \d+(st|nd|rd|th) International Conference on Machine",),
+        final_latex=(r"^[^%]*\\usepackage\s*\[[^\]]*\baccepted\b[^\]]*\]\s*\{icml",),
+        source="https://icml.cc/Conferences/2026/CallForPapers",
+    ),
     fields=[
         _text("summary", "Summary"),
         _list("strengths", "Strengths"),
@@ -239,6 +290,13 @@ ARR = Venue(
     rating_key="overall_assessment",
     confidence_key="confidence",
     form_file="acl.md",
+    rules=CheckRules(
+        page_limit=8,  # long papers; short papers: 4
+        uncounted=("References", "Limitations", "Ethics Statement", "Acknowledgments"),
+        required_sections=("Limitations",),
+        final_latex=(r"^[^%]*\\usepackage\s*\[[^\]]*\bfinal\b[^\]]*\]\s*\{acl",),
+        source="https://aclrollingreview.org/cfp",
+    ),
     fields=[
         _text("summary", "Paper Summary"),
         _list("strengths", "Summary of Strengths"),

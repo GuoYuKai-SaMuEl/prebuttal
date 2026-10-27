@@ -147,7 +147,7 @@ def test_backends_command(tmp_path, monkeypatch, capsys, fake_statuses):
     assert rc == cli.EXIT_OK
     assert "agent-claude" in out
     # relay is listed (explicit use) but auto mode must not claim it
-    assert "Auto mode will draw from: agent-claude\n" in out
+    assert "Auto mode draws from: agent-claude\n" in out
 
 
 def _dry_run(tmp_path, latex_project, *extra):
@@ -450,3 +450,35 @@ def test_all_auto_discovered_config_needs_no_consent(
     monkeypatch.setattr(cli, "_is_interactive", lambda: False)
     rc = cli.main(["run", str(latex_project), "-y", "--no-save", "--backend", "fake"])
     assert rc == cli.EXIT_OK
+
+
+def test_backends_shows_where_each_key_comes_from(monkeypatch, capsys, fake_statuses):
+    """One setup view: `key status` folded into `backends`."""
+    from prebuttal.providers.detect import BackendStatus
+
+    fake_statuses.append(BackendStatus("api-openrouter", "api", True, "OPENROUTER_API_KEY set"))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-1234567890abcd")
+    assert cli.main(["backends"]) == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "env var OPENROUTER_API_KEY (sk-…cd)" in out
+    assert "1234567890" not in out  # masked
+    assert "CLI login" in out  # agent-claude
+
+
+def test_backends_name_lists_models(capsys):
+    assert cli.main(["backends", "agent-claude"]) == cli.EXIT_OK
+    assert "sonnet" in capsys.readouterr().out
+    assert cli.main(["backends", "nope"]) == cli.EXIT_USAGE
+
+
+def test_old_commands_still_work_but_are_hidden(monkeypatch, capsys):
+    from prebuttal import modelscan
+
+    monkeypatch.setattr(modelscan, "scan", lambda only=None: [])
+    assert cli.main(["models"]) == cli.EXIT_OK
+    assert cli.main(["key", "status"]) == cli.EXIT_OK
+    err = capsys.readouterr().err
+    assert "prebuttal backends <name>" in err and "part of `prebuttal backends`" in err
+    help_text = cli.build_parser().format_help()
+    listed = {ln.split()[0] for ln in help_text.splitlines() if ln[:5].strip() and ln[:4] == "    "}
+    assert "models" not in listed and "check" in listed

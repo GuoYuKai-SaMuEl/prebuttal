@@ -158,7 +158,7 @@ def test_agent_cli_effort_flags():
     assert cmd[-5:-1] == ["--model", "gpt-6.1-sol", "-c", 'model_reasoning_effort="high"']
 
     codex.effort = ""
-    assert "-c" not in codex._build_command()
+    assert "model_reasoning_effort" not in " ".join(codex._build_command())
 
 
 # ------------------------------------------------------------------ reports

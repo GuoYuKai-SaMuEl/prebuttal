@@ -137,9 +137,8 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
             "relay",
             "relay",
             True,
-            "file bridge — prompts spool to disk; a human, host-agent "
-            "subagents, or any external system writes the answers "
-            "(zero key; explicit only: --backend relay)",
+            "file bridge: you, your agent's subagents or any system answer "
+            "(explicit only: --backend relay)",
         )
     )
 

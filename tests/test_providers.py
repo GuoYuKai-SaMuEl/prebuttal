@@ -438,7 +438,7 @@ def test_agent_cli_forwards_model_flag(monkeypatch):
     """A per-reviewer `model` must reach the CLI command, not just the report."""
     import subprocess as sp
 
-    from prebuttal.providers.agent_cli import claude_provider, codex_provider
+    from prebuttal.providers.agent_cli import _CODEX_OFF, claude_provider, codex_provider
 
     cmds: list[list[str]] = []
 
@@ -465,6 +465,9 @@ def test_agent_cli_forwards_model_flag(monkeypatch):
         "read-only",
         "--ignore-user-config",
         "--ephemeral",
+        *(a for f in _CODEX_OFF for a in ("--disable", f)),
+        "-c",
+        'web_search="disabled"',
         "--model",
         "gpt-5.1",
         "-",
@@ -503,6 +506,9 @@ def test_builtin_agents_run_locked_down_in_empty_cwd(monkeypatch, tmp_path):
     assert seen[0][0][2:5] == ["--tools", "", "--strict-mcp-config"]
     assert "read-only" in seen[1][0]
     assert "--ignore-user-config" in seen[1][0] and "--ephemeral" in seen[1][0]
+    # no tool that reads files (keys.env): the sandbox alone allows reads on macOS/Linux
+    for feature in ("shell_tool", "unified_exec", "code_mode_host"):
+        assert ["--disable", feature] in [seen[1][0][i : i + 2] for i in range(len(seen[1][0]))]
 
 
 def test_agent_cli_outdated_flag_is_not_retried(monkeypatch):
@@ -787,3 +793,25 @@ def test_retry_after_ignores_non_finite_values():
     assert _retry_after("nan") is None
     assert _retry_after("inf") is None
     assert _retry_after("12") == 12.0
+
+
+def test_codex_unknown_feature_is_not_retried(monkeypatch):
+    import subprocess as sp
+
+    from prebuttal.providers.agent_cli import codex_provider
+    from prebuttal.providers.base import ProviderError, TransientProviderError
+
+    calls = []
+
+    class FakeCompleted:
+        returncode = 1
+        stdout = ""
+        stderr = "Error: Unknown feature flag: browser_use"
+
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: calls.append(cmd) or FakeCompleted())
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(ProviderError) as exc:
+        codex_provider().complete(system="s", user="u", retries=2)
+    assert not isinstance(exc.value, TransientProviderError)
+    assert "update prebuttal" in str(exc.value)
+    assert len(calls) == 1

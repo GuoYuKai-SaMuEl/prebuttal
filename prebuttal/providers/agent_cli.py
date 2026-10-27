@@ -10,9 +10,11 @@ Temperature/seed are *recorded* in the report — agent CLIs do not expose them.
 
 The paper is untrusted input (any arXiv id can be reviewed), so the built-in
 backends are locked down against prompt injection: ``claude`` runs with every
-tool disabled and no MCP servers, ``codex`` in its read-only sandbox without
-the user's config.toml (so no MCP servers) and without persisting the session,
-and both in an empty temporary working directory instead of the user's project.
+tool disabled and no MCP servers, ``codex`` with its shell / code / browser
+tools switched off, in its read-only sandbox, without the user's config.toml
+(so no MCP servers) and without persisting the session, and both in an empty
+temporary working directory instead of the user's project.  Neither can read
+a file, so neither can read stored API keys (~/.prebuttal/keys.env).
 """
 
 from __future__ import annotations
@@ -171,6 +173,12 @@ class AgentCLIProvider(BaseProvider):
             proc = _run([*cmd, prompt], "", stdin=False, timeout_s=self.timeout_s, cwd=cwd)
         if proc.returncode != 0:
             err = (proc.stderr or proc.stdout or "").strip()[-500:]
+            if "unknown feature flag" in err.lower():
+                # a codex that renamed one of the features prebuttal switches off
+                raise ProviderError(
+                    f"{cmd[0]} no longer knows a feature prebuttal disables ({err}) — "
+                    "update prebuttal, or report it if you already run the latest"
+                )
             if "unknown option" in err.lower() or "unexpected argument" in err.lower():
                 # an outdated CLI that lacks the lock-down flags: retrying won't help
                 raise ProviderError(
@@ -201,11 +209,27 @@ def claude_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIPro
     )
 
 
+# codex features that give a model a way to read files or act outside the
+# prompt (names as listed by `codex features list`, codex-cli 0.164)
+_CODEX_OFF = (
+    "shell_tool",
+    "unified_exec",
+    "code_mode_host",
+    "apps",
+    "browser_use",
+    "browser_use_external",
+    "computer_use",
+)
+
+
 def codex_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProvider:
     return AgentCLIProvider(
         "agent-codex",
-        # read-only sandbox for shell commands; no user config (= no MCP servers
-        # an injected prompt could call); no session files with the paper on disk
+        # no user config (= no MCP servers an injected prompt could call); no
+        # session files with the paper on disk; and no tool that can read a
+        # file: the read-only sandbox still lets a shell read ~/.prebuttal/keys.env
+        # on macOS/Linux, so the shell, code mode, browser and apps are switched
+        # off, and web search (a way to send what was read) with them
         [
             "codex",
             "exec",
@@ -214,6 +238,9 @@ def codex_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProv
             "read-only",
             "--ignore-user-config",
             "--ephemeral",
+            *(a for f in _CODEX_OFF for a in ("--disable", f)),
+            "-c",
+            'web_search="disabled"',
             "-",
         ],
         model=model,

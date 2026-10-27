@@ -10,6 +10,54 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-27
+
+"Nothing leaks before submission": the paper must not leak its authors, and
+the tool must not leak your keys.
+
+### Added
+- **`prebuttal check <paper>`** — a deterministic desk-reject pre-flight: no
+  model, no cost, no options (the venue comes from `prebuttal.toml`).
+  Anonymity (author names in the PDF metadata, e-mails on page 1, a
+  camera-ready or NeurIPS `[preprint]` build, a visible acknowledgements
+  section, links to your own repository, "our previous work [12]"), format
+  (main-text pages over the venue's limit, a missing NeurIPS checklist / ICML
+  impact statement / ARR limitations section) and leftovers (`??`, `[?]`,
+  TODO, hidden text). LaTeX projects are checked without compiling: every
+  `\ref` needs a `\label` and every `\cite` a bibliography entry. Exit code 6
+  when something can get the paper desk-rejected.
+- `prebuttal run` performs the same check and lists its findings in the
+  report's notes (an arXiv paper is downloaded once for both).
+- Venues carry their check rules (page limit, uncounted sections such as
+  References or ICML's impact statement, required sections, camera-ready
+  markers), each with the URL of the call it came from; custom venues set
+  theirs in a `[checks]` table (`double_blind`, `page_limit`,
+  `required_sections`, `uncounted`), and `prebuttal venues new` writes one.
+
+### Changed
+- **`prebuttal backends` is the one setup view**: every backend, whether
+  it's ready, where its access comes from (CLI login, env var or stored key,
+  masked) and its default model. `prebuttal backends <name>` lists that
+  backend's models. `prebuttal models` and `prebuttal key status` still work
+  as hidden aliases (with a notice) and will be removed in 0.6. The other
+  commands were reviewed too and stay: each does one job, and folding them
+  together (`show --plan`, `projects` inside `runs`) needed new flags or
+  overloaded arguments — longer, not simpler.
+- Report and share-page notes are labelled "Notes" instead of "Ingestion
+  warnings", since they now include the pre-flight check.
+
+### Security
+- **Codex can no longer read files**, so it can't read stored API keys
+  either. Its read-only sandbox still let a shell read any file the user can
+  on macOS and Linux (Windows rejects the shell outright); `codex exec` now
+  runs with its shell, code mode, browser, computer-use and apps features
+  switched off and web search disabled. Claude already ran with no tools at
+  all. A codex that no longer knows one of these features stops with an
+  error instead of running with it on. The threat model is in SECURITY.md:
+  isolation, not output filtering — and why an OS keyring would not help.
+- A custom `[agents.*]` reviewer gets a one-line notice when keys are stored,
+  since prebuttal can't remove its tools.
+
 ## [0.4.1] — 2026-10-27
 
 ### Security
@@ -463,7 +511,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.0...v0.3.1

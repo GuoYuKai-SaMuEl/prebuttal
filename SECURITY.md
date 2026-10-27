@@ -7,7 +7,8 @@ patch release; there are no backports to older branches yet.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | ✅ (main)  |
+| 0.5.x   | ✅ (main)  |
+| < 0.5   | ❌         |
 
 ## Reporting a vulnerability
 
@@ -45,20 +46,41 @@ Know what is intentional behavior before reporting it:
   you may review papers you did not write (any arXiv id). Mitigations:
   - the built-in agent backends are locked down: `claude -p` runs with all
     tools disabled (`--tools ""`) and no MCP servers (`--strict-mcp-config`);
-    `codex exec` runs in its `--sandbox read-only` mode, without your
-    `~/.codex/config.toml` (`--ignore-user-config`, so none of your MCP
-    servers are reachable) and without saving the session — and with it the
-    paper — to disk (`--ephemeral`); both start in an empty temporary
-    directory instead of your project;
+    `codex exec` runs with its shell, code-mode, browser, computer-use and
+    apps features switched off (`--disable …`) and web search disabled, in
+    its `--sandbox read-only` mode, without your `~/.codex/config.toml`
+    (`--ignore-user-config`, so none of your MCP servers are reachable) and
+    without saving the session — and with it the paper — to disk
+    (`--ephemeral`); both start in an empty temporary directory instead of
+    your project;
   - every prompt fences the paper inside `<submission>…</submission>` as
     untrusted data, strips forged fence tags, and tells reviewers to report
     embedded instructions as a weakness instead of following them.
   Residual risk: a model can still be *persuaded* to skew its own score or
-  text, and Codex's read-only sandbox can still read files outside the temp
-  directory. The Codex lock-down flags were verified against codex-cli
-  0.164 (argument parsing and sandbox mode); a full Codex review run was not
-  part of the release testing. Custom `[agents.*]` commands get the fence but none of the CLI
+  text. Custom `[agents.*]` commands get the fence but none of the CLI
   lock-down — restrict their tools yourself. Read reports before sharing them.
+- **API keys vs. agent CLIs (threat model).** The worry: a paper's hidden
+  text tells an agent reviewer to read `~/.prebuttal/keys.env` and quote it
+  in its review, which then lands in a report you share. Prebuttal's answer
+  is *isolation*, not output filtering — a model can encode a key past any
+  filter. So:
+  - stored keys are never in an agent CLI's environment (they are only
+    applied for prebuttal's own API calls), so `claude -p` can't switch to
+    API billing and no agent sees them as variables;
+  - the built-in agents have **no tool that can read a file**: `claude`
+    has none at all; `codex` loses its shell and code mode. Codex's
+    read-only sandbox by itself is not enough — on macOS and Linux it still
+    lets a shell *read* any file the user can (on Windows it rejects the
+    shell outright). Checked against codex-cli 0.164: the remaining tools
+    (`view_image`, which decodes images only; collaboration/goal tools) do
+    not read text files, and with code mode's host disabled code mode
+    "fails closed". A newer codex that renames a disabled feature stops
+    with an error instead of running with it enabled;
+  - an OS keyring would not change this: any process of the same user can
+    query it, so it protects nothing a shell couldn't reach.
+  Not covered: custom `[agents.*]` commands (give them no file or shell
+  tools, or keep keys in env vars of a shell they don't inherit), and the
+  relay backend's responders, which are yours by definition.
 - **No telemetry.** Prebuttal makes network calls only to the backend you
   configured and (for arXiv input) to arxiv.org to download the paper. (The
   project's public *website* counts page views with a cookieless GoatCounter
