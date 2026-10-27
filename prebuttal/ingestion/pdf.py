@@ -500,6 +500,9 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         page0 = [ln for ln in lines_all if ln["page"] == 0]
         if page0:
             top = [ln for ln in page0 if ln["y"] < 300] or page0
+            # a stray big glyph (a math symbol, a figure's lettering) is never the
+            # title: Mamba's page 1 has an "M" at 17.8pt above the 17.2pt title
+            top = [ln for ln in top if len(ln["text"]) >= 8] or top
             biggest = max(ln["size"] for ln in top)
             cands = sorted(
                 (ln for ln in top if ln["size"] >= biggest - 0.1), key=lambda ln: ln["y"]

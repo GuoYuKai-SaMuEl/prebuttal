@@ -159,3 +159,15 @@ def test_arxiv_rejects_non_pdf_and_http_errors(monkeypatch):
     ax = _mock_arxiv(monkeypatch, b"", status=404)
     with pytest.raises(ax.ArxivError, match="HTTP 404"):
         ax.fetch_pdf_bytes("2510.12345")
+
+
+def test_stray_big_glyph_is_not_the_title():
+    """Regression (Mamba, 2312.00752): a lone 'M' set larger than the title."""
+    from conftest import make_pdf_bytes
+
+    def draw(c, h):
+        c.setFont("Helvetica", 22)
+        c.drawString(300, h - 250, "M")
+
+    paper = ingest_pdf_bytes(make_pdf_bytes(draw_extra=draw))
+    assert paper.title == "Deep Widgets for Structured Prediction"
