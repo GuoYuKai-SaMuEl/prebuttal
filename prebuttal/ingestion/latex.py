@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 from ..models import Figure, Section, StructuredPaper, Table
+from .hidden import find_hidden_latex_text, hidden_text_warning
 
 
 class LatexError(Exception):
@@ -459,6 +460,9 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
         "into the project if it belongs to the paper)"
         for name in blocked_inputs
     ]
+    hidden = find_hidden_latex_text(tex)  # comments are already stripped: those never render
+    if hidden:
+        warnings.insert(0, hidden_text_warning(hidden, ["LaTeX source"] * len(hidden)))
 
     doc_m = re.search(r"\\begin\{document\}", tex)
     if doc_m:
@@ -651,6 +655,7 @@ def ingest_latex_source(path: Path) -> StructuredPaper:
         source_type="latex",
         source_path=str(path),
         warnings=warnings,
+        hidden_text=hidden,
     )
 
 

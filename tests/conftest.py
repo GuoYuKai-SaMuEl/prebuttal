@@ -279,6 +279,7 @@ def make_pdf_bytes(
     *,
     title: str = "Deep Widgets for Structured Prediction",
     body_extra: str = "",
+    draw_extra=None,  # callable(canvas, page_height): extra drawing on the page
 ) -> bytes:
     """Build a small synthetic paper PDF (headings, abstract, ruled table).
 
@@ -340,6 +341,8 @@ def make_pdf_bytes(
     text(72, 435, "Table 9 confirms that our widgets hold up. Figure 2 shows the trend.", 10)
     if body_extra:
         text(72, 455, body_extra, 10)
+    if draw_extra is not None:
+        draw_extra(c, height)
 
     c.showPage()
     c.save()

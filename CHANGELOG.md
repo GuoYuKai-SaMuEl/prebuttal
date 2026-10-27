@@ -21,6 +21,13 @@ releases (0.2, 0.3, …) are substantial new features.
 - **Ctrl-C keeps finished reviews.** Interrupting a run archives the reviews
   that already finished (note `interrupted`, exit code 130), so
   `prebuttal retry` can complete it instead of starting over.
+- **Hidden-text check.** Text a human reader cannot see — white glyphs (not
+  on a coloured box), microscopic (< 1pt) or off-page text in a PDF, and
+  `\textcolor{white}{...}` / `{\color{white} ...}` in LaTeX — is reported as
+  the first ingestion warning, flagged as **likely prompt injection** when it
+  addresses reviewers or AI systems, and quoted to the reviewers in a tool
+  note so protocol rule 6 can apply. No false alarms on the Transformer, ViT,
+  LoRA, DPO and Mamba PDFs.
 
 ### Changed
 - CI fails on any text I/O without an explicit `encoding=`

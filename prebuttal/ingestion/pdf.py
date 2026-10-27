@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from itertools import pairwise
 
 from ..models import Figure, Section, StructuredPaper, Table
+from .hidden import find_hidden_pdf_text, hidden_text_warning
 
 
 class PDFError(Exception):
@@ -693,6 +694,15 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
     if not sections:
         warnings.append("no section headings detected; paper text may be image-based")
 
+    hidden = find_hidden_pdf_text(pages)
+    if hidden:
+        warnings.insert(
+            0,
+            hidden_text_warning(
+                [t for _p, _r, t in hidden], [f"page {p} ({r})" for p, r, _t in hidden]
+            ),
+        )
+
     return StructuredPaper(
         title=title,
         abstract=abstract,
@@ -702,4 +712,5 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         source_type="pdf",
         source_path=source_path,
         warnings=warnings,
+        hidden_text=[t for _p, _r, t in hidden],
     )

@@ -106,7 +106,8 @@ class StructuredPaper:
     source_type: str = ""  # "pdf" | "latex" | "arxiv"
     source_path: str = ""
     warnings: list[str] = field(default_factory=list)
-
+    # text a human reader cannot see (white / microscopic / off-page)
+    hidden_text: list[str] = field(default_factory=list)
     # counts from a stored report.json, whose summary has no section bodies
     stored_counts: dict[str, int] = field(default_factory=dict, repr=False)
 
