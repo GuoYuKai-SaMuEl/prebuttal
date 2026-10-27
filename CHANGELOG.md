@@ -10,6 +10,8 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-27
+
 ### Added
 - **`prebuttal retry [run]`** re-runs only the reviewers that failed (an
   overloaded backend, a timeout) plus the area chair, on the exact text the
@@ -48,6 +50,12 @@ releases (0.2, 0.3, …) are substantial new features.
   re-sends the archived images.
 
 ### Changed
+- **Upgrade note — a `prebuttal.toml` found in the current directory** (not passed with
+  `--config`) now also needs a yes before it can send the paper to a backend
+  it pins, or write reports / the relay spool outside the current directory
+  — not only before running `[agents.*]` commands. The yes is remembered per
+  file content; non-interactive runs refuse as before (pass `--config`).
+  An all-`auto` config like the one `prebuttal init` writes is unaffected.
 - **Site samples re-run on 0.4** with one panel (claude sonnet · codex
   gpt-6-luna · gemini-3.8-flash, AC claude opus), seed 42. The Mamba
   revision page is rewritten honestly: with three seeds per version the score
@@ -59,15 +67,15 @@ releases (0.2, 0.3, …) are substantial new features.
   new command to work with no options and every flag to earn its place
   (defaults, values derived from the run or config, or a `prebuttal.toml`
   setting come first).
-- **A `prebuttal.toml` found in the current directory** (not passed with
-  `--config`) now also needs a yes before it can send the paper to a backend
-  it pins, or write reports / the relay spool outside the current directory
-  — not only before running `[agents.*]` commands. The yes is remembered per
-  file content; non-interactive runs refuse as before (pass `--config`).
-  An all-`auto` config like the one `prebuttal init` writes is unaffected.
 - CI fails on any text I/O without an explicit `encoding=`
   (`PYTHONWARNDEFAULTENCODING=1` + `EncodingWarning` as an error), the bug
   class that only shows on non-UTF-8 Windows locales.
+
+### Fixed
+- PDF titles: a stray large glyph (a math symbol, a figure's lettering) no
+  longer becomes the title — the Mamba PDF was titled "M".
+- `scripts/build_site.py` added a blank line to every curated page on each
+  rebuild.
 
 ## [0.3.1] — 2026-10-27
 
@@ -415,7 +423,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.0...v0.2.1
