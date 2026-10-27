@@ -138,3 +138,11 @@ def test_share_page_without_warnings_has_no_alert(latex_project):
     report.paper.warnings = []
     page = render_share_html(report, venue, "https://example.org")
     assert 'class="alert"' not in page and "Ingestion notes" not in page
+
+
+def test_share_html_drops_non_http_repo_link(latex_project):
+    """repo_url can come from a discovered prebuttal.toml."""
+    report, venue = _report(latex_project)
+    html = render_share_html(report, venue, "javascript:alert(1)")
+    assert "javascript:" not in html
+    assert "pip install prebuttal" in html

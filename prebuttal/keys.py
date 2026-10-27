@@ -65,6 +65,8 @@ def store_key(var: str, value: str) -> None:
     value = value.strip()
     if not value:
         raise KeyError_("refusing to store an empty key")
+    if any(c.isspace() for c in value):  # a pasted line break would forge a second entry
+        raise KeyError_("refusing a key that contains spaces or line breaks")
     data = _read_all()
     data[var] = value
     p = keys_path()
@@ -102,8 +104,10 @@ _applied: set[str] = set()
 def apply_stored_keys() -> list[str]:
     """Load stored keys into the environment (never overriding real ones)."""
     applied: list[str] = []
+    known = set(KEY_MAP.values())
     for var, value in _read_all().items():
-        if value and var not in os.environ:
+        # only API keys: a hand-edited PATH= or PYTHONPATH= line must not reach the env
+        if value and var in known and var not in os.environ:
             os.environ[var] = value
             _applied.add(var)
             applied.append(var)

@@ -9,6 +9,7 @@ compromise opinion ("persona collapse").
 from __future__ import annotations
 
 import json
+import math
 import re
 import threading
 import time
@@ -143,7 +144,8 @@ def _to_number(v) -> float | None:
     if isinstance(v, bool):
         return None
     if isinstance(v, (int, float)):
-        return float(v)
+        # json.loads accepts NaN / Infinity, which would poison every mean
+        return float(v) if math.isfinite(v) else None
     if isinstance(v, str):
         m = re.search(r"-?\d+(?:\.\d+)?", v)
         if m:

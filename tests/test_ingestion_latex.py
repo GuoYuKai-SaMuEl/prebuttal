@@ -1,5 +1,7 @@
+import pytest
+
 from prebuttal.ingestion import ingest
-from prebuttal.ingestion.latex import ingest_latex_source
+from prebuttal.ingestion.latex import LatexError, ingest_latex_source
 
 
 def test_latex_project_full_parse(latex_project):
@@ -227,3 +229,40 @@ By Eq.~\eqref{eq:a} and Eq.~\eqref{eq:c} it holds.
     assert "$$\\mathrm{y} = \\sigma(x)$$ (1)" in text
     assert "$$a &= b \\\\ c &= d \\\\ e &= f$$ (2) (3)" in text
     assert "$$z = 0$$ By Eq. (1) and Eq. (3) it holds." in text
+
+
+def _symlink(link, target):
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available (Windows without developer mode)")
+
+
+def test_symlinked_bbl_outside_the_project_is_not_read(tmp_path):
+    secret = tmp_path / "secret.bbl"
+    secret.write_text("\\bibitem{k} TOP-SECRET-KEY\n", encoding="utf-8")
+    proj = tmp_path / "paper"
+    proj.mkdir()
+    (proj / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}\\section{Intro}\nText.\n\\end{document}",
+        encoding="utf-8",
+    )
+    (proj / "main.bbl").write_text("\\bibitem{k} OWN-ENTRY\n", encoding="utf-8")
+    texts = [s.text for s in ingest_latex_source(proj).sections]
+    assert any("OWN-ENTRY" in t for t in texts)  # a real .bbl is read
+    (proj / "main.bbl").unlink()
+    _symlink(proj / "main.bbl", secret)
+    paper = ingest_latex_source(proj)
+    assert all("TOP-SECRET-KEY" not in s.text for s in paper.sections)
+
+
+def test_symlinked_root_tex_outside_the_project_is_refused(tmp_path):
+    outside = tmp_path / "elsewhere.tex"
+    outside.write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}", encoding="utf-8"
+    )
+    proj = tmp_path / "paper"
+    proj.mkdir()
+    _symlink(proj / "main.tex", outside)
+    with pytest.raises(LatexError):
+        ingest_latex_source(proj)

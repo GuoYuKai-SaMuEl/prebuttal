@@ -10,13 +10,45 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-27
+
+### Security
+- **Relay**: a request could be answered by a stale `.ans.md` left in the
+  spool by an earlier run whose process id happened to be reused, silently
+  attaching a review of a different paper. Request names now carry a random
+  part, and any old answer under the same name is removed first.
+- **LaTeX ingestion**: a symlinked `main.tex` or `main.bbl` in an unpacked
+  source tree could still pull a file from outside the paper's folder into
+  the text sent to the model provider (`\input` was already contained). Both
+  are now held to the same boundary.
+- **Agent CLIs**: model ids and effort levels must look like model ids. One
+  from a discovered `prebuttal.toml` could otherwise turn into a CLI flag
+  (`--dangerously-…`) or, through npm's `.cmd` launchers on Windows, a
+  `cmd.exe` operator (`& …`).
+- **Stored keys**: only the four API-key variables in `keys.env` are applied
+  (a hand-edited `PYTHONPATH=` line no longer reaches the environment), and
+  a key containing spaces or line breaks is refused rather than written as
+  extra entries.
+- **Share page**: the repository link is dropped unless it is `http(s)://`
+  (`repo_url` can come from a discovered config; no `javascript:` links).
+
 ### Fixed
+- A rating of `NaN` / `Infinity` in a model's JSON (Python's parser accepts
+  both) is treated as missing instead of poisoning the panel mean; a
+  non-numeric `Retry-After` such as `nan` no longer crashes the retry wait.
 - An agent CLI that doesn't know the model id (e.g. `claude` given `haiku-5.5`
   instead of `claude-haiku-5-5` / `haiku`, or codex's `model_not_found`) now
   fails at once with a "check the model id" message, instead of being retried
   twice as if it were a transient error.
 - The `diff` footer no longer calls the comparison "heuristic", which
   contradicted the "matched by …" line under `diff --llm`.
+
+### Changed
+- Pillow is now a declared dependency (`--figures` imports it directly); it
+  was already installed through pdfplumber, so installs don't change.
+- The roadmap moved to `ROADMAP.md`: 0.5 "nothing leaks before submission"
+  (`prebuttal check`, keys out of reach of agent CLIs, a smaller CLI), 0.6
+  "a revision loop you can trust", 0.7 "reach".
 
 ## [0.4.0] — 2026-10-27
 
@@ -431,7 +463,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.2.1...v0.3.0

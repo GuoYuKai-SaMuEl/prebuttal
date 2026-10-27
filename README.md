@@ -416,33 +416,19 @@ from a terminal, from inside any coding agent, or in CI.
 
 ## Roadmap & versioning
 
-Versioning policy while pre-1.0: **patch** releases (0.1.1, 0.1.2, …) are
-fixes and small additions; **minor** releases (0.2, 0.3, …) are substantial
-new features; 1.0 only once the interface is battle-tested.
+Versioning policy while pre-1.0: **patch** releases are fixes and small
+additions; **minor** releases are substantial new features; 1.0 only once the
+interface is battle-tested. Tentative, in short (details in
+[ROADMAP.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md)):
 
-Tentative — priorities shift with usage and feedback. Short-term the focus
-is **hardening the core on real papers**, not adding features:
-
-1. **v0.2 (released)** — core: ingestion pipeline, real venue
-   forms, 3 independent reviewers + AC, every backend (agent CLIs / APIs /
-   Ollama / relay), reports + JSON + share page, calibration script; plus
-   projects & revision history (per-paper report folders, run management,
-   local dashboard) and per-role reasoning effort; v0.2.1 hardened PDF table
-   extraction on real two-column papers
-2. **v0.3 (current)** — custom venues (any review form and scale as a TOML
-   file) and the revision plan (the AC's prioritised fix list, checked
-   against the next run by `prebuttal diff`)
-3. **Now (v0.3.x)** — polish from real-usage findings: calibration scatter
-   plot + honest per-model calibration notes, provider-reliability UX
-   (free-pool reality, retry transparency), relay UX
-4. **Next (v0.4+)** — community personas, OpenReview submission
-   integration, and a browser-only web quick-scan (GitHub Pages: drag-drop a
-   PDF + your own OpenRouter/Gemini key — no server, we stay a
-   non-custodian); then the rebuttal workbench (reviews → point-by-point
-   response letter) and "CI for papers" (GitHub Action: \ref/\label checks,
-   citation sanity)
-5. **Eventually** — the calibration script becomes a public benchmark /
-   leaderboard: tools depreciate, benchmarks appreciate.
+1. **0.5 — nothing leaks before submission**: `prebuttal check` (anonymity,
+   page limits, leftover `??`), API keys out of reach of agent CLIs, and a
+   smaller command set
+2. **0.6 — a revision loop you can trust**: repeated reviews, a diff that
+   says when a change is within noise, meaning-based matching by default
+3. **0.7 — reach**: more venues, community personas, a GitHub Action for
+   papers
+4. **Separate track** — calibration against real OpenReview outcomes
 
 ## Develop
 

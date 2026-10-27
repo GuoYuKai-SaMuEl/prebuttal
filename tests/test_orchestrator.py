@@ -168,3 +168,15 @@ def test_reviewers_run_in_daemon_threads(latex_project):
         ingest(str(latex_project)), cfg, get_venue("iclr"), providers, _Probe(), log=lambda m: None
     )
     assert seen[:3] == [True, True, True]
+
+
+def test_non_finite_ratings_are_dropped():
+    """json.loads accepts NaN/Infinity; one NaN would poison every mean."""
+    import json
+
+    from prebuttal.orchestrator import coerce_fields
+
+    payload = json.loads('{"rating": NaN, "confidence": Infinity}')
+    fields = coerce_fields(payload, get_venue("iclr"))
+    assert fields["rating"] is None
+    assert fields["confidence"] is None

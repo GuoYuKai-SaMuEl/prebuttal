@@ -223,3 +223,21 @@ def test_relay_protocol_asks_for_an_atomic_rename(tmp_path):
     t.start()
     assert provider.complete(system="s", user="u", retries=0).text == ANSWER
     t.join(2)
+
+
+def test_relay_ignores_an_answer_left_from_an_earlier_run(tmp_path, monkeypatch):
+    """pids are reused: a stale .ans.md must never answer a new request."""
+    import itertools
+    import os
+
+    from prebuttal.providers import relay
+
+    spool = tmp_path / "spool"
+    spool.mkdir()
+    monkeypatch.setattr(relay, "_SEQ", itertools.count(1))
+    monkeypatch.setattr(relay.secrets, "token_hex", lambda n: "abcdef")
+    stale = spool / f"senior-{os.getpid()}-1-abcdef.ans.md"
+    stale.write_text(json.dumps({"rating": 1}), encoding="utf-8")
+    provider = RelayProvider(spool_dir=spool, timeout_s=0.3, poll_s=0.05)
+    with pytest.raises(ProviderError):
+        provider.complete(system="s", user="u", retries=0)

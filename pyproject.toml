@@ -41,6 +41,7 @@ dependencies = [
   "pdfplumber>=0.11.0",
   "pdfminer.six>=20231228",
   "httpx>=0.27",
+  "Pillow>=9.1",  # --figures imports PIL directly (pdfplumber also pulls it in)
 ]
 
 [project.optional-dependencies]

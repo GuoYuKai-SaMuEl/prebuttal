@@ -443,6 +443,10 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
     path = Path(path)
     root = find_root_tex(path) if path.is_dir() else path
     base = root.parent
+    allowed = (path if path.is_dir() else base).resolve()
+    if path.is_dir() and not root.resolve().is_relative_to(allowed):
+        # a symlinked main.tex in an unpacked tarball must not pull in e.g. ~/.ssh
+        raise LatexError(f"{root} links outside the paper's folder — not read")
 
     tex = _strip_comments(_read_text(root))
     missing_inputs: list[str] = []
@@ -452,7 +456,7 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         base,
         {root.resolve()},
         missing_inputs,
-        allowed=path if path.is_dir() else base,
+        allowed=allowed,
         blocked=blocked_inputs,
     )
 
@@ -638,7 +642,7 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         )
 
     # --- references
-    refs = _collect_references(body, root, resolve_ref)
+    refs = _collect_references(body, root, resolve_ref, allowed)
     if refs:
         sections.append(Section(level=1, number="", title="References", text=refs))
     else:
@@ -669,14 +673,12 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         warnings=warnings,
         hidden_text=hidden,
         figure_images=(
-            latex_figure_images(figures, base, path if path.is_dir() else base, figure_images)
-            if figure_images
-            else []
+            latex_figure_images(figures, base, allowed, figure_images) if figure_images else []
         ),
     )
 
 
-def _collect_references(body: str, root: Path, resolve_ref) -> str:
+def _collect_references(body: str, root: Path, resolve_ref, allowed: Path) -> str:
     entries: list[str] = []
     bib_spans = _env_spans(body, "thebibliography")
     source = ""
@@ -684,7 +686,7 @@ def _collect_references(body: str, root: Path, resolve_ref) -> str:
         source = bib_spans[0][2]
     else:
         bbl = root.with_suffix(".bbl")
-        if bbl.is_file():
+        if bbl.is_file() and bbl.resolve().is_relative_to(allowed):
             source = _strip_comments(_read_text(bbl))
     if source:
         source = re.sub(r"\\(?:begin|end)\s*\{[^{}]*\}(?:\s*\{[^{}]*\})?", " ", source)

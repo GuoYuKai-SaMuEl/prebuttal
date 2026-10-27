@@ -90,3 +90,25 @@ def test_cli_key_rejects_unknown(tmp_path, monkeypatch, capsys):
     rc = cli.main(["key", "set", "groq", "--key", "x"])
     assert rc == cli.EXIT_USAGE
     assert "unknown key" in capsys.readouterr().err
+
+
+def test_key_with_line_break_is_refused(isolated_prebuttal_home):
+    import pytest
+
+    from prebuttal.keys import KeyError_
+
+    with pytest.raises(KeyError_):
+        store_key("GEMINI_API_KEY", "AIzaGood\nPATH=/evil")
+    assert not keys_path().exists()
+
+
+def test_only_api_keys_are_applied(isolated_prebuttal_home, monkeypatch):
+    """A hand-edited keys.env must not set PYTHONPATH and friends."""
+    import os
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("PREBUTTAL_EVIL", raising=False)
+    keys_path().parent.mkdir(parents=True, exist_ok=True)
+    keys_path().write_text("GEMINI_API_KEY=AIzaTest123456\nPREBUTTAL_EVIL=1\n", encoding="utf-8")
+    assert apply_stored_keys() == ["GEMINI_API_KEY"]
+    assert "PREBUTTAL_EVIL" not in os.environ

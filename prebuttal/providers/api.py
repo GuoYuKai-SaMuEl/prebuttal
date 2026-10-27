@@ -7,6 +7,7 @@ tolerates markdown fences and surrounding chatter anyway.
 from __future__ import annotations
 
 import base64
+import math
 import os
 
 import httpx
@@ -33,9 +34,10 @@ _OVERLOADED = {429, 502, 503, 504, 529}
 def _retry_after(value: str | None) -> float | None:
     """Seconds from a Retry-After header (HTTP-date form is ignored)."""
     try:
-        return float(value) if value else None
+        wait = float(value) if value else None
     except ValueError:
         return None
+    return wait if wait is not None and math.isfinite(wait) else None  # sleep(nan) raises
 
 
 def _b64(png: bytes) -> str:

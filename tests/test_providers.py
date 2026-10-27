@@ -755,3 +755,35 @@ def test_ollama_bad_responses_are_provider_errors(monkeypatch):
     monkeypatch.setattr(ollama.httpx, "post", lambda *a, **k: R(500, "loading model"))
     with pytest.raises(TransientProviderError):
         p._complete(system="s", user="u", temperature=0, seed=None, max_tokens=10)
+
+
+@pytest.mark.parametrize("model", ["--dangerously-skip-permissions", "sonnet & calc", "a|b"])
+def test_agent_cli_refuses_unsafe_model_values(monkeypatch, model):
+    """A model id from someone's prebuttal.toml must not become a flag or,
+    through an npm .cmd launcher, a cmd.exe operator."""
+    import subprocess as sp
+
+    from prebuttal.providers.agent_cli import claude_provider
+    from prebuttal.providers.base import ProviderError
+
+    calls = []
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: calls.append(cmd))
+    with pytest.raises(ProviderError) as exc:
+        claude_provider(model).complete(system="s", user="u", retries=2)
+    assert "unsafe" in str(exc.value)
+    assert calls == []
+
+
+def test_agent_cli_accepts_real_model_ids():
+    from prebuttal.providers.agent_cli import claude_provider
+
+    for model in ("sonnet", "claude-opus-5-5[1m]", "gpt-6-luna", "org/model:free"):
+        assert model in claude_provider(model)._build_command()
+
+
+def test_retry_after_ignores_non_finite_values():
+    from prebuttal.providers.api import _retry_after
+
+    assert _retry_after("nan") is None
+    assert _retry_after("inf") is None
+    assert _retry_after("12") == 12.0

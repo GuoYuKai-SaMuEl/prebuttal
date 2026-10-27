@@ -21,6 +21,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import secrets
 import time
 from pathlib import Path
 
@@ -103,10 +104,15 @@ class RelayProvider(BaseProvider):
             )
 
     def _complete(self, *, system, user, temperature, seed, max_tokens) -> tuple[str, Usage]:
-        # pid keeps stems unique even when two prebuttal processes share one spool dir
-        stem = f"{_classify(system + chr(10) + user)}-{os.getpid()}-{next(_SEQ)}"
+        # pid keeps stems unique between concurrent processes sharing one spool;
+        # the random tail between runs, since pids are reused and old answers stay
+        stem = (
+            f"{_classify(system + chr(10) + user)}-{os.getpid()}-{next(_SEQ)}"
+            f"-{secrets.token_hex(3)}"
+        )
         req = self.spool / f"{stem}.req.md"
         ans = self.spool / f"{stem}.ans.md"
+        ans.unlink(missing_ok=True)  # never take an answer written before the request
         req.write_text(
             system + "\n\n---\n\n" + user + _PROTOCOL_NOTE.format(ans_name=ans.name),
             encoding="utf-8",

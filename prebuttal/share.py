@@ -27,6 +27,10 @@ def _clip(s: str, n: int) -> str:
 
 def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     r = report
+    # repo_url can come from a discovered prebuttal.toml: no javascript: links
+    if not repo_url.lower().startswith(("https://", "http://")):
+        repo_url = ""
+    repo_link = f'<a href="{_e(repo_url)}">{_e(repo_url)}</a>' if repo_url else ""
     max_rating = venue.rating_field.max
     agg = r.aggregate
     title = _e(r.paper.title)
@@ -179,7 +183,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   <header>
     <div class="brand">Prebuttal</div>
     <h1>{title}</h1>
-    <div class="meta-line">{venue_name} · simulated review · {r.run.generated_at}{seed_note}</div>
+    <div class="meta-line">{venue_name} · simulated review · {_e(r.run.generated_at)}{seed_note}</div>
     <div class="meta-line">backends: {backends}</div>
   </header>{warn_html}
   <div class="hero">{score_html}
@@ -192,7 +196,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   {plan_html}
   <footer>
     Generated with <b>Prebuttal</b> — <code>pip install prebuttal</code> ·
-    <a href="{_e(repo_url)}">{_e(repo_url)}</a><br>
+    {repo_link}<br>
     Simulated reviews by LLMs as listed; scores are not predictions of real reviewer behavior.
   </footer>
 </div>

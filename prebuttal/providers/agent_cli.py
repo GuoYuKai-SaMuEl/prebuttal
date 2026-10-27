@@ -18,6 +18,7 @@ and both in an empty temporary working directory instead of the user's project.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -35,6 +36,11 @@ _BAD_MODEL = (
     "may not exist or you may not have access",  # claude
     "model_not_found",  # codex (OpenAI error code)
 )
+
+# Model ids and effort levels go on the command line, and through cmd.exe for
+# npm's .cmd launchers on Windows: a value from someone's prebuttal.toml must
+# not become a flag (`--dangerously-...`) or a shell operator (`& calc`).
+_SAFE_ARG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+\[\]-]*")
 
 
 def _child_env() -> dict[str, str]:
@@ -127,6 +133,9 @@ class AgentCLIProvider(BaseProvider):
         if not self.model_flag:
             return cmd
         flags: list[str] = []
+        for value in (self.model, self.applied_effort):
+            if value and not _SAFE_ARG.fullmatch(value):
+                raise ProviderError(f"{self.backend}: refusing unsafe model/effort value {value!r}")
         if self.model:
             flags += ["--model", self.model]
         if self.applied_effort and self.effort_args:
