@@ -260,3 +260,24 @@ def test_dashboard(run, capsys, monkeypatch):
 
     rc, _, _ = _cli(capsys, "dashboard", "--no-open")
     assert rc == cli.EXIT_OK and len(opened) == 1
+
+
+def test_local_folder_named_like_an_arxiv_id_stays_local(tmp_path, monkeypatch):
+    """An unpacked arXiv source folder is the user's (maybe revised) copy."""
+    from prebuttal import ingestion
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "2312.00752").mkdir()
+    (tmp_path / "2312.00752" / "main.tex").write_text(
+        "\\documentclass{article}\\title{My Revision}\\begin{document}"
+        "\\section{Intro}x\\end{document}",
+        encoding="utf-8",
+    )
+
+    def no_download(*a, **k):
+        raise AssertionError("must not fetch from arXiv")
+
+    monkeypatch.setattr(ingestion, "ingest_arxiv", no_download)
+    assert ingestion.ingest("2312.00752").title == "My Revision"
+    assert source_identity("2312.00752").startswith("path:")
+    assert source_identity("2401.00001").startswith("arxiv:")  # no such folder here

@@ -233,3 +233,24 @@ def test_diff_keeps_reviewers_that_share_a_persona(latex_project):
     text = render_diff(rec_a, rec_b)
     for key in ("- adversarial:", "- adversarial #2:", "- adversarial #3:"):
         assert key in text
+
+
+def test_weakness_matching_is_one_to_one(latex_project):
+    """Two old weaknesses cannot both 'persist' through one new weakness."""
+    from prebuttal.runs import render_diff
+
+    report, venue = make_report(latex_project)
+    cfg = load_config(None)
+    old = ["baselines are weak and missing", "baselines are missing and weak too"]
+    new = ["baselines are weak and missing"]
+    recs = []
+    for weak in (old, new):
+        for rev in report.reviews:
+            rev.fields["weaknesses"] = list(weak)
+        md = "x"
+        recs.append(
+            save_run(report, venue, cfg, md=md, json_str=dumps_json(report, venue), html=None)
+        )
+    text = render_diff(recs[0], recs[1])
+    section = text.split("### ")[1]
+    assert section.count("- persists:") == 1 and section.count("- gone:") == 1

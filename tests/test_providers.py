@@ -815,3 +815,24 @@ def test_codex_unknown_feature_is_not_retried(monkeypatch):
     assert not isinstance(exc.value, TransientProviderError)
     assert "update prebuttal" in str(exc.value)
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("value", "url"),
+    [
+        ("", "http://localhost:11434"),
+        ("0.0.0.0:11434", "http://127.0.0.1:11434"),  # Ollama's own server setting
+        ("0.0.0.0", "http://127.0.0.1:11434"),
+        ("gpu-box:8080", "http://gpu-box:8080"),
+        ("https://ollama.example.org", "https://ollama.example.org"),
+    ],
+)
+def test_ollama_host_as_ollama_documents_it(monkeypatch, value, url):
+    from prebuttal.providers.ollama import ollama_base_url
+
+    monkeypatch.delenv("PREBUTTAL_OLLAMA_HOST", raising=False)
+    if value:
+        monkeypatch.setenv("OLLAMA_HOST", value)
+    else:
+        monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    assert ollama_base_url() == url

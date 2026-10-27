@@ -11,11 +11,24 @@ from .base import BaseProvider, ProviderError, TransientProviderError
 
 
 def ollama_base_url() -> str:
-    return (
-        os.environ.get("PREBUTTAL_OLLAMA_HOST")
-        or os.environ.get("OLLAMA_HOST")
-        or "http://localhost:11434"
-    ).rstrip("/")
+    """The Ollama URL to call. ``OLLAMA_HOST`` is often the *server's* bind
+    address as Ollama documents it (``0.0.0.0:11434``, no scheme): a client
+    reaches that on loopback, over http."""
+    host = (
+        (
+            os.environ.get("PREBUTTAL_OLLAMA_HOST")
+            or os.environ.get("OLLAMA_HOST")
+            or "http://localhost:11434"
+        )
+        .strip()
+        .rstrip("/")
+    )
+    if "://" not in host:
+        host = "http://" + host
+    scheme, rest = host.split("://", 1)
+    if scheme == "http" and ":" not in rest.split("/", 1)[0]:  # like Ollama: port 11434
+        rest = rest.replace("/", ":11434/", 1) if "/" in rest else rest + ":11434"
+    return f"{scheme}://{rest}".replace("://0.0.0.0", "://127.0.0.1")
 
 
 def ollama_models(base_url: str | None = None) -> list[str]:

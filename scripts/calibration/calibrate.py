@@ -159,7 +159,7 @@ def main() -> int:
     except statistics.StatisticsError:
         corr = float("nan")
     print(f"\nn={len(pairs)}  MAE={mae:.2f}  Pearson r={corr:.2f}")
-    print(f"wrote {out_dir / 'pairs.json'} and {out_dir / 'scatter.png'}")
+    print(f"wrote {out_dir / 'pairs.json'}")
 
     try:
         import matplotlib
@@ -178,6 +178,7 @@ def main() -> int:
         ax.legend()
         fig.tight_layout()
         fig.savefig(out_dir / "scatter.png", dpi=160)
+        print(f"wrote {out_dir / 'scatter.png'}")
     except ImportError:
         print(
             "matplotlib not installed — skipping scatter.png (pip install prebuttal[calibration])"

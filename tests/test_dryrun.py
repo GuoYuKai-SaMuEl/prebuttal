@@ -56,3 +56,31 @@ def test_dry_run_prices_default_model_when_unset():
     assert '[pricing.""]' not in text
     assert "unknown price" not in text
     assert "~$" in text  # priced via the backend's default model
+
+
+def test_dry_run_shows_each_reviewers_real_seed():
+    from prebuttal.config import ReviewerConfig, RunConfig
+
+    cfg = RunConfig(
+        reviewers=[
+            ReviewerConfig("R1", "senior_kind", "relay", seed=7),
+            ReviewerConfig("R2", "adversarial", "relay"),
+        ]
+    )
+    out = render_dry_run(cfg, [("R1", "relay", ""), ("R2", "relay", "")], ("relay", ""), 1000, [])
+    assert "Seeds: R1=7, R2=44, AC=42" in out
+
+
+def test_dry_run_total_adds_priced_roles():
+    cfg = load_config(None)
+    cfg.pricing["m-priced"] = (1.0, 2.0)
+    statuses = [BackendStatus("api-openai", "api", True, "key", "m-priced")]
+    resolved = [(r.id, "api-openai", "m-priced") for r in cfg.reviewers]
+    out = render_dry_run(cfg, resolved, ("api-openai", "m-priced"), 4000, statuses)
+    each = [
+        float(ln.split("~$")[1].split()[0])
+        for ln in out.splitlines()
+        if "~$" in ln and "total" not in ln
+    ]
+    total = float(out.split("total (priced backends): ~$")[1].split()[0])
+    assert len(each) == 4 and abs(total - sum(each)) < 1e-3

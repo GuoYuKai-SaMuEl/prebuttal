@@ -528,6 +528,8 @@ def render_diff(
         for ow in old:
             best_i, best_s = -1, 0.0
             for i, nw in enumerate(new):
+                if i in matched_new:  # one-to-one: a new weakness answers one old one
+                    continue
                 s = _weak_sim(ow, nw)
                 if s > best_s:
                     best_s, best_i = s, i

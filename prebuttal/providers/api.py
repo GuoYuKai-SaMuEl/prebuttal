@@ -201,8 +201,8 @@ class OpenRouterProvider(_HTTPProvider):
                 raise ProviderError(
                     f"{self.model} spent the whole {max_tokens}-token budget on hidden "
                     f"reasoning (reasoning_tokens={reasoning}, finish_reason={finish}) and "
-                    "returned no content; pick a non-reasoning model (`prebuttal models`) "
-                    "or raise max-tokens"
+                    "returned no content; pick a non-reasoning model "
+                    "(`prebuttal backends api-openrouter`) or raise max-tokens"
                 )
             raise TransientProviderError("empty completion from OpenRouter")
         return text, usage

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .config import RunConfig, role_effort
+from .config import RunConfig, reviewer_seed, role_effort
 from .models import effort_support, param_support
 from .pack import estimate_tokens
 from .providers.detect import BackendStatus, default_model_for
@@ -10,23 +10,26 @@ from .providers.detect import BackendStatus, default_model_for
 _PROMPT_OVERHEAD_CHARS = 3500  # persona + venue form + instructions
 
 
-def _cost_line(model: str, kind: str, in_tok: int, out_tok: int, cfg: RunConfig) -> str:
+def _cost(
+    model: str, kind: str, in_tok: int, out_tok: int, cfg: RunConfig
+) -> tuple[float | None, str]:
+    """(USD or None when unpriced, the line to show)."""
     if kind == "agent":
-        return "uses your subscription — no per-token cost"
+        return None, "uses your subscription — no per-token cost"
     if kind == "relay":
-        return "answered by you / your agent — no model cost"
+        return None, "answered by you / your agent — no model cost"
     if kind == "ollama":
-        return "local model — free"
+        return None, "local model — free"
     if model.endswith(":free"):
-        return "OpenRouter :free tier — $0 (rate-limited)"
+        return None, "OpenRouter :free tier — $0 (rate-limited)"
     if not model:
-        return "no price table entry for this backend's default model"
+        return None, "no price table entry for this backend's default model"
     price = cfg.pricing.get(model)
     if not price:
-        return 'unknown price — add [pricing."' + model + '"] in prebuttal.toml'
+        return None, 'unknown price — add [pricing."' + model + '"] in prebuttal.toml'
     pin, pout = price
     cost = (in_tok * pin + out_tok * pout) / 1e6
-    return f"~${cost:.4f} (at ${pin:g}/${pout:g} per 1M tokens)"
+    return cost, f"~${cost:.4f} (at ${pin:g}/${pout:g} per 1M tokens)"
 
 
 def render_dry_run(
@@ -86,16 +89,21 @@ def render_dry_run(
     for rid, backend, model in entries:
         kind = kind_by_backend.get(backend, "api")
         # model "" = the CLI default: price what will actually run
-        note = _cost_line(model or default_model_for(backend, statuses), kind, in_tok, out_tok, cfg)
-        if note.startswith("~$"):
-            total += float(note[2:].split(" ")[0].strip("$"))
+        cost, note = _cost(
+            model or default_model_for(backend, statuses), kind, in_tok, out_tok, cfg
+        )
+        total += cost or 0.0
         lines.append(f"  {rid:<4} {backend:<14} {note}")
     if total > 0:
         lines.append(f"  total (priced backends): ~${total:.4f}")
     lines.append("")
     lines.append(
         "Seeds: "
-        + ", ".join(f"{rid}={cfg.seed + i + 1}" for i, (rid, _b, _m) in enumerate(resolved))
+        + ", ".join(
+            f"{r.id}={reviewer_seed(cfg, r, i)}"
+            for i, r in enumerate(cfg.reviewers)
+            if any(rid == r.id for rid, _b, _m in resolved)
+        )
         + f", AC={cfg.seed}"
     )
     ignored = sorted({b for (_r, b, m) in entries if not param_support(b, m)[1]})

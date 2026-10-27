@@ -266,3 +266,21 @@ def test_symlinked_root_tex_outside_the_project_is_refused(tmp_path):
     _symlink(proj / "main.tex", outside)
     with pytest.raises(LatexError):
         ingest_latex_source(proj)
+
+
+def test_section_levels_and_unnumbered_sections(tmp_path):
+    """Each section keeps its own level; \\section* gets no number and does not
+    shift the numbering that the PDF shows."""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}\n"
+        "\\section{Intro}a\n\\section*{Limitations}b\n\\section{Method}c\n"
+        "\\subsection{Detail}d\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    got = [(s.number, s.title, s.level) for s in ingest_latex_source(tmp_path).sections]
+    assert got[:4] == [
+        ("1", "Intro", 1),
+        ("", "Limitations", 1),
+        ("2", "Method", 1),
+        ("2.1", "Detail", 2),
+    ]

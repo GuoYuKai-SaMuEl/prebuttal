@@ -67,10 +67,13 @@ def write_local(
     base = run_folder_name(venue)
     run_dir = proj_dir / base
     i = 2
-    while run_dir.exists():  # two runs in the same minute
-        run_dir = proj_dir / f"{base}-{i}"
-        i += 1
-    run_dir.mkdir()
+    while True:  # two runs in the same minute (maybe two processes): take the next name
+        try:
+            run_dir.mkdir()
+            break
+        except FileExistsError:
+            run_dir = proj_dir / f"{base}-{i}"
+            i += 1
     written: list[Path] = []
     for fmt, text in files.items():
         path = run_dir / f"report.{fmt}"

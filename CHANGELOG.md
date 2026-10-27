@@ -62,6 +62,25 @@ the tool must not leak your keys.
 - A custom `[agents.*]` reviewer gets a one-line notice when keys are stored,
   since prebuttal can't remove its tools.
 
+### Fixed
+- `--backend` (and `PREBUTTAL_BACKEND`) kept the models `prebuttal.toml` set
+  for other backends — `--backend api-gemini` sent `sonnet` to Gemini. A
+  role moved to another backend now gets that backend's default model,
+  unless `--model` names one.
+- A local folder named like an arXiv id (an unpacked source tarball,
+  `2312.00752/`) was reviewed by downloading the public PDF instead of
+  reading the local, possibly revised copy. A local path now always wins.
+- LaTeX: every section took the level of the document's last section
+  command, and `\section*` headings were numbered, shifting every number
+  after them away from the PDF's.
+- Ollama: `OLLAMA_HOST` as Ollama documents it (`0.0.0.0:11434`, no
+  scheme) made Ollama look unreachable; it is now read the way Ollama does.
+- The dry run showed default seeds even where a reviewer sets its own.
+- Diff: one new weakness could count as "persists" for two old ones;
+  matching is one-to-one.
+- A report folder is created race-free when two runs finish in the same
+  minute.
+
 ## [0.4.1] — 2026-10-27
 
 ### Security

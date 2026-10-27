@@ -180,3 +180,21 @@ def test_reviewers_count_keeps_configured_reviewers(tmp_path):
     assert grown[1].backend == "ollama"
     shrunk = apply_overrides(load_config(tmp_path / "prebuttal.toml"), reviewers_count=1)
     assert [(r.id, r.backend) for r in shrunk.reviewers] == [("A", "api-gemini")]
+
+
+def test_backend_override_drops_models_meant_for_another_backend():
+    """--backend api-gemini must not send the file's `sonnet` to Gemini."""
+    from prebuttal.config import ACConfig, ReviewerConfig, RunConfig
+
+    cfg = RunConfig(
+        reviewers=[
+            ReviewerConfig("R1", "senior_kind", "agent-claude", "sonnet"),
+            ReviewerConfig("R2", "adversarial", "api-gemini", "gemini-3.8-flash"),
+        ],
+        ac=ACConfig(backend="agent-claude", model="opus"),
+    )
+    cfg = apply_overrides(cfg, backend="api-gemini")
+    assert [r.model for r in cfg.reviewers] == ["", "gemini-3.8-flash"]  # same backend keeps it
+    assert cfg.ac.model == ""
+    cfg = apply_overrides(cfg, backend="agent-codex", model="gpt-6-luna")
+    assert {r.model for r in cfg.reviewers} == {"gpt-6-luna"} and cfg.ac.model == "gpt-6-luna"

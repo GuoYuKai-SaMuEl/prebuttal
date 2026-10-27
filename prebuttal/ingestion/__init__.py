@@ -46,7 +46,9 @@ def ingest(source: str, *, figure_images: int = 0) -> StructuredPaper:
 def _ingest(source: str, figure_images: int) -> StructuredPaper:
     s = source.strip()
 
-    if s.startswith(("http://", "https://")) or parse_arxiv_id(s):
+    # a local folder named after an arXiv id (an unpacked source tarball) is
+    # the user's own copy, maybe revised: never swap it for the public version
+    if s.startswith(("http://", "https://")) or (parse_arxiv_id(s) and not Path(s).exists()):
         try:
             return ingest_arxiv(s, figure_images=figure_images)
         except Exception as e:

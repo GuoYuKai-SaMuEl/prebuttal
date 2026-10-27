@@ -389,7 +389,7 @@ def apply_overrides(
     reviewers_count: int | None = None,
     effort: str | None = None,
 ) -> RunConfig:
-    """Return a copy of cfg with CLI-flag overrides applied."""
+    """Apply CLI-flag overrides to ``cfg`` (in place) and return it."""
     if effort is not None:  # --effort wins over every per-role setting
         cfg.effort = check_effort(effort, "--effort")
         cfg.reviewers = [replace(r, effort="") for r in cfg.reviewers]
@@ -404,8 +404,15 @@ def apply_overrides(
             raise ConfigError("--reviewers must be between 1 and 5")
         cfg.reviewers = resize_reviewers(cfg.reviewers, reviewers_count)
     if backend is not None:
-        cfg.reviewers = [replace(r, backend=backend) for r in cfg.reviewers]
-        cfg.ac = replace(cfg.ac, backend=backend)
+        # a model the file set for another backend means nothing to this one:
+        # it falls back to the new backend's default unless --model names one
+        def moved(model: str, old: str) -> str:
+            return model if old == backend else ""
+
+        cfg.reviewers = [
+            replace(r, backend=backend, model=moved(r.model, r.backend)) for r in cfg.reviewers
+        ]
+        cfg.ac = replace(cfg.ac, backend=backend, model=moved(cfg.ac.model, cfg.ac.backend))
     if model is not None:
         cfg.reviewers = [replace(r, model=model) for r in cfg.reviewers]
         cfg.ac = replace(cfg.ac, model=model)

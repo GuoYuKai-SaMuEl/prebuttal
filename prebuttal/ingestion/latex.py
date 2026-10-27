@@ -560,6 +560,9 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         content, after = g
         level = _LEVELS[m.group(1)]
         plain = " ".join(_clean_inline(content).split())
+        if "*" in m.group(0):  # \section*: unnumbered, and the counters don't move
+            marks.append((m.start(), level, after, "", plain, in_appendix))
+            continue
         counters[level - 1] += 1
         for deeper in range(level, 3):
             counters[deeper] = 0
@@ -601,7 +604,7 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
 
     sections: list[Section] = []
     eq_shown = 0  # numbers display equations in the same order as the labels above
-    for i, (_start, _level, after, num, title_text, is_app) in enumerate(marks):
+    for i, (_start, sec_level, after, num, title_text, is_app) in enumerate(marks):
         end = marks[i + 1][0] if i + 1 < len(marks) else len(body)
         pieces: list[str] = []
         cur = after
@@ -638,7 +641,7 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
 
         text = _clean_block(chunk, resolve_ref)
         sections.append(
-            Section(level=level, number=num, title=title_text, text=text, appendix=is_app)
+            Section(level=sec_level, number=num, title=title_text, text=text, appendix=is_app)
         )
 
     # --- references
@@ -649,7 +652,6 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         warnings.append("no .bbl / thebibliography found — references not included")
 
     # attach each table to the section it appears in
-    sorted(float_spans)
     for t in tables:
         idx = int(t.number) - 1
         if 0 <= idx < len(table_spans):

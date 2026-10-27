@@ -50,7 +50,7 @@ def slugify(text: str, limit: int = 30) -> str:
 def source_identity(source: str) -> str:
     """Stable identity of a paper source: arXiv id (version dropped) or absolute path."""
     s = source.strip()
-    arxiv_id = parse_arxiv_id(s)
+    arxiv_id = parse_arxiv_id(s) if not Path(s).exists() else None  # local copy wins
     if arxiv_id:
         return "arxiv:" + re.sub(r"v\d+$", "", arxiv_id)
     return "path:" + Path(s).expanduser().resolve().as_posix()
