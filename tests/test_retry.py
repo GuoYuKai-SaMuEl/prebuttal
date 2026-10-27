@@ -1,7 +1,6 @@
 """`prebuttal retry`: only the failed reviewers (and the AC) run again."""
 
 import json
-from pathlib import Path
 
 import pytest
 from conftest import FAKE_TOML, PersonaFakeProvider
@@ -49,8 +48,7 @@ def test_retry_reruns_only_the_failed_reviewer(latex_project, fake_statuses, fla
 
     _Flaky.down = False
     calls.clear()
-    rc = cli.main(["retry", "--config", str(cfg_path), "--out-dir", "r"])
-    assert rc == cli.EXIT_OK
+    assert cli.main(["retry"]) == cli.EXIT_OK
 
     # one reviewer call + one AC call, nothing else re-paid
     reviewer_calls = [c for c in calls if "estimated_rating" not in c["system"]]
@@ -74,12 +72,12 @@ def test_retry_with_nothing_failed(latex_project, fake_statuses, fake_config, mo
     monkeypatch.chdir(fake_config.parent)
     assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == cli.EXIT_OK
     capsys.readouterr()
-    assert cli.main(["retry", "--config", str(fake_config)]) == cli.EXIT_OK
+    assert cli.main(["retry"]) == cli.EXIT_OK
     assert "nothing to retry" in capsys.readouterr().out
     assert len(load_history()) == 1
 
 
-def test_retry_old_run_needs_the_unchanged_paper(
+def test_retry_of_a_run_without_archived_text_is_refused(
     latex_project, fake_statuses, flaky_config, capsys
 ):
     cfg_path, _calls = flaky_config
@@ -88,23 +86,8 @@ def test_retry_old_run_needs_the_unchanged_paper(
     (rec.dir_path / "pack.md").unlink()  # as archived by 0.3.1 and earlier
     _Flaky.down = False
     capsys.readouterr()
-
-    assert cli.main(["retry", rec.id, "--config", str(cfg_path)]) == cli.EXIT_USAGE
-    assert "--paper" in capsys.readouterr().err
-
-    # the unchanged paper reproduces the archived pack, so the retry goes ahead
-    rc = cli.main(["retry", rec.id, "--config", str(cfg_path), "--paper", str(latex_project)])
-    assert rc == cli.EXIT_OK
-    capsys.readouterr()
-
-    main = Path(latex_project) / "main.tex"
-    revised = main.read_text(encoding="utf-8").replace(
-        "\\end{document}", "A revised closing sentence.\n\\end{document}"
-    )
-    main.write_text(revised, encoding="utf-8")
-    # the revised paper is refused: a retry must review the same text
-    rc = cli.main(["retry", rec.id, "--config", str(cfg_path), "--paper", str(latex_project)])
-    assert rc == cli.EXIT_USAGE and "changed" in capsys.readouterr().err
+    assert cli.main(["retry", rec.id]) == cli.EXIT_USAGE
+    assert "start a new run" in capsys.readouterr().err
 
 
 def test_ctrl_c_saves_finished_reviews_for_retry(
@@ -145,18 +128,6 @@ def test_ctrl_c_saves_finished_reviews_for_retry(
     assert [r["parse_ok"] for r in data["reviewers"]] == [True, True, False]
     assert "interrupted" in data["reviewers"][2]["error"]
 
-    rc = cli.main(["retry", "--config", str(cfg_path), "--backend", "fake", "--out-dir", "r"])
-    assert rc == cli.EXIT_OK
-
-
-def test_retry_backend_override_spares_a_working_ac(
-    latex_project, fake_statuses, flaky_config, capsys
-):
-    cfg_path, calls = flaky_config
-    cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
-    register_backend("other", lambda m, cfg, t: PersonaFakeProvider(backend="other", calls=calls))
-    rc = cli.main(["retry", "--config", str(cfg_path), "--backend", "other", "--out-dir", "r"])
-    assert rc == cli.EXIT_OK
-    new = json.loads((load_history()[0].dir_path / "report.json").read_text(encoding="utf-8"))
-    assert new["reviewers"][1]["backend"] == "other"  # the failed reviewer switched
-    assert new["meta"]["backend"] == "fake"  # the AC had worked: it keeps its backend
+    # the backend recovers; retry re-runs R3 on it as archived
+    register_backend("hung", lambda m, cfg, t: PersonaFakeProvider(backend="hung", calls=calls))
+    assert cli.main(["retry"]) == cli.EXIT_OK

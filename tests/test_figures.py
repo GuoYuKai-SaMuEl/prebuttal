@@ -210,7 +210,8 @@ def test_a_retry_run_archives_its_figures_too(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("prebuttal.providers.base.time.sleep", lambda s: None)
     assert cli.main(["run", str(pdf), "--config", str(fake_config), "--figures"]) == 4
-    rc = cli.main(["retry", "--config", str(fake_config), "--backend", "fake"])
+    register_backend("down", lambda m, cfg, t: _Vision(backend="down"))  # it recovers
+    rc = cli.main(["retry"])
     assert rc == cli.EXIT_OK
     retried = load_history()[0]
     assert retried.note.startswith("retry of")

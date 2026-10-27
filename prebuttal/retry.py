@@ -1,11 +1,11 @@
 """`prebuttal retry`: re-run only the reviewers that failed in an archived run.
 
 A run where one reviewer hit an overloaded backend still paid for the others.
-Retrying re-sends the *same* reviewer pack (archived as ``pack.md``; older runs
-re-ingest the paper and must reproduce the archived pack hash) to the failed
-reviewers only — same persona, backend, model, temperature and seed unless
-overridden — then re-runs the area chair over the merged reviews.  The result
-is archived as a new run of the same project.
+Retrying re-sends the *same* reviewer pack and figures (archived with the run)
+to the failed reviewers only — same persona, backend, model, temperature and
+seed — then re-runs the area chair over the merged reviews.  The result is
+archived as a new run of the same project.  There is nothing to configure: a
+different model is a different review, so it is a new run.
 """
 
 from __future__ import annotations
@@ -30,22 +30,14 @@ def failed_reviewers(report: ReviewReport) -> list[int]:
     return [i for i, r in enumerate(report.reviews) if not r.parse_ok]
 
 
-def load_pack(run_dir: Path, report: ReviewReport, paper_pack: str | None) -> str:
-    """The pack the original reviewers saw: archived, or re-rendered and verified."""
-    archived = run_dir / "pack.md"
-    if archived.is_file():
-        return archived.read_text(encoding="utf-8")
-    if paper_pack is None:
+def load_pack(run_dir: Path) -> str:
+    """The exact text the original reviewers saw (archived since 0.4.0)."""
+    try:
+        return (run_dir / "pack.md").read_text(encoding="utf-8")
+    except OSError:
         raise RetryError(
-            "this run predates pack archiving — pass --paper <source> so it can be "
-            "re-read (it must be unchanged since that run)"
-        )
-    if sha256_text(paper_pack) != report.run.pack_sha256:
-        raise RetryError(
-            "the paper (or the pack settings) changed since that run, so a retry would "
-            "not review the same text — start a new run instead"
-        )
-    return paper_pack
+            "this run was archived before 0.4.0 without its reviewer text — start a new run instead"
+        ) from None
 
 
 def load_figures(run_dir: Path) -> list[FigureImage]:

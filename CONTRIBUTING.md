@@ -55,6 +55,7 @@ be auto-discovered, and cover request shape + error paths with tests (see
 - [ ] `ruff check .` and `ruff format --check .` clean
 - [ ] `CHANGELOG.md` entry under `[Unreleased]`
 - [ ] Docs updated if you touched user-facing behavior (README / SKILL.md)
+- [ ] Every new CLI flag justified (design commitment 4) — or removed
 - [ ] Venue/persona changes link the official source
 
 ## Design commitments (don't break these in a PR)
@@ -66,6 +67,13 @@ be auto-discovered, and cover request shape + error paths with tests (see
    scores.
 3. **Tables are sacred.** The ingestion pipeline must never silently drop
    experimental numbers — if cell parsing fails, ship the verbatim fallback.
+4. **Fewer parameters, simpler commands.** A new command should do the
+   obvious thing with no options at all; every flag must earn its place.
+   Before adding one, prefer (in order): a sensible default, deriving the
+   value from what is already known (the archived run, the config), a
+   `prebuttal.toml` setting, and only then a flag. Don't add a second flag
+   to tune the first (`--backend` + `--model` on every command), and don't
+   copy `run`'s flags onto other commands "for symmetry".
 
 ## Reporting problems
 

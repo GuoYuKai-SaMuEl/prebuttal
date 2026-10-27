@@ -165,17 +165,6 @@ def build_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
     )
     retry_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
-    retry_p.add_argument(
-        "--paper", default=None, help="paper source, only for runs archived before 0.3.2"
-    )
-    retry_p.add_argument("-c", "--config", default=None, help="prebuttal.toml path")
-    retry_p.add_argument(
-        "--backend", default=None, help="backend for the failed roles (a working AC keeps its own)"
-    )
-    retry_p.add_argument("--model", default=None, help="model id for the failed roles")
-    retry_p.add_argument("--note", default="", help="note for the new run")
-    retry_p.add_argument("--out-dir", default=None, help="reports folder (see `run`)")
-    retry_p.add_argument("--format", default=None, help="report formats (see `run`)")
 
     sub.add_parser("backends", help="list detected review backends")
 
@@ -222,11 +211,8 @@ def build_parser() -> argparse.ArgumentParser:
     diff_p.add_argument(
         "--llm",
         action="store_true",
-        help="match revision-plan items by meaning with one model call (default: word overlap)",
+        help="match revision-plan items by meaning with one call to the AC's backend",
     )
-    diff_p.add_argument("-c", "--config", default=None, help="prebuttal.toml path (for --llm)")
-    diff_p.add_argument("--backend", default=None, help="backend for --llm (default: the AC's)")
-    diff_p.add_argument("--model", default=None, help="model id for --llm")
 
     note_p = sub.add_parser("note", help="attach a note to a run (shown in lists and dashboard)")
     note_p.add_argument("run", help="run reference")
@@ -501,12 +487,10 @@ def cmd_diff(args) -> int:
 
 
 def _plan_matcher(args):
-    """`diff --llm`: the AC's backend (or --backend/--model) as a plan matcher."""
+    """`diff --llm`: the configured AC backend as a plan matcher."""
     from .diffmatch import match_plan
 
-    cfg = apply_overrides(
-        load_config(args.config), backend=args.backend or env_backend(), model=args.model
-    )
+    cfg = apply_overrides(load_config(None), backend=env_backend())
     statuses = scan_backends(cfg)
     try:
         _resolved, ac = resolve_backends(cfg, statuses)
@@ -518,7 +502,7 @@ def _plan_matcher(args):
         return None
     from .trust import pinned_by_file
 
-    if not _config_trusted(cfg, [ac], pinned=pinned_by_file(args.backend)):
+    if not _config_trusted(cfg, [ac], pinned=pinned_by_file(None)):
         return None
     try:
         provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
@@ -1126,6 +1110,8 @@ def _deliver(
 
 
 def cmd_retry(args) -> int:
+    """Re-run the failed roles exactly as configured in the archived run: same
+    text, figures, backends, models and seeds. Nothing to choose (commitment 4)."""
     from .retry import (
         RetryError,
         failed_reviewers,
@@ -1149,35 +1135,17 @@ def cmd_retry(args) -> int:
         print(f"{rec.label}: every reviewer and the AC finished — nothing to retry")
         return EXIT_OK
 
-    cfg = load_config(args.config)
+    cfg = load_config(None)
     try:
-        formats = parse_formats(args.format) if args.format else cfg.output_formats
         venue = venue_for_retry(data)
-        paper_pack = None
-        if args.paper and not (rec.dir_path / "pack.md").is_file():
-            paper_pack = render_pack(ingest(args.paper), budget_chars=cfg.budget_chars)
-        pack = load_pack(rec.dir_path, old, paper_pack)
-    except (ValueError, RetryError, IngestError) as e:
+        pack = load_pack(rec.dir_path)
+    except RetryError as e:
         print(f"error: cannot retry {rec.label}: {e}", file=sys.stderr)
         return EXIT_USAGE
 
     roles = [
-        (
-            old.reviews[i].reviewer_id,
-            args.backend or old.reviews[i].backend,
-            old.reviews[i].model if args.model is None else args.model,
-            old.reviews[i].effort,
-        )
-        for i in targets
-    ]
-    # the AC always re-runs over the merged reviews, but --backend/--model are
-    # meant for what failed: an AC that worked keeps its backend and model
-    ac_failed = not old.meta.parse_ok
-    roles.append(
-        ("AC", (args.backend if ac_failed else None) or old.meta.backend,
-         args.model if ac_failed and args.model is not None else old.meta.model,
-         old.meta.effort)
-    )  # fmt: skip
+        (r.reviewer_id, r.backend, r.model, r.effort) for r in (old.reviews[i] for i in targets)
+    ] + [("AC", old.meta.backend, old.meta.model, old.meta.effort)]
     uses_relay = any(b == "relay" for (_r, b, _m, _e) in roles)
     if not _config_trusted(
         cfg, [(b, m) for (_r, b, m, _e) in roles], pinned=False, relay=uses_relay
@@ -1192,17 +1160,17 @@ def cmd_retry(args) -> int:
     names = ", ".join(old.reviews[i].reviewer_id for i in targets) or "none"
     _log(f"[prebuttal] retrying {rec.label}: reviewers {names}, then the AC")
 
-    figures = load_figures(rec.dir_path)
-    report = retry_report(data, pack, venue, cfg, built, ac_provider, _log, figures)
-    note = args.note.strip() or f"retry of {rec.label}"
+    report = retry_report(
+        data, pack, venue, cfg, built, ac_provider, _log, load_figures(rec.dir_path)
+    )
     return _deliver(
         report,
         venue,
         cfg,
         project=rec.project,
-        note=note,
-        formats=formats,
-        out_dir=args.out_dir if args.out_dir is not None else cfg.output_dir,
+        note=f"retry of {rec.label}",
+        formats=cfg.output_formats,
+        out_dir=cfg.output_dir,
         json_path=None,
         stdout=False,
         save=True,

@@ -73,7 +73,8 @@ def test_cli_diff_llm_uses_the_model_match(
     register_backend("matcher", lambda m, cfg, t: _Canned(answer))
     capsys.readouterr()
 
-    rc = cli.main(["diff", "--llm", "--config", str(fake_config), "--backend", "matcher"])
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "matcher")  # the AC backend, without a flag
+    rc = cli.main(["diff", "--llm"])
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK
     assert "matched by canned / m1" in out
@@ -89,7 +90,8 @@ def test_cli_diff_llm_falls_back_to_word_overlap(
     # the fake backend answers with a review, not a plan match
     register_backend("fake", lambda m, cfg, t: PersonaFakeProvider(model="fake-m"))
     capsys.readouterr()
-    rc = cli.main(["diff", "--llm", "--config", str(fake_config)])
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "fake")
+    rc = cli.main(["diff", "--llm"])
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK
     assert "model matching failed — fell back to word overlap" in out

@@ -14,11 +14,10 @@ releases (0.2, 0.3, …) are substantial new features.
 - **`prebuttal retry [run]`** re-runs only the reviewers that failed (an
   overloaded backend, a timeout) plus the area chair, on the exact text the
   others reviewed, and archives the result as a new run of the project — the
-  finished reviews are not paid for twice. `--backend` / `--model` switch the
-  roles that failed to another backend (an area chair that worked keeps its
-  own when it re-runs over the merged reviews). Runs now archive their
-  reviewer pack (`pack.md`, in the private run store); runs from 0.3.1 and
-  earlier can be retried with `--paper <source>` if the paper is unchanged.
+  finished reviews are not paid for twice. No options: the same backends,
+  models, seeds and figures as the original run (a different model is a new
+  run). Runs now archive their reviewer text (`pack.md`, in the private run
+  store); runs from 0.3.1 and earlier can't be retried.
 - **Ctrl-C keeps finished reviews.** Interrupting a run archives the reviews
   that already finished (note `interrupted`, exit code 130), so
   `prebuttal retry` can complete it instead of starting over.
@@ -31,8 +30,8 @@ releases (0.2, 0.3, …) are substantial new features.
   LoRA, DPO and Mamba PDFs. The HTML share page shows it as a
   red alert at the top (other ingestion notes folded below it).
 - **`prebuttal diff --llm`** matches the previous run's revision plan
-  against the new run by meaning, with one call to the AC's backend
-  (`--backend` / `--model` to pick another): an issue reworded in round B no
+  against the new run by meaning, with one call to the configured AC
+  backend: an issue reworded in round B no
   longer shows up as both "not re-detected" and "new". Word overlap stays the
   default and the fallback when the model's answer is unusable.
 - **Relay protocol: atomic answers.** Responders are told (README.txt, each
@@ -49,6 +48,10 @@ releases (0.2, 0.3, …) are substantial new features.
   re-sends the archived images.
 
 ### Changed
+- **Design commitment: fewer parameters.** CONTRIBUTING.md now asks every
+  new command to work with no options and every flag to earn its place
+  (defaults, values derived from the run or config, or a `prebuttal.toml`
+  setting come first).
 - **A `prebuttal.toml` found in the current directory** (not passed with
   `--config`) now also needs a yes before it can send the paper to a backend
   it pins, or write reports / the relay spool outside the current directory
