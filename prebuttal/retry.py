@@ -1,0 +1,126 @@
+"""`prebuttal retry`: re-run only the reviewers that failed in an archived run.
+
+A run where one reviewer hit an overloaded backend still paid for the others.
+Retrying re-sends the *same* reviewer pack (archived as ``pack.md``; older runs
+re-ingest the paper and must reproduce the archived pack hash) to the failed
+reviewers only — same persona, backend, model, temperature and seed unless
+overridden — then re-runs the area chair over the merged reviews.  The result
+is archived as a new run of the same project.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from pathlib import Path
+
+from .config import ReviewerConfig, RunConfig
+from .models import ReviewReport, RunInfo, Usage, make_aggregate, sha256_text
+from .orchestrator import Log, run_meta, run_reviews
+from .providers import BaseProvider
+from .report import report_from_dict
+from .venues import Venue, VenueError, get_venue, venue_from_report
+
+
+class RetryError(Exception):
+    """The run cannot be retried (nothing failed, pack missing or changed...)."""
+
+
+def failed_reviewers(report: ReviewReport) -> list[int]:
+    return [i for i, r in enumerate(report.reviews) if not r.parse_ok]
+
+
+def load_pack(run_dir: Path, report: ReviewReport, paper_pack: str | None) -> str:
+    """The pack the original reviewers saw: archived, or re-rendered and verified."""
+    archived = run_dir / "pack.md"
+    if archived.is_file():
+        return archived.read_text(encoding="utf-8")
+    if paper_pack is None:
+        raise RetryError(
+            "this run predates pack archiving — pass --paper <source> so it can be "
+            "re-read (it must be unchanged since that run)"
+        )
+    if sha256_text(paper_pack) != report.run.pack_sha256:
+        raise RetryError(
+            "the paper (or the pack settings) changed since that run, so a retry would "
+            "not review the same text — start a new run instead"
+        )
+    return paper_pack
+
+
+def venue_for_retry(data: dict) -> Venue:
+    """The venue to *run* with: custom venues need their form text, which
+    report.json does not store, so the venue file must still exist unchanged."""
+    stored = venue_from_report(data)
+    if not stored.custom:
+        return stored
+    try:
+        live = get_venue(stored.key)
+    except VenueError as e:
+        raise RetryError(f"custom venue '{stored.key}' is needed to retry: {e}") from e
+    from .venues.custom import venue_to_spec
+
+    if venue_to_spec(live) != venue_to_spec(stored):
+        raise RetryError(f"custom venue '{stored.key}' changed since that run")
+    return live
+
+
+def retry_report(
+    data: dict,
+    pack: str,
+    venue: Venue,
+    cfg: RunConfig,
+    providers: dict[str, BaseProvider],
+    ac_provider: BaseProvider,
+    log: Log,
+) -> ReviewReport:
+    """Re-run the failed reviewers of ``data`` (a report.json) plus the AC.
+
+    ``providers`` maps the ids of the reviewers to retry to their backends."""
+    old = report_from_dict(data)
+    targets = failed_reviewers(old)
+    sub = replace(
+        cfg,
+        seed=old.run.seed,
+        reviewers=[
+            ReviewerConfig(
+                id=old.reviews[i].reviewer_id,
+                persona=old.reviews[i].persona,
+                backend=providers[old.reviews[i].reviewer_id].backend,
+                model=providers[old.reviews[i].reviewer_id].model,
+                temperature=old.reviews[i].temperature,
+                seed=old.reviews[i].seed,
+            )
+            for i in targets
+        ],
+    )
+    sub.ac = replace(cfg.ac, temperature=old.meta.temperature)
+    fresh = run_reviews(sub, venue, pack, providers, log) if targets else []
+    reviews = list(old.reviews)
+    for i, review in zip(targets, fresh, strict=True):
+        reviews[i] = review
+    meta = run_meta(sub, venue, pack, reviews, ac_provider, log)
+
+    usage = Usage()
+    for r in reviews:
+        usage.add(r.usage)
+    usage.add(meta.usage)
+    run = RunInfo(
+        venue=old.run.venue,
+        seed=old.run.seed,
+        generated_at=RunInfo.now_iso(),
+        source=old.run.source,
+        source_type=old.run.source_type,
+        pack_chars=len(pack),
+        pack_sha256=sha256_text(pack),
+        config_path=cfg.config_path,
+    )
+    return ReviewReport(
+        paper=old.paper,
+        venue_key=old.venue_key,
+        reviews=reviews,
+        meta=meta,
+        aggregate=make_aggregate(reviews),
+        run=run,
+        usage_total=usage,
+        pack=pack,
+    )

@@ -107,14 +107,20 @@ class StructuredPaper:
     source_path: str = ""
     warnings: list[str] = field(default_factory=list)
 
+    # counts from a stored report.json, whose summary has no section bodies
+    stored_counts: dict[str, int] = field(default_factory=dict, repr=False)
+
     def summary_dict(self) -> dict[str, Any]:
+        def count(name: str, items: list) -> int:
+            return len(items) if items else self.stored_counts.get(name, 0)
+
         return {
             "title": self.title,
             "source_type": self.source_type,
             "source_path": self.source_path,
-            "sections": len(self.sections),
-            "tables": len(self.tables),
-            "figures": len(self.figures),
+            "sections": count("sections", self.sections),
+            "tables": count("tables", self.tables),
+            "figures": count("figures", self.figures),
             "warnings": list(self.warnings),
         }
 
@@ -266,6 +272,9 @@ class ReviewReport:
     aggregate: Aggregate
     run: RunInfo
     usage_total: Usage = field(default_factory=Usage)
+    # the exact text every reviewer received; archived as pack.md so failed
+    # reviewers can be retried later (never part of report.json)
+    pack: str = field(default="", repr=False)
 
 
 def dataclass_to_dict(obj: Any) -> Any:

@@ -2,6 +2,7 @@
 
 Commands:
   prebuttal run <paper>       review a PDF / LaTeX project / arXiv link
+  prebuttal retry [run]       re-run only the reviewers that failed, then the AC
   prebuttal projects          list papers (one project per paper, runs grouped)
   prebuttal runs [project]    list runs; show / open / diff / note / rm / export them
   prebuttal dashboard         local HTML overview of every project and run
@@ -152,6 +153,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not archive this run to the run history (~/.prebuttal)",
     )
+
+    retry_p = sub.add_parser(
+        "retry",
+        help="re-run only the failed reviewers of a run, then the AC (default: latest)",
+        allow_abbrev=False,
+    )
+    retry_p.add_argument("run", nargs="?", default=None, help="run reference (default: latest)")
+    retry_p.add_argument(
+        "--paper", default=None, help="paper source, only for runs archived before 0.3.2"
+    )
+    retry_p.add_argument("-c", "--config", default=None, help="prebuttal.toml path")
+    retry_p.add_argument("--backend", default=None, help="backend for the retried roles")
+    retry_p.add_argument("--model", default=None, help="model id for the retried roles")
+    retry_p.add_argument("--note", default="", help="note for the new run")
+    retry_p.add_argument("--out-dir", default=None, help="reports folder (see `run`)")
+    retry_p.add_argument("--format", default=None, help="report formats (see `run`)")
 
     sub.add_parser("backends", help="list detected review backends")
 
@@ -913,44 +930,67 @@ def cmd_run(args) -> int:
 
     report = run_report(paper, cfg, venue, providers, ac_provider, log=_log)
 
-    md = render_markdown(report, venue)
-    json_str = dumps_json(report, venue)
-    html_str = render_share_html(report, venue, cfg.repo_url)
-    texts = {"md": md, "html": html_str, "json": json_str}
-
     # Archive first, best-effort: a failure to archive never fails the
     # review, and a bad output path afterwards can't lose a (paid) review.
     project = slugify(paper.title)
     with contextlib.suppress(OSError, ProjectError):
         project = assign_project(args.paper, paper.title, args.project, register=not args.no_save)
+    return _deliver(
+        report,
+        venue,
+        cfg,
+        project=project,
+        note=args.note.strip(),
+        formats=formats,
+        out_dir=args.out_dir if args.out_dir is not None else cfg.output_dir,
+        json_path=args.json,
+        stdout=args.stdout,
+        save=not args.no_save,
+    )
+
+
+def _deliver(
+    report,
+    venue,
+    cfg,
+    *,
+    project: str,
+    note: str,
+    formats: tuple[str, ...],
+    out_dir: str,
+    json_path: str | None,
+    stdout: bool,
+    save: bool,
+) -> int:
+    """Render, archive and write a finished report; print the summary; exit code."""
+    md = render_markdown(report, venue)
+    json_str = dumps_json(report, venue)
+    html_str = render_share_html(report, venue, cfg.repo_url)
+    texts = {"md": md, "html": html_str, "json": json_str}
+
     rec = None
-    if not args.no_save:
+    prev = None
+    if save:
         try:
             prev = next((r for r in load_history() if r.project == project), None)
             rec = save_run(
-                report,
-                venue,
-                cfg,
-                md=md,
-                json_str=json_str,
-                html=html_str,
-                project=project,
-                note=args.note.strip(),
-            )
+                report, venue, cfg, md=md, json_str=json_str, html=html_str,
+                project=project, note=note,
+            )  # fmt: skip
         except OSError as e:
             _log(f"[prebuttal] warning: could not archive this run ({e})")
 
     written: list[Path] = []
     try:
-        out_dir = args.out_dir if args.out_dir is not None else cfg.output_dir
         if out_dir:
-            root = Path(out_dir)
-            _dir, written = write_local(root, project, venue.key, {f: texts[f] for f in formats})
-        if args.json:
-            json_path = Path(args.json)
-            json_path.parent.mkdir(parents=True, exist_ok=True)
-            json_path.write_text(json_str, encoding="utf-8")
-            written.append(json_path)
+            _dir, written = write_local(
+                Path(out_dir), project, venue.key, {f: texts[f] for f in formats}
+            )
+        if json_path:
+            jp = Path(json_path)
+            jp.parent.mkdir(parents=True, exist_ok=True)
+            jp.write_text(json_str, encoding="utf-8")
+            written.append(jp)
     except OSError as e:
         print(f"error: cannot write report: {e}", file=sys.stderr)
         if rec is not None:
@@ -987,7 +1027,7 @@ def cmd_run(args) -> int:
         if rec.run_no > 1:
             nxt = "prebuttal diff · " + nxt
         print(f"Next:     {nxt}")
-    if args.stdout:
+    if stdout:
         print()
         print(md)
 
@@ -999,14 +1039,83 @@ def cmd_run(args) -> int:
     if failed and len(failed) < len(report.reviews):
         _log(
             f"[prebuttal] the report uses the {len(report.reviews) - len(failed)} reviews that "
-            "finished. Overloaded backends usually recover within minutes: re-run later, "
-            "or pick another model / backend (--model, --backend)."
+            "finished. Overloaded backends usually recover within minutes: "
+            + (
+                f"`prebuttal retry {rec.label}` re-runs only the failed reviewers"
+                if rec is not None
+                else "re-run later"
+            )
+            + ", or pick another model / backend (--model, --backend)."
         )
     if len(failed) == len(report.reviews):
         return EXIT_ALL_FAILED
     if failed or not report.meta.parse_ok:
         return EXIT_PARTIAL
     return EXIT_OK
+
+
+def cmd_retry(args) -> int:
+    from .retry import RetryError, failed_reviewers, load_pack, retry_report, venue_for_retry
+
+    rec = _resolve_run_or_exit(args.run)
+    if rec is None:
+        return EXIT_USAGE
+    try:
+        data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+        old = report_from_dict(data)
+    except (OSError, ValueError, KeyError) as e:
+        print(f"error: archived report.json for {rec.label} is unreadable ({e})", file=sys.stderr)
+        return EXIT_USAGE
+    targets = failed_reviewers(old)
+    if not targets and old.meta.parse_ok:
+        print(f"{rec.label}: every reviewer and the AC finished — nothing to retry")
+        return EXIT_OK
+
+    cfg = load_config(args.config)
+    try:
+        formats = parse_formats(args.format) if args.format else cfg.output_formats
+        venue = venue_for_retry(data)
+        paper_pack = None
+        if args.paper and not (rec.dir_path / "pack.md").is_file():
+            paper_pack = render_pack(ingest(args.paper), budget_chars=cfg.budget_chars)
+        pack = load_pack(rec.dir_path, old, paper_pack)
+    except (ValueError, RetryError, IngestError) as e:
+        print(f"error: cannot retry {rec.label}: {e}", file=sys.stderr)
+        return EXIT_USAGE
+
+    roles = [
+        (old.reviews[i].reviewer_id, args.backend or old.reviews[i].backend,
+         old.reviews[i].model if args.model is None else args.model, old.reviews[i].effort)
+        for i in targets
+    ] + [
+        ("AC", args.backend or old.meta.backend,
+         old.meta.model if args.model is None else args.model, old.meta.effort)
+    ]  # fmt: skip
+    if not _agent_commands_trusted(cfg, [b for (_r, b, _m, _e) in roles]):
+        return EXIT_USAGE
+    try:
+        built = {rid: build_provider(b, m, cfg, effort=e) for rid, b, m, e in roles}
+    except ProviderError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return EXIT_NO_BACKEND
+    ac_provider = built.pop("AC")
+    names = ", ".join(old.reviews[i].reviewer_id for i in targets) or "none"
+    _log(f"[prebuttal] retrying {rec.label}: reviewers {names}, then the AC")
+
+    report = retry_report(data, pack, venue, cfg, built, ac_provider, _log)
+    note = args.note.strip() or f"retry of {rec.label}"
+    return _deliver(
+        report,
+        venue,
+        cfg,
+        project=rec.project,
+        note=note,
+        formats=formats,
+        out_dir=args.out_dir if args.out_dir is not None else cfg.output_dir,
+        json_path=None,
+        stdout=False,
+        save=True,
+    )
 
 
 def _utf8_stdio() -> None:
@@ -1065,6 +1174,7 @@ def main(argv=None) -> int:
             "rm": cmd_rm,
             "export": cmd_export,
             "dashboard": cmd_dashboard,
+            "retry": cmd_retry,
         }
         if args.cmd in commands:
             return commands[args.cmd](args)

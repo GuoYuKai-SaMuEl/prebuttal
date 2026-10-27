@@ -582,4 +582,5 @@ def run_report(
         aggregate=aggregate,
         run=run_info,
         usage_total=usage_total,
+        pack=pack,
     )

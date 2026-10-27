@@ -330,8 +330,19 @@ def _meta_from(d: dict[str, Any]) -> MetaReview:
 def report_from_dict(d: dict[str, Any]) -> ReviewReport:
     """Rebuild a report from its ``report.json`` (enough to re-render HTML)."""
     venue = d.get("venue")
+    p = d.get("paper") or {}
+    paper = StructuredPaper(
+        title=str(p.get("title", "")),
+        abstract="",
+        source_type=str(p.get("source_type", "")),
+        source_path=str(p.get("source_path", "")),
+        warnings=list(p.get("warnings") or []),
+        stored_counts={
+            k: p[k] for k in ("sections", "tables", "figures") if isinstance(p.get(k), int)
+        },
+    )
     return ReviewReport(
-        paper=_dataclass_from(StructuredPaper, d["paper"]),
+        paper=paper,
         venue_key=venue.get("key", "") if isinstance(venue, dict) else str(venue or ""),
         reviews=[_dataclass_from(Review, r) for r in d["reviewers"]],
         meta=_meta_from(d["meta"]),

@@ -10,6 +10,20 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Added
+- **`prebuttal retry [run]`** re-runs only the reviewers that failed (an
+  overloaded backend, a timeout) plus the area chair, on the exact text the
+  others reviewed, and archives the result as a new run of the project — the
+  finished reviews are not paid for twice. `--backend` / `--model` switch the
+  retried roles to another backend. Runs now archive their reviewer pack
+  (`pack.md`, in the private run store); runs from 0.3.1 and earlier can be
+  retried with `--paper <source>` if the paper is unchanged.
+
+### Changed
+- CI fails on any text I/O without an explicit `encoding=`
+  (`PYTHONWARNDEFAULTENCODING=1` + `EncodingWarning` as an error), the bug
+  class that only shows on non-UTF-8 Windows locales.
+
 ## [0.3.1] — 2026-10-27
 
 ### Fixed

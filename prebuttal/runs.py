@@ -134,6 +134,8 @@ def save_run(
     (out_dir / "report.json").write_text(json_str, encoding="utf-8")
     if html:
         (out_dir / "report.html").write_text(html, encoding="utf-8")
+    if getattr(report, "pack", ""):  # `prebuttal retry` re-sends exactly this text
+        (out_dir / "pack.md").write_text(report.pack, encoding="utf-8")
     resolved = {
         "prebuttal_version": __version__,
         "venue": venue.key,

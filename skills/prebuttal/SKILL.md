@@ -115,7 +115,10 @@ After the user revises the paper:
    to a table/section and the suggested action.
 3. Pull out the questions reviewers would ask in rebuttal.
 4. Give the AC recommendation verbatim.
-5. Offer next steps: fix specific weaknesses, re-run after revision with the
+5. If a reviewer failed (exit code 4, e.g. an overloaded backend), offer
+   `prebuttal retry`: it re-runs only the failed reviewers and the AC on the
+   same text, so the finished reviews are not paid for twice.
+6. Offer next steps: fix specific weaknesses, re-run after revision with the
    same `--seed` to compare, or open the HTML report (`prebuttal open`) /
    the overview of every run (`prebuttal dashboard`).
 
