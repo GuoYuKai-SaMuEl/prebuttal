@@ -531,6 +531,44 @@ def test_agent_cli_outdated_flag_is_not_retried(monkeypatch):
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        # claude -p --model haiku-5.5
+        '[claude-code:unrecognized_model] {"model":"haiku-5.5"}\nThere\'s an issue with '
+        "the selected model (haiku-5.5). It may not exist or you may not have access to it.",
+        # codex exec --model no-such-model
+        'ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error",'
+        '"code":"model_not_found"}}',
+    ],
+)
+def test_agent_cli_unknown_model_is_not_retried(monkeypatch, stderr):
+    import subprocess as sp
+
+    from prebuttal.providers.agent_cli import claude_provider
+    from prebuttal.providers.base import ProviderError, TransientProviderError
+
+    calls = []
+
+    class FakeCompleted:
+        returncode = 1
+        stdout = ""
+
+    FakeCompleted.stderr = stderr
+
+    def fake_run(cmd, input=None, **kw):
+        calls.append(cmd)
+        return FakeCompleted()
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(ProviderError) as exc:
+        claude_provider("haiku-5.5").complete(system="s", user="u", retries=2)
+    assert not isinstance(exc.value, TransientProviderError)
+    assert "model name" in str(exc.value)
+    assert len(calls) == 1
+
+
 def test_agent_cli_windows_cmd_fallback(monkeypatch):
     """Windows .cmd launchers that CreateProcess can't run directly retry via cmd /c."""
     import subprocess as sp

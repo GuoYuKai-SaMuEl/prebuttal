@@ -598,7 +598,7 @@ def render_diff(
         out.append("")
 
     out.append(
-        "*Heuristic comparison of two simulated runs — same persona ≠ same reviewer; "
+        "*Comparison of two simulated runs — same persona ≠ same reviewer; "
         "treat movements as signals, not measurements.*"
     )
     return "\n".join(out)

@@ -10,6 +10,14 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- An agent CLI that doesn't know the model id (e.g. `claude` given `haiku-5.5`
+  instead of `claude-haiku-5-5` / `haiku`, or codex's `model_not_found`) now
+  fails at once with a "check the model id" message, instead of being retried
+  twice as if it were a transient error.
+- The `diff` footer no longer calls the comparison "heuristic", which
+  contradicted the "matched by …" line under `diff --llm`.
+
 ## [0.4.0] — 2026-10-27
 
 ### Added

@@ -29,6 +29,13 @@ from .base import BaseProvider, ProviderError, TransientProviderError, strip_ans
 # Command-line arg length safety margin (Windows ~32k; stay well under).
 _MAX_ARGV_CHARS = 24_000
 
+# How claude / codex report a model id they don't know (lowercased).
+_BAD_MODEL = (
+    "unrecognized_model",  # claude: [claude-code:unrecognized_model]
+    "may not exist or you may not have access",  # claude
+    "model_not_found",  # codex (OpenAI error code)
+)
+
 
 def _child_env() -> dict[str, str]:
     """Environment for agent CLIs, minus API keys loaded from keys.env.
@@ -160,6 +167,12 @@ class AgentCLIProvider(BaseProvider):
                 raise ProviderError(
                     f"{cmd[0]} rejected a flag prebuttal needs ({err}) — "
                     f"update {cmd[0]} to its latest version"
+                )
+            if any(m in err.lower() for m in _BAD_MODEL):
+                # a model id the CLI doesn't know: the same answer every attempt
+                raise ProviderError(
+                    f"{cmd[0]} rejected the model name ({err}) — check the model id "
+                    f"against `{cmd[0]} --help` or its docs"
                 )
             raise TransientProviderError(f"{cmd[0]} exited {proc.returncode}: {err}")
         return strip_ansi(proc.stdout or ""), Usage()
