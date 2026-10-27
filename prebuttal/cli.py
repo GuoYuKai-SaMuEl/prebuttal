@@ -212,6 +212,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     diff_p.add_argument("run_a", nargs="?", default=None)
     diff_p.add_argument("run_b", nargs="?", default=None)
+    diff_p.add_argument(
+        "--llm",
+        action="store_true",
+        help="match revision-plan items by meaning with one model call (default: word overlap)",
+    )
+    diff_p.add_argument("-c", "--config", default=None, help="prebuttal.toml path (for --llm)")
+    diff_p.add_argument("--backend", default=None, help="backend for --llm (default: the AC's)")
+    diff_p.add_argument("--model", default=None, help="model id for --llm")
 
     note_p = sub.add_parser("note", help="attach a note to a run (shown in lists and dashboard)")
     note_p.add_argument("run", help="run reference")
@@ -472,12 +480,44 @@ def cmd_diff(args) -> int:
         b = _resolve_run_or_exit(args.run_b)
         if b is None:
             return EXIT_USAGE
+    matcher = None
+    if args.llm:
+        matcher = _plan_matcher(args)
+        if matcher is None:
+            return EXIT_NO_BACKEND
     try:
-        print(render_diff(a, b))
+        print(render_diff(a, b, match_plan=matcher))
     except (FileNotFoundError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_USAGE
     return EXIT_OK
+
+
+def _plan_matcher(args):
+    """`diff --llm`: the AC's backend (or --backend/--model) as a plan matcher."""
+    from .diffmatch import match_plan
+
+    cfg = apply_overrides(
+        load_config(args.config), backend=args.backend or env_backend(), model=args.model
+    )
+    statuses = scan_backends(cfg)
+    try:
+        _resolved, ac = resolve_backends(cfg, statuses)
+    except NoBackendError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return None
+    if ac[0] == "relay":
+        print("error: --llm needs an automatic backend, not relay", file=sys.stderr)
+        return None
+    if not _agent_commands_trusted(cfg, [ac[0]]):
+        return None
+    try:
+        provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
+    except ProviderError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return None
+    _log(f"[prebuttal] matching revision plans via {provider.describe()}")
+    return lambda a, bp, bw: match_plan(provider, a, bp, bw)
 
 
 def cmd_note(args) -> int:

@@ -288,6 +288,7 @@ prebuttal runs [project]             # its runs, newest first, with notes
 prebuttal open                       # newest report in the browser (HTML)
 prebuttal plan                       # the newest run's revision plan as a checklist
 prebuttal diff                       # newest run vs the one before: ratings, weaknesses, plan
+prebuttal diff --llm                 # ... matching plan items by meaning (one model call)
 prebuttal retry                      # re-run only the reviewers that failed (+ the AC)
 prebuttal dashboard                  # local HTML overview: every project, score trends, links
 prebuttal show / export / note / rm  # print, copy out, annotate, delete runs

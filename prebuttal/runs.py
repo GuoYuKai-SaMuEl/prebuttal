@@ -15,6 +15,7 @@ import re
 import shutil
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -448,7 +449,12 @@ def _by_persona(reviewers: list[dict]) -> dict[str, dict]:
     return out
 
 
-def render_diff(a: RunRecord, b: RunRecord) -> str:
+def render_diff(
+    a: RunRecord,
+    b: RunRecord,
+    *,
+    match_plan: Callable[[list[str], list[str], list[str]], Any] | None = None,
+) -> str:
     """Human-readable A→B comparison: scores, per-reviewer ratings, weakness movement."""
     da, db = _load_run_json(a), _load_run_json(b)
     aa, ab = da.get("aggregate", {}), db.get("aggregate", {})
@@ -540,40 +546,45 @@ def render_diff(a: RunRecord, b: RunRecord) -> str:
     plan_a = [it for it in (ea.get("action_plan") or []) if isinstance(it, dict)]
     plan_b = [it for it in (eb.get("action_plan") or []) if isinstance(it, dict)]
     if plan_a:
-        # an item is still open while B's plan or any B reviewer still raises it
-        b_texts = [str(it.get("issue", "")) for it in plan_b] + [
+        a_issues = [str(it.get("issue", "")) for it in plan_a]
+        b_plan_issues = [str(it.get("issue", "")) for it in plan_b]
+        b_weak = [
             str(w)
             for r in db.get("reviewers", [])
             for w in ((r.get("fields") or {}).get("weaknesses") or [])
         ]
-        out.append(
-            "## Revision plan of A, checked against B "
-            "(heuristic: ≥35% word overlap with any B plan item or weakness)"
-        )
+        match = match_plan(a_issues, b_plan_issues, b_weak) if match_plan else None
+        if match is not None:
+            out.append(f"## Revision plan of A, checked against B (matched by {match.label})")
+            still_raised = [i in match.still for i in range(len(plan_a))]
+            new = [b_plan_issues[j] for j in match.new_b]
+        else:
+            # an item is still open while B's plan or any B reviewer still raises it
+            out.append(
+                "## Revision plan of A, checked against B "
+                "(heuristic: ≥35% word overlap with any B plan item or weakness)"
+            )
+            if match_plan:
+                out.append("(model matching failed — fell back to word overlap)")
+            b_texts = b_plan_issues + b_weak
+            still_raised = [any(_weak_sim(x, t) >= 0.35 for t in b_texts) for x in a_issues]
+            new = [x for x in b_plan_issues if not any(_weak_sim(x, y) >= 0.35 for y in a_issues)]
         n_gone = 0
-        for it in plan_a:
-            issue = str(it.get("issue", ""))
-            still = any(_weak_sim(issue, t) >= 0.35 for t in b_texts)
+        for it, issue, still in zip(plan_a, a_issues, still_raised, strict=True):
             n_gone += not still
             mark = "still raised" if still else "not re-detected"
             out.append(f"- {mark}: [{it.get('priority', '?')}] {issue[:200]}")
-        new = [
-            str(it.get("issue", ""))
-            for it in plan_b
-            if not any(_weak_sim(str(it.get("issue", "")), str(x.get("issue", ""))) >= 0.35
-                       for x in plan_a)
-        ]  # fmt: skip
         for issue in new:
             out.append(f"- new in B: {issue[:200]}")
         out.append("")
         out.append(f"{n_gone} of {len(plan_a)} plan items were not re-detected in B.")
-        if n_gone and new:
+        if n_gone and new and match is None:
             # a reworded issue shows up twice: "not re-detected" and "new in B"
             out.append(
                 "Matching is by wording: an issue B raises in other words counts as "
                 "not re-detected *and* new — read the two lists side by side before "
-                "ticking anything off. Most reliable with the same backends and "
-                "seed for both runs."
+                "ticking anything off (`prebuttal diff --llm` matches by meaning). "
+                "Most reliable with the same backends and seed for both runs."
             )
         out.append("")
 
