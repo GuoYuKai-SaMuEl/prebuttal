@@ -25,9 +25,6 @@ def neutral_host_env(monkeypatch):
     """Same results whether the suite runs in CI, a terminal or a coding agent."""
     for var in ("PREBUTTAL_BACKEND", "CLAUDECODE", "GEMINI_CLI"):
         monkeypatch.delenv(var, raising=False)
-    from prebuttal.ingestion import arxiv
-
-    arxiv._LAST.clear()  # each test mocks its own download
 
 
 def make_report(latex_project, *, venue_key: str = "iclr", rating_shift: int = 0):

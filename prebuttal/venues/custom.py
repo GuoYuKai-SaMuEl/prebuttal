@@ -51,7 +51,7 @@ KINDS = ("text", "list", "score")
 MAX_FORM_CHARS = 20_000
 
 _TOP_KEYS = {"name", "form", "form_text", "rating", "confidence", "fields", "checks"}
-_CHECK_KEYS = {"double_blind", "page_limit", "required_sections", "uncounted"}
+_CHECK_KEYS = {"double_blind", "page_limit", "required_sections"}
 _FIELD_KEYS = {"key", "label", "kind", "required", "max", "half_steps", "anchors"}
 
 
@@ -173,19 +173,16 @@ def _checks(c: Any) -> CheckRules:
     limit = c.get("page_limit")
     if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit < 1):
         raise VenueError("[checks]: page_limit must be a whole number of pages")
-    lists = {}
-    for k in ("required_sections", "uncounted"):
-        v = c.get(k, [])
-        if not isinstance(v, list) or not all(isinstance(s, str) and s.strip() for s in v):
-            raise VenueError(f'[checks]: {k} must be a list of headings, e.g. ["Limitations"]')
-        lists[k] = tuple(s.strip() for s in v)
-    base = CheckRules()
+    v = c.get("required_sections", [])
+    if not isinstance(v, list) or not all(isinstance(s, str) and s.strip() for s in v):
+        raise VenueError('[checks]: required_sections must be a list, e.g. ["Limitations"]')
+    required = tuple(s.strip() for s in v)
     return CheckRules(
         double_blind=blind,
         page_limit=limit,
-        required_sections=lists["required_sections"],
-        # the venue's own uncounted headings come on top of References & co.
-        uncounted=base.uncounted + lists["uncounted"],
+        required_sections=required,
+        # statements a venue requires (limitations, impact...) sit outside the page limit
+        uncounted=CheckRules().uncounted + required,
     )
 
 
@@ -376,10 +373,8 @@ def render_template(key: str, base: Venue | None = None) -> tuple[str, str]:
         lines.append(f"page_limit = {rules.page_limit}  # main-text pages")
     else:
         lines.append("# page_limit = 8  # main-text pages")
-    extra = [s for s in rules.uncounted if s not in CheckRules().uncounted]
-    lines.append(f"required_sections = [{', '.join(_q(s) for s in rules.required_sections)}]")
     lines.append(
-        f"uncounted = [{', '.join(_q(s) for s in extra)}]  "
-        "# headings after which pages stop counting (References always do)"
+        f"required_sections = [{', '.join(_q(s) for s in rules.required_sections)}]  "
+        "# they don't count toward page_limit"
     )
     return "\n".join(lines) + "\n", form

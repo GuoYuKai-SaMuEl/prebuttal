@@ -143,7 +143,7 @@ def check_pdf_bytes(data: bytes, rules: CheckRules, *, source: str = "") -> Chec
         texts = [
             "\n".join(ln["text"] for ln in lines if ln["page"] == i) for i in range(len(pages))
         ]
-        heights = [float(p.height) for p in pages]
+        sizes = [(float(p.width), float(p.height)) for p in pages]
         meta = doc.metadata or {}
         hidden = find_hidden_pdf_text(pages)
     finally:
@@ -154,7 +154,7 @@ def check_pdf_bytes(data: bytes, rules: CheckRules, *, source: str = "") -> Chec
         _pdf_anonymity(result, rules, meta, texts, lines)
     else:
         result.skipped.append("anonymity (the venue is not double-blind)")
-    _pdf_format(result, rules, lines, heights)
+    _pdf_format(result, rules, lines, sizes)
     _leftovers_text(result, texts)
     if hidden:
         where = _pages_list([p for p, _r, _t in hidden])
@@ -243,7 +243,7 @@ def _where(where: int | str) -> str:
 
 
 def _pdf_format(
-    result: CheckResult, rules: CheckRules, lines: list[dict], heights: list[float]
+    result: CheckResult, rules: CheckRules, lines: list[dict], sizes: list[tuple[float, float]]
 ) -> None:
     for name in rules.required_sections:
         if any(_heading_matches(ln["text"], name) for ln in lines):
@@ -259,10 +259,21 @@ def _pdf_format(
     if not ends:
         result.skipped.append("page limit (no References heading found to end the main text)")
         return
-    end = min(ends, key=lambda ln: (ln["page"], ln["y"]))
+    # reading order: page, then column (left before right), then top to bottom
+    end = min(ends, key=lambda ln: (ln["page"], ln["x"] > sizes[ln["page"]][0] / 2, ln["y"]))
     page = end["page"] + 1
-    # a heading at the very top of a page: the main text ended on the page before
-    used = page - 1 if end["y"] < 0.12 * heights[end["page"]] else page
+    # the end page counts if main text comes before the heading on it: above it,
+    # or in the column to its left (two-column layouts); running headers aside
+    top = 0.07 * sizes[end["page"]][1]
+    before = [
+        ln
+        for ln in lines
+        if ln["page"] == end["page"]
+        and ln is not end
+        and ln["y"] > top
+        and (ln["y"] < end["y"] - 2 or ln["x"] < end["x"] - 100)
+    ]
+    used = page if before else page - 1
     heading = " ".join(end["text"].split())
     if used > rules.page_limit:
         result.add(
@@ -296,7 +307,19 @@ _LABEL = re.compile(r"\\label\s*\{([^{}]+)\}")
 _REF = re.compile(
     r"\\(?:ref|eqref|autoref|cref|Cref|pageref|vref|nameref|subref)\*?\s*\{([^{}]+)\}"
 )
-_CITE = re.compile(r"\\(?:no)?cite[a-zA-Z]*\*?\s*(?:\[[^\]]*\]\s*){0,2}\{([^{}]*)\}")
+# natbib and biblatex citation commands (not \citestyle and other settings)
+_CITE = re.compile(
+    r"\\(?:[Cc]ite(?:t|p|alt|alp|author|year|yearpar|num)?|nocite|[Pp]arencite|[Tt]extcite|"
+    r"[Aa]utocite|[Ff]ootcite|fullcite)\*?\s*(?:\[[^\]]*\]\s*){0,2}\{([^{}]*)\}"
+)
+
+
+def _keys(found: list[str]) -> set[str]:
+    """Keys from comma lists; `#1` (a macro's parameter) and `*` (all) are not keys."""
+    keys = {k.strip() for m in found for k in m.split(",")}
+    return {k for k in keys if k and k != "*" and "#" not in k}
+
+
 _BIB_KEY = re.compile(r"@\s*[a-zA-Z]+\s*\{\s*([^,\s]+)\s*,")
 _BIBITEM = re.compile(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 _TODO_CMD = re.compile(r"\\(?:todo|TODO|fixme|FIXME)\b")
@@ -355,9 +378,7 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
         )
 
     labels = set(_LABEL.findall(tex))
-    missing = sorted(
-        {k.strip() for m in _REF.findall(tex) for k in m.split(",") if k.strip()} - labels
-    )
+    missing = sorted(_keys(_REF.findall(tex)) - labels)
     if missing:
         result.add(
             ERROR,
@@ -385,7 +406,7 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
 
 
 def _latex_citations(result: CheckResult, tex: str, folder: Path) -> None:
-    cited = {k.strip() for m in _CITE.findall(tex) for k in m.split(",") if k.strip()}
+    cited = _keys(_CITE.findall(tex))
     if not cited:
         return
     known = set(_BIBITEM.findall(tex))

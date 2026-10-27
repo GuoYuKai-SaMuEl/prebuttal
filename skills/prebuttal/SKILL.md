@@ -53,14 +53,14 @@ exactly what this tool exists to avoid.
 ## Before submitting: `prebuttal check`
 
 When the user is about to submit ("is my paper ready?", "check anonymity",
-"am I over the page limit?"), run `prebuttal check <paper>` — no model, no
+"am I over the page limit?"), run `prebuttal check <paper> --venue <venue>` — no model, no
 cost, seconds. It checks anonymity, the venue's page limit and required
 sections (NeurIPS checklist, ICML impact statement, ARR limitations), and
 leftovers (`??`, `[?]`, TODO, hidden text). Exit code 6 = something can get
 the paper desk-rejected; present those `[x]` lines first, then the `[!]`
 warnings. Check the PDF they will upload (a LaTeX folder is checked without
-compiling, so it can't count pages). The venue comes from `prebuttal.toml`
-(default neurips); limits change yearly, so tell the user to confirm against
+compiling, so it can't count pages). Pass the same `--venue` as for `run`
+(without it: `prebuttal.toml`, else neurips); limits change yearly, so tell the user to confirm against
 this year's call. `prebuttal run` includes the same findings in the report's
 notes.
 

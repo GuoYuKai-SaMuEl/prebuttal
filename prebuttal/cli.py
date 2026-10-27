@@ -174,6 +174,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="desk-reject pre-flight: anonymity, page limit, required sections, ?? — no model",
     )
     check_p.add_argument("paper", help="path to .pdf, LaTeX project dir, or arXiv link/id")
+    check_p.add_argument(
+        "--venue", default=None, help="whose rules to check against (as for `run`; default neurips)"
+    )
 
     backends_p = sub.add_parser(
         "backends", help="what you can review with: backends, their auth and default models"
@@ -343,8 +346,12 @@ def cmd_backends(args) -> int:
 def cmd_check(args) -> int:
     from .check import CheckError, check_source, render_check
 
-    # only the venue is read from a found prebuttal.toml: nothing runs, nothing is sent
-    venue = get_venue(load_config(None).venue)
+    try:
+        # only the venue is read from a found prebuttal.toml: nothing runs, nothing is sent
+        venue = get_venue(args.venue or load_config(None).venue)
+    except VenueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return EXIT_USAGE
     try:
         result = check_source(args.paper, venue)
     except CheckError as e:
@@ -355,15 +362,20 @@ def cmd_check(args) -> int:
 
 
 def _preflight(source: str, venue) -> list[str]:
-    """`check`'s findings for `run`'s report; never fails the run."""
-    from .check import CheckError, check_source, preflight_warnings
+    """`check`'s findings for `run`'s report; never fails the run.
 
+    Only for the user's own draft (a local PDF or LaTeX project): an arXiv
+    paper is already public and camera-ready, so its "problems" are noise."""
+    from .check import check_source, preflight_warnings
+
+    if not Path(source.strip()).exists():
+        return []
     try:
         found = preflight_warnings(check_source(source, venue))
-        # hidden text is already reported (loudly) by ingestion
-        return [w for w in found if "hidden from human readers" not in w]
-    except (CheckError, OSError, ValueError) as e:
+    except Exception as e:  # a pre-flight problem must not cost the review
         return [f"Pre-flight check skipped: {e}"]
+    # hidden text is already reported (loudly) by ingestion
+    return [w for w in found if "hidden from human readers" not in w]
 
 
 def cmd_init(args) -> int:

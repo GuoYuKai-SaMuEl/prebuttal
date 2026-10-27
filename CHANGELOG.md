@@ -17,22 +17,26 @@ the tool must not leak your keys.
 
 ### Added
 - **`prebuttal check <paper>`** — a deterministic desk-reject pre-flight: no
-  model, no cost, no options (the venue comes from `prebuttal.toml`).
+  model, no cost; `--venue` as for `run` (else `prebuttal.toml`, else neurips).
   Anonymity (author names in the PDF metadata, e-mails on page 1, a
   camera-ready or NeurIPS `[preprint]` build, a visible acknowledgements
   section, links to your own repository, "our previous work [12]"), format
   (main-text pages over the venue's limit, a missing NeurIPS checklist / ICML
   impact statement / ARR limitations section) and leftovers (`??`, `[?]`,
   TODO, hidden text). LaTeX projects are checked without compiling: every
-  `\ref` needs a `\label` and every `\cite` a bibliography entry. Exit code 6
+  `\ref` needs a `\label` and every `\cite` a bibliography entry (macro
+  parameters like `\ref{#1}` and `\nocite{*}` aside). Two-column pages count
+  when their left column is still main text. Exit code 6
   when something can get the paper desk-rejected.
-- `prebuttal run` performs the same check and lists its findings in the
-  report's notes (an arXiv paper is downloaded once for both).
+- `prebuttal run` performs the same check on your own draft (a local PDF
+  or LaTeX project) and lists its findings in the report's notes; arXiv
+  papers are public and camera-ready, so they are not checked there.
 - Venues carry their check rules (page limit, uncounted sections such as
   References or ICML's impact statement, required sections, camera-ready
   markers), each with the URL of the call it came from; custom venues set
   theirs in a `[checks]` table (`double_blind`, `page_limit`,
-  `required_sections`, `uncounted`), and `prebuttal venues new` writes one.
+  `required_sections`, which don't count toward the limit), and
+  `prebuttal venues new` writes one.
 
 ### Changed
 - **`prebuttal backends` is the one setup view**: every backend, whether

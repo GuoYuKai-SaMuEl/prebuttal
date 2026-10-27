@@ -69,7 +69,7 @@ def test_clean_anonymous_pdf_passes():
 
 
 def test_page_limit_counts_to_the_references_heading():
-    over = [page1(), body(30), body(30), [(300, "References", 12), *body(5, 320)]]
+    over = [page1(), body(30), body(30), [*body(10, 80), (300, "References", 12), *body(5, 320)]]
     result = check_pdf_bytes(make_paper(over), CheckRules(page_limit=3))
     assert any("runs to page 4" in f.message for f in result.errors)
     # References at the very top of page 4: the main text ended on page 3
@@ -186,7 +186,105 @@ def test_commented_out_switch_is_not_flagged(tmp_path):
     assert not any("camera-ready" in f.message for f in result.findings)
 
 
+def test_macro_parameters_and_natbib_settings_are_not_keys(tmp_path):
+    """`\\ref{#1}` inside a \\newcommand, `\\nocite{*}` and `\\citestyle{...}`."""
+    (tmp_path / "main.tex").write_text(
+        r"""\documentclass{article}
+\newcommand{\figref}[1]{Figure~\ref{#1}}
+\citestyle{plainnat}
+\begin{document}
+\section{Intro}
+See \figref{fig:a}, \citet{known} and \citep[p.~3]{known}.
+\begin{figure}\label{fig:a}\end{figure}
+\nocite{*}
+\bibliography{refs}
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "refs.bib").write_text("@article{known,\n title={T}}\n", encoding="utf-8")
+    result = check_latex(tmp_path, CheckRules())
+    assert result.errors == []
+    assert "all 1 cited keys are in the bibliography" in result.passed
+
+
+def _two_column(last_right_column: bool) -> bytes:
+    """Three letter pages, two columns; References starts the last page's right
+    column (left column still main text) or its left column (nothing before it)."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    height = letter[1]
+    for page in range(3):
+        last = page == 2
+        for x in (54, 320):
+            refs_here = last and (x == 320) == last_right_column
+            if last and not refs_here and not last_right_column:
+                continue  # after References in the left column: no more main text
+            c.setFont("Helvetica-Bold" if refs_here else "Helvetica", 11 if refs_here else 9)
+            if refs_here:
+                c.drawString(x, height - 76, "References")
+                continue
+            for i in range(50):
+                c.drawString(x, height - 72 - 12 * i, f"Body line {i} of page {page + 1}.")
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def test_two_column_page_counts_when_its_left_column_is_main_text():
+    rules = CheckRules(page_limit=2)
+    result = check_pdf_bytes(_two_column(last_right_column=True), rules)
+    assert any("runs to page 3" in f.message for f in result.errors)
+    # References opening the left column: the main text ended on page 2
+    assert check_pdf_bytes(_two_column(last_right_column=False), rules).errors == []
+
+
+def test_custom_venue_required_sections_do_not_count_toward_the_limit():
+    from prebuttal.venues.custom import _checks
+
+    rules = _checks({"page_limit": 8, "required_sections": ["Limitations"]})
+    assert "Limitations" in rules.uncounted and "References" in rules.uncounted
+    with pytest.raises(Exception, match="unknown setting"):
+        _checks({"uncounted": ["X"]})
+
+
 # ------------------------------------------------------------------ CLI
+
+
+def test_cli_check_venue_flag(tmp_path, monkeypatch, capsys):
+    """Most users have no prebuttal.toml: `check` takes --venue like `run`."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "p.pdf").write_bytes(make_paper([page1(), [(80, "References", 12)]]))
+    assert cli.main(["check", "p.pdf", "--venue", "icml"]) == cli.EXIT_CHECK_FAILED
+    out = capsys.readouterr().out
+    assert "ICML rules" in out and 'no "Impact Statement" section' in out
+    assert cli.main(["check", "p.pdf", "--venue", "nope"]) == cli.EXIT_USAGE
+
+
+def test_run_skips_the_preflight_for_arxiv_papers(monkeypatch):
+    """A public arXiv paper is camera-ready: its 'problems' would only be noise."""
+    from prebuttal import check
+
+    def boom(*a, **k):
+        raise AssertionError("check_source must not run for arXiv sources")
+
+    monkeypatch.setattr(check, "check_source", boom)
+    assert cli._preflight("2312.00752", get_venue("iclr")) == []
+
+
+def test_run_survives_a_broken_preflight(tmp_path, monkeypatch):
+    from prebuttal import check
+
+    def broken(*a, **k):
+        raise RuntimeError("pdfminer exploded")
+
+    monkeypatch.setattr(check, "check_source", broken)
+    (tmp_path / "p.pdf").write_bytes(b"%PDF-1.4")
+    found = cli._preflight(str(tmp_path / "p.pdf"), get_venue("iclr"))
+    assert found == ["Pre-flight check skipped: pdfminer exploded"]
 
 
 def test_cli_check_exit_codes(tmp_path, monkeypatch, capsys):

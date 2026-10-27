@@ -26,7 +26,7 @@ in particular *fewer parameters, simpler commands*.
 The paper must not leak its authors; the tool must not leak your keys.
 
 - **`prebuttal check <paper>`** — a deterministic desk-reject pre-flight, no
-  LLM, no cost, no options (the venue comes from the config):
+  LLM, no cost, `--venue` as for `run`:
   - *anonymity*: PDF author metadata, acknowledgements, personal GitHub /
     homepage links, self-revealing citations ("our previous work [12]");
   - *format*: page limit and required sections per venue (NeurIPS checklist,
@@ -62,7 +62,9 @@ written down with tests; the command list is shorter with no lost function.
 
 Outcome: as planned, except the run-history commands, which stayed — each
 does one job, and every merge tried needed a new flag or an overloaded
-argument. `models` and `key status` are hidden aliases until 0.6.
+argument. `models` and `key status` are hidden aliases until 0.6. `check`
+got one option after all, `--venue`: most users have no `prebuttal.toml`,
+and checking a paper against the wrong venue's rules is worse than a flag.
 
 ## 0.6 — a revision loop you can trust
 

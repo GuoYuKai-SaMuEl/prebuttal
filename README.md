@@ -46,7 +46,7 @@ pip install prebuttal
 prebuttal run paper.pdf --venue iclr
 prebuttal run https://arxiv.org/abs/2510.12345 --venue neurips
 prebuttal run ./latex-src/ --venue acl
-prebuttal check paper.pdf          # desk-reject pre-flight: no model, no cost
+prebuttal check paper.pdf --venue iclr   # desk-reject pre-flight: no model, no cost
 ```
 
 Prefer an isolated install for command-line tools? `pipx install prebuttal`
@@ -109,12 +109,12 @@ working, upgrade prebuttal or pin a model yourself.
 A deterministic desk-reject pre-flight — no model, no cost, a few seconds:
 
 ```bash
-prebuttal check paper.pdf        # the PDF you will upload
-prebuttal check ./latex-src/     # the LaTeX project, without compiling
+prebuttal check paper.pdf --venue iclr      # the PDF you will upload
+prebuttal check ./latex-src/ --venue iclr   # the LaTeX project, without compiling
 ```
 
-It holds the paper to the venue's rules (from `prebuttal.toml`, default
-`neurips`): **anonymity** (author names in the PDF metadata, e-mail addresses
+It holds the paper to the venue's rules (`--venue` as for `run`, else
+`prebuttal.toml`, else `neurips`): **anonymity** (author names in the PDF metadata, e-mail addresses
 on page 1, a camera-ready or `[preprint]` build, a visible acknowledgements
 section, links to your own repository, "our previous work [12]"), **format**
 (main-text pages over the limit, a missing NeurIPS checklist / ICML impact
@@ -124,11 +124,12 @@ checked without compiling — every `\ref` needs a `\label`, every `\cite` a
 bibliography entry — and the page limit needs the PDF. Exit code 6 means
 something can get the paper desk-rejected, so it drops into CI as is.
 
-`prebuttal run` does the same check first and lists what it found in the
-report's notes. Limits change every year: the output names the call each
+`prebuttal run` does the same check first on your own draft (a local PDF or
+LaTeX project — not on arXiv papers, which are public and camera-ready) and
+lists what it found in the report's notes. Limits change every year: the output names the call each
 rule came from, so confirm against this year's CFP. Custom venues set their
 own rules in a `[checks]` table (`double_blind`, `page_limit`,
-`required_sections`).
+`required_sections` — required sections don't count toward the limit).
 
 ## The reviewers
 
