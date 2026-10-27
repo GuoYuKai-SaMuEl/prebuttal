@@ -10,7 +10,10 @@ request can be:
 - any external system watching the spool directory.
 
 Protocol: for every ``<stem>.req.md`` write ONLY the requested JSON object to
-``<stem>.ans.md``.  The CLI polls and continues automatically.
+``<stem>.ans.md`` — atomically, as ``<stem>.ans.md.tmp`` renamed into place.
+The CLI polls and continues automatically.  For responders that write in
+place anyway, an answer is taken once it is a complete JSON object or has
+stopped changing between polls.
 """
 
 from __future__ import annotations
@@ -34,6 +37,8 @@ For every *.req.md file here:
      form + JSON schema + the submission itself).
   2. Produce the review and write ONLY the JSON object to the matching
      <stem>.ans.md file (same stem, .ans.md instead of .req.md).
+     Write it atomically: first to <stem>.ans.md.tmp, then rename that file
+     to <stem>.ans.md — the CLI may otherwise read a half-written answer.
 
 The CLI polls this directory and continues automatically when answers appear.
 Responders can be a human, host-agent subagents, or any external system.
@@ -45,6 +50,7 @@ _PROTOCOL_NOTE = """
 ---
 [relay protocol] This file is a review request. Write your answer — ONLY the
 JSON object the instructions above ask for — to the file: {ans_name}
+(write it as {ans_name}.tmp first, then rename it to {ans_name})
 """
 
 
@@ -85,7 +91,9 @@ class RelayProvider(BaseProvider):
         self.poll_s = poll_s
         self.spool.mkdir(parents=True, exist_ok=True)
         readme = self.spool / "README.txt"
-        if not readme.exists():
+        # refreshed when the protocol text changes (a spool from an older version)
+        current = readme.read_text(encoding="utf-8", errors="replace") if readme.exists() else ""
+        if current != README_TXT:
             readme.write_text(README_TXT, encoding="utf-8")
         # the spool holds full paper text: never let it be committed by accident
         ignore = self.spool / ".gitignore"

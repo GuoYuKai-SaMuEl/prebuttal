@@ -67,7 +67,9 @@ aggregation) but dispatches through a file protocol:
 2. Watch the spool directory (default `relay/`). For every `<stem>.req.md`
    that has no matching `<stem>.ans.md`: read it, spawn ONE subagent whose
    entire instructions are that file's content, and have the subagent return
-   ONLY the JSON object; write that JSON to `<stem>.ans.md`.
+   ONLY the JSON object; write that JSON to `<stem>.ans.md.tmp`, then
+   rename it to `<stem>.ans.md` (an atomic rename: the CLI never sees a
+   half-written answer).
 3. The CLI picks up answers automatically and produces the report. Never let
    one subagent answer two requests, and never answer them in your own context
    — independence is the point.

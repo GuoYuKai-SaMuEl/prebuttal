@@ -33,6 +33,11 @@ releases (0.2, 0.3, …) are substantial new features.
   (`--backend` / `--model` to pick another): an issue reworded in round B no
   longer shows up as both "not re-detected" and "new". Word overlap stays the
   default and the fallback when the model's answer is unusable.
+- **Relay protocol: atomic answers.** Responders are told (README.txt, each
+  request file, SKILL.md) to write `<stem>.ans.md.tmp` and rename it to
+  `<stem>.ans.md`, so the CLI never reads a half-written answer; in-place
+  writers still work through the completeness/stability check. A spool's
+  README.txt from an older version is refreshed.
 
 ### Changed
 - **A `prebuttal.toml` found in the current directory** (not passed with

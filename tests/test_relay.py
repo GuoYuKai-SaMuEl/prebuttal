@@ -200,3 +200,26 @@ def test_relay_accepts_stable_non_json_answer(tmp_path):
         provider = RelayProvider(spool_dir=spool, timeout_s=5, poll_s=0.05)
         comp = provider.complete(system="s", user="u", retries=0)
     assert comp.text == answer
+
+
+def test_relay_protocol_asks_for_an_atomic_rename(tmp_path):
+    spool = tmp_path / "s"
+    spool.mkdir()
+    (spool / "README.txt").write_text("protocol from an older version\n", encoding="utf-8")
+    provider = RelayProvider(spool_dir=spool, timeout_s=5, poll_s=0.05)
+    assert ".ans.md.tmp" in (spool / "README.txt").read_text(encoding="utf-8")  # refreshed
+
+    def responder():
+        while not list(spool.glob("*.req.md")):
+            time.sleep(0.01)
+        req = next(iter(spool.glob("*.req.md")))
+        assert ".ans.md.tmp" in req.read_text(encoding="utf-8")
+        ans = req.with_name(req.name.replace(".req.md", ".ans.md"))
+        tmp = ans.with_name(ans.name + ".tmp")
+        tmp.write_text(ANSWER, encoding="utf-8")
+        tmp.replace(ans)
+
+    t = threading.Thread(target=responder, daemon=True)
+    t.start()
+    assert provider.complete(system="s", user="u", retries=0).text == ANSWER
+    t.join(2)
