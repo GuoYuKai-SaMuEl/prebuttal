@@ -103,8 +103,11 @@ After the user revises the paper:
    heuristic word-overlap matching), and the previous run's revision plan
    checked against the new run (not re-detected / still raised / new).
    Matching is by wording: before calling a "gone" or "not re-detected" item
-   fixed, check it is not simply reworded among the "new" ones; present real
-   fixes as wins and the rest as the user's TODO.
+   fixed, check it is not simply reworded among the "new" ones — or run
+   `prebuttal diff --llm`, which matches plan items by meaning with one model
+   call. Present real fixes as wins and the rest as the user's TODO. A score
+   that moves by about a point between single runs may be noise, not the
+   revision: say so rather than celebrating it.
 3. `prebuttal runs <project>` lists a paper's runs; reference one as
    `<project>#3`, `<project>~1` (one before the newest) or by id prefix.
    `prebuttal projects` lists every paper.

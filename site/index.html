@@ -115,6 +115,7 @@
     <div class="install">pip install prebuttal</div>
     <div class="btns">
       <a class="btn primary" href="reports/sample.html">▶ See a sample report</a>
+      <a class="btn" href="#check">Desk-reject pre-flight</a>
       <a class="btn" href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub</a>
     </div>
   </section>
@@ -207,6 +208,37 @@
     A stress test, not a prophecy.
   </div>
 
+  <h2 id="check">Before you submit: the desk-reject pre-flight</h2>
+  <p class="sub">No model, no cost, a few seconds: anonymity leaks, the venue's page
+  limit and required sections, and leftovers like <code>??</code> or hidden text.</p>
+  <pre class="term"># real output on the bundled demo paper
+$ prebuttal check paper.pdf --venue icml
+prebuttal check — paper.pdf · ICML rules (8 pages, double-blind, requires Impact Statement)
+
+  [x] format     no "Impact Statement" section — the venue requires one
+  [x] leftovers  unresolved references (??) on page 2
+  [ok] PDF metadata has no author
+  [ok] no self-revealing links or citations
+  [ok] main text 2 of 8 pages
+  [ok] no hidden text
+
+2 problems that can get the paper desk-rejected.</pre>
+  <div class="grid two">
+    <div class="card">
+      <h3>Anonymity</h3>
+      <p>Author names in the PDF metadata, e-mails on page 1, a camera-ready or
+      <code>[preprint]</code> build, a visible acknowledgements section, links to
+      your own repository, “our previous work [12]”.</p>
+    </div>
+    <div class="card">
+      <h3>Format and leftovers</h3>
+      <p>Main-text pages over the limit (two-column layouts too), a missing NeurIPS
+      checklist / ICML impact statement / ARR limitations section, <code>??</code>,
+      <code>[?]</code>, TODOs. LaTeX projects are checked without compiling.
+      Exit code 6 drops it into CI.</p>
+    </div>
+  </div>
+
   <h2 id="revision-loop">The revision loop</h2>
   <p class="sub">Every run ends with a prioritised revision plan; every paper is a
   project whose runs line up as revision history — and two runs can be diffed.</p>
@@ -235,7 +267,8 @@ $ prebuttal diff --llm mamba-revision#17 mamba-revision#18
       <p>The area chair merges what the reviewers raised into a short checklist —
       <em>must / should / could</em>, the issue with its table or section, the
       concrete fix, who raised it. <code>prebuttal plan</code> prints it; the next
-      <code>prebuttal diff</code> checks it against the re-run. New in v0.3.</p>
+      <code>prebuttal diff</code> checks it against the re-run — by meaning with
+      <code>--llm</code>.</p>
     </div>
     <div class="card">
       <h3>Projects &amp; run history</h3>

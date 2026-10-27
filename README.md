@@ -1,166 +1,269 @@
+<div align="center">
+
 # Prebuttal
 
-> **Answer Reviewer 2 before Reviewer 2 exists.**
+**Answer Reviewer 2 before Reviewer 2 exists.**
 
+A pre-submission stress test for ML papers: three independent AI reviewers
+and an area chair, on the real NeurIPS / ICLR / ICML / ARR review forms.
+
+[![PyPI](https://img.shields.io/pypi/v/prebuttal.svg)](https://pypi.org/project/prebuttal/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/pyproject.toml)
 [![CI](https://github.com/GuoYuKai-SaMuEl/prebuttal/actions/workflows/ci.yml/badge.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/pyproject.toml)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 
-[![View a sample report](https://img.shields.io/badge/%E2%96%B6_View_sample-report-2ea44f?style=for-the-badge)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/examples/sample-report.md)
-[![Share page](https://img.shields.io/badge/Share_page-5087d2?style=for-the-badge)](https://guoyukai-samuel.github.io/prebuttal/reports/sample.html)
-[![Website](https://img.shields.io/badge/Website-5087d2?style=for-the-badge&logo=github&logoColor=white)](https://guoyukai-samuel.github.io/prebuttal/)
+[**Website**](https://guoyukai-samuel.github.io/prebuttal/) ·
+[**Sample report**](https://guoyukai-samuel.github.io/prebuttal/reports/sample.html) ·
+[**Real-paper demos**](#see-it-on-real-papers) ·
+[Changelog](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CHANGELOG.md) ·
+[Roadmap](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md)
 
-**Purpose-built for ML conferences: real NeurIPS / ICLR / ICML / ARR review-form
-output, three reviewers running in fully independent contexts (optionally
-cross-model), and a built-in pipeline to measure its scores against real
-OpenReview ratings.**
+</div>
 
-Prebuttal is a pre-submission **stress test** for your paper: it sends your
-submission through three isolated AI reviewers with different temperaments
-plus an area chair, and hands you a conference-format review report — scores,
-disagreement, weaknesses with citations to your own tables — *before* the real
-Reviewers 1–3 see it. See a synthetic sample:
-[report](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/examples/sample-report.md) ·
-[share page](https://guoyukai-samuel.github.io/prebuttal/reports/sample.html) — or what a deliberately flawed
-(fictional) paper gets: [1/10 report](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/examples/weak-paper-report.md).
+```console
+$ pip install prebuttal
+$ prebuttal run examples/weak-paper --venue neurips
+[prebuttal] parsed: “GlobalGate: A Universal Attention Mechanism That Solves Long-Context Reasoning” — 7 sections, 1 tables, 0 figure captions
+[prebuttal] Pre-flight check (error): no "NeurIPS Paper Checklist" section — the venue requires one
+[R2] dispatching adversarial via agent-codex (codex, subscription auth) / gpt-6-luna
+[R1] dispatching senior_kind via agent-claude (claude, subscription auth) / sonnet
+[R3] dispatching detail_obsessive via api-gemini / gemini-3.5-flash-lite
+[R3] done in 9s rating 1 (1,776 in / 570 out)
+[R2] done in 11s rating 2 (usage n/a (backend reports no tokens))
+[R1] done in 25s rating 1 (usage n/a (backend reports no tokens))
+[AC] synthesizing via agent-claude (claude, subscription auth) / sonnet
+[AC] done in 27s
 
----
+Predicted: 1.33/6 (σ 0.47, range 1–2)
+Fix first: [must] Section 3.1 / Table 1: baseline Transformer trained for 1 epoch vs GlobalGate for 5 epoch…
+           [must] Section 3.1: the same 200 LongQA-Mini questions are used for hyperparameter selection and…
+           [must] Section 3.2: no comparison with any existing long-context or gated-attention method ('kno…
+Report:   prebuttal-reports/globalgate-a-universal/2026-10-27_2228_neurips/report.html
+```
 
-## Why not just paste the paper into ChatGPT?
+<sub>Real output (report path shortened) on <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">a fictional paper with planted flaws</a>: claude, codex and Gemini as the three reviewers.</sub>
 
-That is the main competitor. It loses, four ways:
+## Highlights
 
-| Paste into ChatGPT | Prebuttal |
-|---|---|
-| One conversation role-playing three reviewers → **persona collapse** into a single bland compromise opinion | Three reviewers in **fully independent contexts** (separate calls/processes), genuinely different verdicts + measured disagreement |
-| Long papers get skimmed; tables are flattened into prose | **Ingestion pipeline**: cell-by-cell table extraction (LaTeX tabular parsing, PDF table detection, caption fallback) — reviewers can point at *Table 3, column 4* |
-| Output is free-form chat text | **Real conference review forms**: NeurIPS 1–6, ICLR 1–10, ICML 1–10, ARR Soundness/Excitement/Overall — with official scale anchors |
-| Scores are vibes | Seeds and temperatures applied where the backend supports them (API, Ollama) and marked n/a where it doesn't (agent CLIs), recorded backends/models per reviewer, and a **calibration script** to measure scores against real OpenReview ratings (published results pending) |
+- **Three reviewers, zero shared context.** Each runs as its own call or
+  process — optionally on different models (Claude × Codex × Gemini × …) — so
+  verdicts genuinely differ, and the disagreement is always reported.
+- **Real review forms.** NeurIPS 1–6, ICLR 1–10, ICML 1–10, ARR
+  Soundness/Excitement/Overall with the official anchors; any other venue is
+  one TOML file.
+- **Your tables, cell by cell.** LaTeX and PDF ingestion keeps every number,
+  so reviewers cite "Table 3, column 4" — not a guess.
+- **A revision plan, not just a verdict.** The area chair turns the reviews
+  into a prioritised must / should / could checklist; `prebuttal diff` checks
+  it against the next round.
+- **A desk-reject pre-flight.** `prebuttal check` catches anonymity leaks,
+  page-limit overruns, missing required sections and leftover `??` — no
+  model, no cost.
+- **Zero setup if you have a subscription.** Uses `claude` / `codex` CLIs you
+  are already logged into, a free Gemini key, OpenRouter, or a local Ollama —
+  and stays honest about which model wrote what.
 
 ## Quickstart
 
 ```bash
-pip install prebuttal
+pip install prebuttal          # or: pipx install prebuttal · uv tool install prebuttal
 
-prebuttal run paper.pdf --venue iclr
+prebuttal check paper.pdf --venue iclr      # desk-reject pre-flight, seconds, free
+prebuttal run paper.pdf --venue iclr        # the full simulated review
 prebuttal run https://arxiv.org/abs/2510.12345 --venue neurips
-prebuttal run ./latex-src/ --venue acl
-prebuttal check paper.pdf --venue iclr   # desk-reject pre-flight: no model, no cost
+prebuttal run ./latex-src/ --venue acl      # a LaTeX project, no compiling needed
 ```
 
-Prefer an isolated install for command-line tools? `pipx install prebuttal`
-or `uv tool install prebuttal` work the same way (or `uvx prebuttal ...` to
-run without installing). Requires Python 3.11+.
+Python 3.11+. `prebuttal backends` shows what you can review with; if nothing
+is ready, it tells you the quickest way to get one (often `prebuttal key set
+gemini` for a free key). Each run prints its report paths and the next useful
+commands.
 
-The first run costs **zero setup** if you already have a subscription CLI or
-Ollama — Prebuttal auto-detects the cheapest path at startup and prints what it
-chose (`prebuttal backends` to inspect):
+## See it on real papers
+
+| Paper | Venue | Prebuttal | Real outcome |
+|---|---|---|---|
+| [Direct Preference Optimization](https://guoyukai-samuel.github.io/prebuttal/reports/dpo.html) | NeurIPS 2023 | 4.33/6 · AC 5 | accepted (oral) |
+| [Mamba v1 → v2, a revision round](https://guoyukai-samuel.github.io/prebuttal/reports/mamba-revision.html) | ICLR 2024 | 7.33 → 7.33/10 — "no change", and it says so | rejected → accepted at COLM |
+| [GlobalGate (fictional, planted flaws)](https://guoyukai-samuel.github.io/prebuttal/reports/weak.html) | ICLR | 1.33/10 | — |
+
+Unofficial demos on public arXiv versions; frontier models have likely seen
+these papers in training, so read them as a demonstration of the workflow,
+not as evidence of accuracy.
+
+## Why not just paste the paper into ChatGPT?
+
+| Paste into a chatbot | Prebuttal |
+|---|---|
+| One conversation role-plays three reviewers → **persona collapse** into one bland opinion | Three reviewers in **separate contexts**, genuinely different verdicts, measured disagreement |
+| Long papers get skimmed; tables become prose | **Ingestion pipeline**: cell-by-cell tables (LaTeX `tabular`, PDF table detection, caption fallback) |
+| Free-form chat text | The **venue's own review form** and scale |
+| Scores are vibes | Every review labelled with backend and model, seeds applied where the backend supports them, and a calibration script against real OpenReview ratings (results not published yet) |
+
+---
+
+**Contents** ·
+[Backends & privacy](#backends--privacy) ·
+[`prebuttal check`](#before-you-submit-prebuttal-check) ·
+[The reviewers](#the-reviewers) ·
+[Revision plan & history](#the-revision-loop) ·
+[Custom venues](#your-own-venue) ·
+[Configuration](#configuration) ·
+[Calibration](#calibration-honesty-not-prophecy) ·
+[Agent skill](#use-it-from-a-coding-agent) ·
+[Reference](#reference) ·
+[How it works](#how-it-works) ·
+[Contributing](#contributing) ·
+[Honesty & privacy](#honesty--policy)
+
+## Backends & privacy
+
+Prebuttal picks the cheapest ready path at startup and prints the plan before
+calling anything (`--dry-run` previews plan and cost; `-y` skips the prompt):
 
 | Backend | Auth | Notes |
 |---|---|---|
-| `agent-claude` (`claude -p`) | your Claude subscription, **zero API key** | preferred reviewer |
-| `agent-codex` (`codex exec`) | your Codex subscription, **zero API key** | gives cross-model reviews together with claude; runs locked down, ignoring `~/.codex/config.toml` (see [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md)) |
-| `api-gemini` | GEMINI_API_KEY | **free tier** — the cheapest "first key" path |
-| `api-openai` / `api-anthropic` | OPENAI_API_KEY / ANTHROPIC_API_KEY | BYO key |
-| `api-openrouter` | OPENROUTER_API_KEY | one key, hundreds of models — **`:free` ids cost nothing** (default is one); prices shown live in `prebuttal backends api-openrouter` |
-| `ollama` | none | local & private — *unpublished papers never leave your machine* (with the default localhost host) |
-| `relay` | none | file protocol: prompts spool to disk and **you, your agent's subagents, or any system** write the answers — zero key, explicit only (`--backend relay`; never picked by auto) |
+| `agent-claude` (`claude -p`) | your Claude subscription, **no API key** | preferred reviewer; runs with no tools at all |
+| `agent-codex` (`codex exec`) | your Codex subscription, **no API key** | cross-model reviews together with claude; runs with no shell or file access ([SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md)) |
+| `api-gemini` | `GEMINI_API_KEY` | **free tier** — the cheapest first key |
+| `api-openai` / `api-anthropic` | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | bring your own key |
+| `api-openrouter` | `OPENROUTER_API_KEY` | hundreds of models; **`:free` ids cost nothing** (the default is one) |
+| `ollama` | none | local — *unpublished papers never leave your machine* |
+| `relay` | none | prompts spool to files and **you, your agent's subagents or any system** answer — explicit only (`--backend relay`) |
 
-**Unpublished manuscript?** The text is sent to the backend's provider, and
-what happens to it there is that provider's privacy policy, not ours — see
-[Privacy & data custody](#privacy--data-custody). For local-only review use
-`ollama` or `relay`.
+`prebuttal backends` is the one setup view: what is ready, where its access
+comes from (CLI login, env var or stored key — masked) and its default model.
+`prebuttal backends <name>` lists that backend's available models. Defaults
+are mid-tier models current at release time; providers retire ids quickly,
+so if one stops working, upgrade prebuttal or pin a model.
 
-> ⚠️ **Free tiers are usually paid for with your data.** Free API tiers (the
-> Gemini free tier, OpenRouter `:free` models and their upstream providers)
-> may let the provider log, review or train on what you send. They are fine
-> for published papers and trying the tool out — for an unpublished
-> manuscript, check the provider's current terms, use a paid tier, or stay
-> local.
-
-Useful flags:
-
-```bash
-prebuttal run paper.pdf --venue neurips --dry-run   # cost + plan preview, calls nothing
-prebuttal run paper.pdf --venue iclr --json out.json  # also write machine-readable JSON
-prebuttal run paper.pdf --note "added ablation"     # label this revision
-prebuttal run paper.pdf --seed 42                   # reproducible (API / Ollama backends)
-prebuttal run paper.pdf -y                          # skip the plan confirmation
-```
-
-In auto mode on a terminal, Prebuttal shows the review plan before calling
-anything — press Enter to run, `e` to re-pick each reviewer's persona, backend
-and model via numbered menus, or `n` to abort. CI and pipes get the plan
-printed and proceed automatically; fully-explicit configs never prompt.
-
-`prebuttal backends` is the one setup view: every backend, whether it's
-ready, where its access comes from (CLI login, env var or stored key —
-masked) and its default model. `prebuttal backends <name>` lists that
-backend's actually-available models (live API scan, installed Ollama models,
-claude aliases) with the default marked — pick one and set `model = "..."`
-per reviewer in prebuttal.toml.
-Built-in defaults are mid-tier models current at release time and change
-between versions — providers retire model ids quickly, so if a default stops
-working, upgrade prebuttal or pin a model yourself.
+**Unpublished manuscript?** Its text goes to the backend's provider, and what
+happens there is that provider's policy, not ours. **Free tiers are usually
+paid for with your data** (logging, training): fine for published papers and
+trying the tool, but for unpublished work check the terms, use a paid tier, or
+stay local with `ollama` or `relay`. More in [Privacy & data custody](#privacy--data-custody).
 
 ## Before you submit: `prebuttal check`
-
-A deterministic desk-reject pre-flight — no model, no cost, a few seconds:
 
 ```bash
 prebuttal check paper.pdf --venue iclr      # the PDF you will upload
 prebuttal check ./latex-src/ --venue iclr   # the LaTeX project, without compiling
 ```
 
-It holds the paper to the venue's rules (`--venue` as for `run`, else
-`prebuttal.toml`, else `neurips`): **anonymity** (author names in the PDF metadata, e-mail addresses
-on page 1, a camera-ready or `[preprint]` build, a visible acknowledgements
-section, links to your own repository, "our previous work [12]"), **format**
-(main-text pages over the limit, a missing NeurIPS checklist / ICML impact
-statement / ARR limitations section) and **leftovers** (`??` references,
-`[?]` citations, TODOs, text hidden from human readers). A LaTeX project is
-checked without compiling — every `\ref` needs a `\label`, every `\cite` a
-bibliography entry — and the page limit needs the PDF. Exit code 6 means
-something can get the paper desk-rejected, so it drops into CI as is.
+A deterministic pre-flight against what gets papers desk-rejected — no model,
+no cost, a few seconds:
 
-`prebuttal run` does the same check first on your own draft (a local PDF or
+- **Anonymity** — author names in the PDF metadata, e-mail addresses on
+  page 1, a camera-ready or NeurIPS `[preprint]` build, a visible
+  acknowledgements section, links to your own repository, "our previous
+  work [12]".
+- **Format** — main-text pages over the venue's limit (two-column layouts
+  included), a missing NeurIPS checklist / ICML impact statement / ARR
+  limitations section.
+- **Leftovers** — `??` references, `[?]` citations, TODOs, and text hidden
+  from human readers.
+
+A LaTeX project is checked without compiling: every `\ref` needs a `\label`
+and every `\cite` a bibliography entry; the page limit needs the PDF. Exit
+code 6 means something can get the paper desk-rejected, so it drops straight
+into CI. The venue comes from `--venue`, else `prebuttal.toml`, else
+`neurips`. Limits change yearly: the output names the call each rule came
+from, so confirm against this year's CFP.
+
+`prebuttal run` performs the same check on your own draft (a local PDF or
 LaTeX project — not on arXiv papers, which are public and camera-ready) and
-lists what it found in the report's notes. Limits change every year: the output names the call each
-rule came from, so confirm against this year's CFP. Custom venues set their
-own rules in a `[checks]` table (`double_blind`, `page_limit`,
-`required_sections` — required sections don't count toward the limit).
+lists what it found in the report's notes.
 
 ## The reviewers
 
 | id | Persona | Behavior |
 |---|---|---|
-| R1 | `senior_kind` | senior, constructive; core contribution + main concerns, grounded |
+| R1 | `senior_kind` | senior, constructive; core contribution and main concerns |
 | R2 | `adversarial` | *Reviewer 2 in the flesh*: motivation, baselines, novelty, overclaiming |
 | R3 | `detail_obsessive` | reads every table cell; statistics, ablations, reproducibility |
-| AC | `area_chair` | meta-review, adjudicates disagreement, estimates the final rating |
+| AC | `area_chair` | meta-review, adjudicates disagreement, estimates the final rating, writes the revision plan |
 
-Every persona enforces the same protocol: **cite the evidence** (section,
-table, number) or the point doesn't count; use the full scale; JSON-only
-output. There is also an easter-egg roast persona (`persona = "paper_roast"`)
-for when you need the truth *fast*.
+Every persona follows the same protocol: **cite the evidence** (section,
+table, number) or the point doesn't count; use the full scale; report text
+that tries to instruct reviewers as a weakness instead of obeying it. For the
+truth *fast*, there is an easter-egg roast persona (`persona = "paper_roast"`).
+Personas and venue forms are plain text in
+[`prebuttal/personas/`](https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/prebuttal/personas) and
+[`prebuttal/venues/forms/`](https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/prebuttal/venues/forms) — PRs welcome.
 
-Personas live in [`prebuttal/personas/`](https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/prebuttal/personas) and venue forms in
-[`prebuttal/venues/forms/`](https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/prebuttal/venues/forms) — plain text files, PRs
-welcome (scale wording drifts every year; keep it current).
+## The revision loop
 
-## Your own venue (custom review forms)
+Every report opens with the **revision plan**: what the area chair would fix
+first, merged from all reviews — no extra model call.
 
-Built in: `neurips`, `iclr`, `icml`, `acl`. Anything else — CVPR, AAAI, a
-journal, this year's revised ICML form, your lab's internal mock review — is
-one TOML file plus the form text:
+```
+- [ ] **must** — Baseline set is thin: Table 1 misses a Perceiver comparison
+      → Add Perceiver-AR to Table 1 or scope the claim to the baselines run (R2, R3 · effort: medium)
+- [ ] **should** — No variance across seeds for the Table 2 ablation
+      → Report mean and std over 3 seeds (R3 · effort: small)
+```
+
+Revise, re-run with the same `--seed` and a `--note "what changed"`, then:
 
 ```bash
-prebuttal venues new cvpr              # template in ~/.prebuttal/venues/
-prebuttal venues new icml-2027 --from icml --here   # copy a built-in, project-local
-prebuttal venues                       # list built-in + custom (invalid ones flagged)
-prebuttal venues show cvpr             # the scores and form reviewers will see
-prebuttal run paper.pdf --venue cvpr   # or --venue path/to/venue.toml
+prebuttal diff          # newest run vs the one before: ratings, weaknesses, plan items
+prebuttal diff --llm    # match plan items by meaning (one model call) instead of wording
+```
+
+`diff` reports which plan items are no longer raised, which still are, and
+what is new. Plain `diff` matches by wording, so a reworded issue can show up
+as "not re-detected" *and* "new" — read both lists before ticking anything
+off, or use `--llm`. Single runs are noisy: a score that moves by a point may
+be the model, not your revision.
+
+### Projects, reports & history
+
+Each paper gets a **project**, found from its source: the same PDF path,
+LaTeX folder or arXiv id always lands in the same project, even when the title
+changes (`--project NAME` picks one; a local folder named like an arXiv id is
+read locally, never swapped for the public version). Every run gets a number
+— `mamba#3` — and its own report folder, so nothing is overwritten:
+
+```
+prebuttal-reports/                    (has a .gitignore: reviews stay out of git)
+└── mamba-linear-time-sequence/
+    ├── latest.md / latest.html       ← always the newest run
+    ├── 2026-10-25_1530_iclr/report.md, report.html
+    └── 2026-10-26_0910_iclr/report.md, report.html
+```
+
+The full record (Markdown, HTML, JSON, the exact reviewer text and the
+resolved config) is archived under `~/.prebuttal/` (`--no-save` opts out), so
+these work from any directory:
+
+```bash
+prebuttal projects                   # one line per paper: runs, latest score, trend
+prebuttal runs [project]             # its runs, newest first, with notes
+prebuttal open                       # newest report in the browser
+prebuttal plan                       # the newest revision plan as a checklist (--json too)
+prebuttal retry                      # a reviewer failed? re-run only it (+ the AC), same text
+prebuttal dashboard                  # local HTML overview: every project, score trends
+prebuttal show / export / note / rm  # print, copy out, annotate, delete runs
+prebuttal projects rename|rm         # tidy up
+```
+
+Runs are referenced as `latest` (the default), `mamba` (newest run of a
+project), `mamba#3`, `mamba~1` (one before the newest) or an id prefix.
+Reports go where you want them: `--out-dir`, `--format md,html,json`, an
+`[output]` section in `prebuttal.toml`, `--json PATH`, or `prebuttal export
+-f md -o PATH` afterwards.
+
+## Your own venue
+
+Built in: `neurips`, `iclr`, `icml`, `acl`. Anything else — CVPR, AAAI, a
+journal, this year's revised form, your lab's mock review — is one TOML file
+plus the form text:
+
+```bash
+prebuttal venues new cvpr                          # template in ~/.prebuttal/venues/
+prebuttal venues new icml-2027 --from icml --here  # copy a built-in, project-local
+prebuttal venues show cvpr                         # what reviewers will see
+prebuttal run paper.pdf --venue cvpr               # or --venue path/to/venue.toml
 ```
 
 ```toml
@@ -180,16 +283,19 @@ label = "Overall recommendation"
 kind = "score"
 max = 6                   # scores run 1..max; half_steps = true allows 3.5
 anchors = { "1" = "Reject", "3" = "Borderline", "6" = "Strong accept" }
+
+[checks]                  # optional: what `prebuttal check` holds it to
+double_blind = true
+page_limit = 8
+required_sections = ["Limitations"]   # these don't count toward the limit
 ```
 
-Venues are looked up in `./.prebuttal/venues/` (commit it to share with
-co-authors) and then `~/.prebuttal/venues/`; built-in names can't be
-shadowed, so a copy needs its own name. Files are checked before any model is
-called, and every error names the file and the setting. Reports keep the
-venue's definition, so archived runs still render after the file changes.
-Custom venues are not calibrated: the calibration script needs OpenReview
-scores for a real venue. A venue's form text is instructions to your reviewers, so only
-use venue files you trust (the form must sit next to its `.toml`).
+Venues are looked up in `./.prebuttal/venues/` (commit it for co-authors),
+then `~/.prebuttal/venues/`; built-in names can't be shadowed. Files are
+validated before any model is called, and every error names the file and the
+setting. Reports keep the venue's definition, so archived runs still render
+after the file changes. A form is instructions to your reviewers, so only use
+venue files you trust.
 
 ## Configuration
 
@@ -200,73 +306,71 @@ models and temperatures:
 [default]
 venue = "iclr"
 seed = 42
-# effort = "high"             # optional, see "Reasoning effort" below
 
 [[reviewer]]
 id = "R1"
 persona = "senior_kind"
 backend = "agent-claude"      # claude -p, subscription auth
-temperature = 0.4
+model = "sonnet"
 
 [[reviewer]]
 id = "R2"
 persona = "adversarial"
 backend = "agent-codex"       # codex exec, subscription auth
-model = "gpt-5.1"             # optional: forwarded as --model (agent CLIs too)
-temperature = 0.7
+model = "gpt-6-luna"
 
 [[reviewer]]
 id = "R3"
 persona = "detail_obsessive"
-backend = "api-gemini"        # free tier; default model gemini-3.5-flash-lite
-temperature = 0.5
+backend = "api-gemini"        # free tier
 
 [ac]
-persona = "area_chair"
 backend = "agent-claude"
+model = "opus"
 ```
+
+For a single run, `--backend X` puts every role on one backend (each with
+that backend's default model — a model the file set for another backend is
+dropped) and `--model Y` sets the model; `--reviewers N` keeps the configured
+reviewers and adds or drops the rest. A `prebuttal.toml` found in the current
+directory (say, inside a co-author's repo) can't run commands, pick a
+provider or write outside the folder without asking you first.
 
 ### Reasoning effort
 
 Leave it unset and every model thinks as much as its provider's default — the
-right choice for most papers. To trade cost and time for depth, set
+right choice for most papers. To trade cost and time for depth, use
 `--effort low|medium|high` for one run, `effort = "..."` under `[default]`,
-or per `[[reviewer]]` / `[ac]`. It maps onto each backend's own control:
+or per `[[reviewer]]` / `[ac]`:
 
 | Backend | Sent as |
 |---|---|
 | `agent-claude` | `claude --effort` |
 | `agent-codex` | `-c model_reasoning_effort=...` |
 | `api-anthropic` | `output_config.effort` |
-| `api-openai` | `reasoning_effort` (gpt-5 and later / o-series reasoning models) |
+| `api-openai` | `reasoning_effort` (gpt-5 and later / o-series) |
 | `api-gemini` | `thinkingLevel` (Gemini 3+) / `thinkingBudget` (2.x) |
 | `api-openrouter` | `reasoning.effort` |
 | `ollama` | `think` (gpt-oss models) |
 
-Where a model has no such control (classic chat models, relay, custom agent
-CLIs) the setting is skipped; `--dry-run` says so up front, and every report
-lists the effort each review actually ran with.
+Where a model has no such control the setting is skipped; `--dry-run` says so
+up front, and every report lists the effort each review actually ran with.
 
 ### Figures as images
 
 Reviewers see figure *captions* by default. With `--figures` (or
 `figures = true` under `[default]`), reviewers on the vision-capable API
-backends — `api-anthropic`, `api-openai`, `api-gemini`, `api-openrouter` —
-also get the figures as images: for a PDF or arXiv paper, each page that
-holds a figure caption; for a LaTeX project, the first `\includegraphics` of
-each figure (files inside the project folder only). At most `max_figures`
-(default 6) images, ~1.5k tokens each. A text-only model behind one of those
-APIs is retried without images; agent CLIs, Ollama and relay keep captions
-only. Each review says how many images it saw.
+backends also get the figures as images: for a PDF or arXiv paper, each page
+holding a figure caption; for a LaTeX project, the first `\includegraphics`
+of each figure (files inside the project only). At most `max_figures`
+(default 6), ~1.5k tokens each. A text-only model is retried without images;
+agent CLIs, Ollama and relay keep captions only.
 
 ## Calibration (honesty, not prophecy)
 
-Scores are meaningless unless measured. The calibration pipeline runs Prebuttal
-on papers that **already have real OpenReview reviews** and plots predicted vs
-true mean ratings:
-
-The script lives in the repository (it is not part of the pip package), so
-run it from a clone:
+Scores mean nothing unless measured. The calibration script runs Prebuttal on
+papers that **already have real OpenReview reviews** and plots predicted vs
+true mean ratings. It lives in the repository, not the pip package:
 
 ```bash
 git clone https://github.com/GuoYuKai-SaMuEl/prebuttal && cd prebuttal
@@ -275,138 +379,55 @@ python scripts/calibration/calibrate.py \
     --venue-id ICLR.cc/2024/Conference --venue iclr -n 20 --out-dir calib_out
 ```
 
-Output: scatter plot + MAE + correlation. **No calibration results are
-published yet** — until they are, treat every score as uncalibrated. Once
-published, the claim they support is narrow
-and deliberate: *this tool was measured* — unlike role-play prompts. It is
-**not** a claim that it predicts your score; real reviewers disagree with each
-other by more than this tool's error. Disagreement (σ) is reported with every
-aggregate for exactly that reason.
+**No calibration results are published yet** — until they are, treat every
+score as uncalibrated. Once published, the claim will be narrow: *this tool
+was measured*, unlike role-play prompts. It is **not** a claim that it
+predicts your score; real reviewers disagree with each other by more than
+that. Disagreement (σ) is reported with every aggregate for exactly this
+reason.
 
-## The revision plan
+## Use it from a coding agent
 
-Reviews tell you what is wrong; the **revision plan** tells you what to do
-about it. The area chair merges what the reviewers raised into a short,
-prioritised list — no extra model call, it comes with the meta-review:
-
-```
-- [ ] **must** — Baseline set is thin: Table 1 misses a Perceiver comparison
-      → Add Perceiver-AR to Table 1 or scope the claim to the baselines run (R2, R3 · effort: medium)
-- [ ] **should** — No variance across seeds for the Table 2 ablation
-      → Report mean and std over 3 seeds (R3 · effort: small)
-```
-
-It opens every report, the run prints the top items (`Fix first:`), and
-`prebuttal plan [run]` prints it as a checklist to paste into your notes or an
-issue (`--json` for scripts). After you revise and re-run, `prebuttal diff`
-checks the old plan against the new reviews: which items are no longer
-detected, which still are, and what is new. The matching is by wording, so a
-reworded issue shows up as "not re-detected" *and* "new" — compare runs made
-with the same backends and seed, and read both lists before ticking anything
-off.
-
-## Projects, reports & revision history
-
-Each paper gets a **project**, found from where it came from: the same PDF
-path, LaTeX folder or arXiv id always lands in the same project, even when the
-title changes between revisions (`--project NAME` to pick one yourself). Every
-run gets a number within it — `mamba-linear-time-sequence#3` — and its own
-report folder, so nothing is ever overwritten:
-
-```
-prebuttal-reports/                    (has a .gitignore: reviews stay out of git)
-└── mamba-linear-time-sequence/
-    ├── latest.md / latest.html       ← always the newest run
-    ├── 2026-10-25_1530_iclr/report.md, report.html
-    └── 2026-10-26_0910_iclr/report.md, report.html
-```
-
-The complete record (Markdown, HTML, JSON and the resolved config — backends,
-models, seeds) is also archived under `~/.prebuttal/` (`--no-save` opts out),
-so everything below works from any directory:
-
-```bash
-prebuttal projects                   # one line per paper: runs, latest score, trend
-prebuttal runs [project]             # its runs, newest first, with notes
-prebuttal open                       # newest report in the browser (HTML)
-prebuttal plan                       # the newest run's revision plan as a checklist
-prebuttal diff                       # newest run vs the one before: ratings, weaknesses, plan
-prebuttal diff --llm                 # ... matching plan items by meaning (one model call)
-prebuttal retry                      # re-run only the reviewers that failed (+ the AC)
-prebuttal dashboard                  # local HTML overview: every project, score trends, links
-prebuttal show / export / note / rm  # print, copy out, annotate, delete runs
-prebuttal projects rename|rm         # tidy up
-```
-
-Runs are referenced as `latest` (the default), `mamba` (newest run of a
-project), `mamba#3` (run 3), `mamba~1` (one before the newest) or by id
-prefix.
-
-The revision loop: fix what the reviewers flagged, re-run with the same
-`--seed` and a `--note "what changed"`, then `prebuttal diff` shows which
-weaknesses went away, persisted, or appeared, and which revision-plan items
-are no longer detected. Report location and formats
-are configurable: `--out-dir`, `--format md,html,json`, or an `[output]`
-section in `prebuttal.toml` (`dir = ""` keeps reports in the archive only).
-Need a file at a fixed path, e.g. for a script? `--json PATH`, or
-`prebuttal export -f md -o PATH` after the run.
-
-## Skill package
-
-[`skills/prebuttal/SKILL.md`](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/skills/prebuttal/SKILL.md) teaches any agent to
-drive the CLI and interpret the JSON — including relay mode (the reviewers are
-the agent's own subagents) and the `runs`/`diff` revision loop. The skill file
-is explicit about the one rule that matters: the agent must **run the CLI**,
-never role-play the reviewers itself.
-
-When the CLI detects it is running inside a coding agent (currently Claude
-Code and Gemini CLI), `prebuttal run` and `prebuttal backends` print a one-line
-hint pointing at relay mode. An agent environment that should always use its
-own subagents can pin it once with `PREBUTTAL_BACKEND=relay`. Relay is never
-chosen automatically: the CLI has to run in the background while the agent
-answers the requests, or both sides wait on each other.
-
-Install it into your agent's skills directory — for Claude Code:
+[`skills/prebuttal/SKILL.md`](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/skills/prebuttal/SKILL.md)
+teaches any agent to drive the CLI and interpret its JSON — including relay
+mode, where the reviewers are the agent's own subagents. Its one hard rule:
+the agent **runs the CLI**, never role-plays the reviewers itself.
 
 ```bash
 mkdir -p ~/.claude/skills/prebuttal && curl -fsSL -o ~/.claude/skills/prebuttal/SKILL.md \
   https://raw.githubusercontent.com/GuoYuKai-SaMuEl/prebuttal/main/skills/prebuttal/SKILL.md
-# or, from a clone: cp -r skills/prebuttal ~/.claude/skills/
 ```
 
-Other agents (ZCode, Codex, …): copy or symlink `skills/prebuttal/` wherever
-your agent discovers skills (see its docs), or reference the file from your
-`AGENTS.md` / system prompt.
+Other agents: copy `skills/prebuttal/` wherever yours discovers skills, or
+reference the file from `AGENTS.md`. Inside Claude Code or Gemini CLI,
+`prebuttal run` and `prebuttal backends` print a one-line relay hint;
+`PREBUTTAL_BACKEND=relay` pins relay for a whole environment. Relay is never
+chosen automatically: the CLI must run in the background while the agent
+answers, or both sides wait on each other.
 
 ## Reference
 
-### Environment variables
-
-**API keys** — two ways, pick either:
+### API keys and environment variables
 
 ```bash
-prebuttal key set gemini     # quick setup: hidden prompt, stored for next time
-# or the classic way: set GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY yourself
+prebuttal key set gemini     # hidden prompt, stored for next time
+# or set GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / OPENROUTER_API_KEY yourself
 ```
 
-Stored keys live in `~/.prebuttal/keys.env` (user-only permissions, like
-`~/.aws/credentials`); real environment variables always take precedence, so
-CI setups are unaffected. `prebuttal backends` shows what's set (masked) and
-where it comes from; `prebuttal key unset <name>` removes a stored key. Agent
-CLIs never get stored keys in their environment and are given no tool that
-could read the file (see [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md)).
+Stored keys live in `~/.prebuttal/keys.env` (user-only, like
+`~/.aws/credentials`); real environment variables win, so CI is unaffected.
+`prebuttal backends` shows what is set (masked); `prebuttal key unset <name>`
+removes one. Keys are never written to reports, JSON or share pages, never
+passed to agent CLIs, and the agent CLIs get no tool that could read the file.
 
 | Variable | Purpose |
 |---|---|
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) / `OPENROUTER_API_KEY` | enable the matching API backend |
 | `OPENAI_BASE_URL` | point `api-openai` at an OpenAI-compatible proxy |
 | `PREBUTTAL_OPENAI_MODEL` / `PREBUTTAL_ANTHROPIC_MODEL` / `PREBUTTAL_GEMINI_MODEL` / `PREBUTTAL_OPENROUTER_MODEL` | override each backend's default model |
-| `PREBUTTAL_OLLAMA_HOST` (or `OLLAMA_HOST`) | Ollama base URL (default `http://localhost:11434`) |
-| `PREBUTTAL_BACKEND` | force one backend for every reviewer + the AC (e.g. `relay`); `--backend` still wins, `prebuttal.toml` loses |
+| `PREBUTTAL_OLLAMA_HOST` (or `OLLAMA_HOST`) | Ollama address (default `http://localhost:11434`; Ollama's own `0.0.0.0:11434` form works too) |
+| `PREBUTTAL_BACKEND` | one backend for every reviewer and the AC (e.g. `relay`); `--backend` still wins, `prebuttal.toml` loses |
 | `PREBUTTAL_HOME` | run-history and key storage location (default `~/.prebuttal`) |
-
-API keys are only read from the environment or `keys.env` — never written to
-reports, JSON, or share pages.
 
 ### Exit codes
 
@@ -415,110 +436,92 @@ reports, JSON, or share pages.
 | 0 | success |
 | 2 | bad usage / config error / paper not found / unknown run id |
 | 3 | no review backend available |
-| 4 | partial failure (some reviewers or the AC failed; report still written) |
+| 4 | partial failure (some reviewers or the AC failed; report still written — `prebuttal retry`) |
 | 5 | every reviewer failed |
 | 6 | `prebuttal check` found something that can get the paper desk-rejected |
-| 130 | interrupted (Ctrl+C); reviews that had finished are archived — `prebuttal retry` completes the run |
-
-## Comparison
-
-What Prebuttal provides, next to the common alternatives (by category —
-check any specific tool's own docs for what it supports):
-
-| Approach | Form | Venue forms | Calibration | Cross-model | Tables in-pipeline |
-|---|---|---|---|---|---|
-| **Prebuttal** | CLI + skill | NeurIPS / ICLR / ICML / ARR (editable plain text) | OpenReview script (scatter + MAE; results pending) | claude × codex × API × ollama | cell-by-cell |
-| generic "review my paper" agent skills / prompts | agent skill | varies | rarely | single model | via the host model |
-| multi-agent peer-review research frameworks | research code | study-specific | study-specific | sometimes | rarely |
-| paste into a chatbot | chat | ✗ | ✗ | ✗ | ✗ |
+| 130 | interrupted (Ctrl+C); finished reviews are archived — `prebuttal retry` completes the run |
 
 ## How it works
 
 ```
 PDF / LaTeX dir / arXiv link
+   ├─ pre-flight check: anonymity, page limit, required sections, leftovers
    └─ ingestion: sections, cell-accurate tables, figure captions, refs
         └─ reviewer pack (budget-aware; tables are never truncated)
-             ├─ R1 senior_kind ──┐ three independent contexts,
-             ├─ R2 adversarial ──┤ parallel fan-out, venue form + JSON schema
+             ├─ R1 senior_kind ──────┐ three independent contexts,
+             ├─ R2 adversarial ──────┤ parallel fan-out, venue form + JSON schema
              ├─ R3 detail_obsessive ─┤
-             └─ AC area chair ◄──┘ meta-review + estimated rating + disagreement
+             └─ AC area chair ◄──────┘ meta-review, estimated rating, revision plan
                   └─ Markdown + HTML report per run · JSON · project history
 ```
 
 Orchestration lives in the CLI, not the host agent — the same pipeline runs
-from a terminal, from inside any coding agent, or in CI.
+from a terminal, inside any coding agent, or in CI.
 
-## Roadmap & versioning
+| Approach | Form | Venue forms | Calibration | Cross-model | Tables in-pipeline |
+|---|---|---|---|---|---|
+| **Prebuttal** | CLI + agent skill | NeurIPS / ICLR / ICML / ARR + any custom | OpenReview script (results pending) | claude × codex × API × Ollama | cell-by-cell |
+| generic "review my paper" prompts / skills | prompt or skill | varies | rarely | single model | via the host model |
+| multi-agent peer-review research code | research code | study-specific | study-specific | sometimes | rarely |
+| paste into a chatbot | chat | ✗ | ✗ | ✗ | ✗ |
 
-Versioning policy while pre-1.0: **patch** releases are fixes and small
-additions; **minor** releases are substantial new features; 1.0 only once the
-interface is battle-tested. Tentative, in short (details in
+## Roadmap
+
+Pre-1.0: patch releases are fixes and small additions, minor releases are
+substantial features. In short (details in
 [ROADMAP.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md)):
 
-1. **0.5 (current) — nothing leaks before submission**: `prebuttal check`
-   (anonymity, page limits, leftover `??`), agent CLIs with no tool that can
-   read your stored keys, and `backends` as the one setup view
+1. **0.5 (current) — nothing leaks before submission**: `prebuttal check`,
+   agent CLIs with no tool that can read your keys, `backends` as the one
+   setup view
 2. **0.6 — a revision loop you can trust**: repeated reviews, a diff that
    says when a change is within noise, meaning-based matching by default
-3. **0.7 — reach**: more venues, community personas, a GitHub Action for
-   papers
+3. **0.7 — reach**: more venues, community personas, a GitHub Action for papers
 4. **Separate track** — calibration against real OpenReview outcomes
 
-## Develop
+## Contributing
 
 ```bash
 git clone https://github.com/GuoYuKai-SaMuEl/prebuttal && cd prebuttal
-python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # Windows
-.venv/bin/pip install -e ".[dev]"                               # macOS/Linux
+python -m venv .venv && .venv/bin/pip install -e ".[dev]"   # Windows: .venv\Scripts\pip
 pytest -q
 ```
 
-Contributions welcome — the easiest ones are venue forms, personas, and
-backends; see [CONTRIBUTING.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CONTRIBUTING.md) for the three-step guide.
-Also read [CHANGELOG.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CHANGELOG.md), [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md), and our
-[Code of Conduct](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CODE_OF_CONDUCT.md).
+The easiest contributions are venue forms, personas and backends — see
+[CONTRIBUTING.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CONTRIBUTING.md)
+for the three-step guide and the project's design commitments (fewer flags,
+honesty first). Security issues: [SECURITY.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/SECURITY.md).
+Please follow the [Code of Conduct](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CODE_OF_CONDUCT.md).
 
 ## Honesty & policy
 
-- Prebuttal **labels every review** with the backend and model that produced it.
-- It reports score **disagreement**, always. High σ is information.
-- It is a stress test, **not** a predictor — the report footer says so, every time.
-- Mind conference policies: with [NeurIPS 2026 running an official AI-assisted
-  reviewing experiment](https://neurips.cc/Conferences/2026/ai-reviewing-experiment),
+- Every review is **labelled** with the backend and model that produced it.
+- Score **disagreement** is reported, always. High σ is information.
+- It is a stress test, **not** a predictor — every report says so.
+- Mind conference policies: with [NeurIPS 2026 running an official
+  AI-assisted reviewing experiment](https://neurips.cc/Conferences/2026/ai-reviewing-experiment),
   the etiquette is clear — AI to *prepare* your own paper is yours to decide;
   AI to *review* others' papers must follow each venue's disclosure rules.
 
 ### Privacy & data custody
 
 - **Your paper's text goes to whatever backend you configure.** With API or
-  agent-CLI backends the manuscript is transmitted to that provider — and
-  OpenRouter further routes each request to a third-party upstream provider.
-  What happens to the text there (retention, training use, human review) is
-  governed **solely by each provider's terms and privacy policy**, not by
-  Prebuttal.
-- **Prebuttal is an integration layer, not a data custodian.** This project
-  operates no models and runs no servers; we never see your paper. For
-  unpublished results, check the backend provider's data-use terms before
-  sending — provider-side handling of your data is the provider's
-  responsibility, not this project's.
-- **Free tiers deserve extra care**: free API tiers (e.g. Gemini's free
-  tier, OpenRouter `:free` models) may allow logging or training on inputs;
-  paid tiers usually don't. Read the terms before sending unpublished work.
-- **Local-only is a first-class path**: `ollama` never sends text off your
-  machine (as long as `PREBUTTAL_OLLAMA_HOST` / `OLLAMA_HOST` point at
-  localhost — a remote Ollama server receives the paper like any API), and
-  `relay` leaves who answers entirely to you.
-- **What Prebuttal itself stores stays on your disk**: run history (pack
-  text, raw outputs, resolved config) under `~/.prebuttal/runs/` and keys in
-  `~/.prebuttal/keys.env` (user-only). No telemetry. Note reports and share
-  pages contain excerpts of your paper — sharing them publishes those
-  excerpts.
+  agent-CLI backends it is sent to that provider (OpenRouter further routes
+  it to an upstream provider). What happens there — retention, training,
+  human review — is governed **solely by that provider's terms**.
+- **Prebuttal is an integration layer, not a data custodian.** The project
+  runs no models and no servers; it never sees your paper.
+- **Local-only is a first-class path**: `ollama` keeps the text on your
+  machine (as long as the Ollama address is local), and `relay` leaves who
+  answers entirely to you.
+- **What Prebuttal stores stays on your disk**: run history under
+  `~/.prebuttal/` and keys in `~/.prebuttal/keys.env`, both user-only. No
+  telemetry. Reports and share pages quote your paper — sharing them
+  publishes those excerpts.
 
-## License & trademarks
+## License
 
-Prebuttal is an independent project, not affiliated with or endorsed by
-NeurIPS, ICLR, ICML, ACL/ARR or any model provider. Venue names are used only
-to describe which review form a report follows; the forms are paraphrased
-summaries of the public reviewer guidelines.
-
-MIT
+MIT. Prebuttal is an independent project, not affiliated with or endorsed by
+NeurIPS, ICLR, ICML, ACL/ARR or any model provider. Venue names only describe
+which review form a report follows; the forms are paraphrased summaries of the
+public reviewer guidelines.

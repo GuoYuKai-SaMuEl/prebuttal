@@ -16,8 +16,12 @@ Prebuttal's simulated ratings vs **real** OpenReview ratings for the same papers
 
 ## Run it
 
+The script lives in the repository, not in the pip package — run it from a
+clone:
+
 ```bash
-pip install "prebuttal[calibration]"
+git clone https://github.com/GuoYuKai-SaMuEl/prebuttal && cd prebuttal
+pip install -e ".[calibration]"
 python scripts/calibration/calibrate.py \
     --venue-id ICLR.cc/2024/Conference --venue iclr -n 20 --out-dir calib_out
 ```
@@ -33,6 +37,9 @@ Outputs:
 
 ## Upgrading later
 
-The natural next step (frozen until v0.1 has real users): the same script
-becomes a public benchmark + leaderboard. Keep `--seed` and the config file
-with the results; that's what makes the numbers defensible.
+Calibration is a separate track on the
+[roadmap](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md#separate-track-calibration),
+planned after 0.6 adds repeated reviews (without run-to-run variance there is
+nothing to compare an error against). It could grow into a public benchmark.
+Keep `--seed` and the config file with any results; that's what makes the
+numbers defensible.
