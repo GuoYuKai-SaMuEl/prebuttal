@@ -509,7 +509,9 @@ def _plan_matcher(args):
     if ac[0] == "relay":
         print("error: --llm needs an automatic backend, not relay", file=sys.stderr)
         return None
-    if not _agent_commands_trusted(cfg, [ac[0]]):
+    from .trust import pinned_by_file
+
+    if not _config_trusted(cfg, [ac], pinned=pinned_by_file(args.backend)):
         return None
     try:
         provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
@@ -817,37 +819,42 @@ def cmd_key(args) -> int:
     return EXIT_OK
 
 
-def _agent_commands_trusted(cfg, backends: list[str]) -> bool:
-    """Consent gate for ``[agents.*]`` commands from an auto-discovered config.
+def _config_trusted(
+    cfg, backends: list[tuple[str, str]], *, pinned: bool, relay: bool = False
+) -> bool:
+    """Consent gate for an auto-discovered prebuttal.toml (see prebuttal.trust).
 
-    A prebuttal.toml sitting in the current directory may come with someone
-    else's paper repo or an unpacked arXiv source tarball; running its
-    commands silently would be arbitrary code execution.  An explicit
-    ``--config`` counts as trust; otherwise ask, and refuse when we can't.
+    It may come with someone else's paper repo or an unpacked arXiv source:
+    running its commands, sending the paper to the provider it pins, or
+    writing outside the project needs a yes — once per file content.  An
+    explicit ``--config`` counts as trust; non-interactive runs refuse.
     `-y` deliberately does not bypass this (scripts add -y routinely).
     """
-    if not cfg.config_discovered:
+    from . import trust
+
+    lines = trust.concerns(cfg, backends, pinned=pinned, relay=relay)
+    if not lines or trust.is_trusted(cfg.config_path):
         return True
-    names = sorted({b[6:] for b in backends if b.startswith("agent-") and b[6:] in cfg.agents})
-    if not names:
-        return True
-    cmds = "\n".join(f"  agent-{n}: {cfg.agents[n].describe()}" for n in names)
     _log(
-        f"[prebuttal] {cfg.config_path} (found in the current directory) will run "
-        f"these commands with your paper as input:\n{cmds}"
+        f"[prebuttal] {cfg.config_path} (found in the current directory, not passed with "
+        "--config) will, with your paper as input:\n" + "\n".join(f"  {ln}" for ln in lines)
     )
     if _is_interactive():
         try:
-            answer = input("Run them? Only say yes if you wrote or trust this file. [y/N]: ")
+            answer = input(
+                "Use this file's settings? Only say yes if you wrote or trust it "
+                "(asked again if it changes). [y/N]: "
+            )
         except EOFError:
             answer = ""
         if answer.strip().lower() in ("y", "yes"):
+            trust.remember(cfg.config_path)
             return True
-        _log("aborted: commands not trusted")
+        _log("aborted: config not trusted")
         return False
     print(
-        "error: refusing to run commands from a config that was not passed explicitly. "
-        f"If you trust it, re-run with --config {cfg.config_path}",
+        "error: refusing to use these settings from a config that was not passed "
+        f"explicitly. If you trust it, re-run with --config {cfg.config_path}",
         file=sys.stderr,
     )
     return False
@@ -947,7 +954,10 @@ def cmd_run(args) -> int:
             )
             _log(plan)
 
-    if not _agent_commands_trusted(cfg, [b for (_r, b, _m) in resolved] + [ac[0]]):
+    from .trust import pinned_by_file
+
+    roles = [(b, m) for (_r, b, m) in resolved] + [ac]
+    if not _config_trusted(cfg, roles, pinned=pinned_by_file(args.backend), relay=uses_relay):
         return EXIT_USAGE
 
     providers = {}
@@ -1143,7 +1153,10 @@ def cmd_retry(args) -> int:
         ("AC", args.backend or old.meta.backend,
          old.meta.model if args.model is None else args.model, old.meta.effort)
     ]  # fmt: skip
-    if not _agent_commands_trusted(cfg, [b for (_r, b, _m, _e) in roles]):
+    uses_relay = any(b == "relay" for (_r, b, _m, _e) in roles)
+    if not _config_trusted(
+        cfg, [(b, m) for (_r, b, m, _e) in roles], pinned=False, relay=uses_relay
+    ):
         return EXIT_USAGE
     try:
         built = {rid: build_provider(b, m, cfg, effort=e) for rid, b, m, e in roles}

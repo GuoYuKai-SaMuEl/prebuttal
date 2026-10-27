@@ -35,6 +35,12 @@ releases (0.2, 0.3, …) are substantial new features.
   default and the fallback when the model's answer is unusable.
 
 ### Changed
+- **A `prebuttal.toml` found in the current directory** (not passed with
+  `--config`) now also needs a yes before it can send the paper to a backend
+  it pins, or write reports / the relay spool outside the current directory
+  — not only before running `[agents.*]` commands. The yes is remembered per
+  file content; non-interactive runs refuse as before (pass `--config`).
+  An all-`auto` config like the one `prebuttal init` writes is unaffected.
 - CI fails on any text I/O without an explicit `encoding=`
   (`PYTHONWARNDEFAULTENCODING=1` + `EncodingWarning` as an error), the bug
   class that only shows on non-UTF-8 Windows locales.

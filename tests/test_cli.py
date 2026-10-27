@@ -374,3 +374,79 @@ def test_cli_export_follows_output_extension(latex_project, tmp_path, monkeypatc
     htm = tmp_path / "forced.md"
     assert cli.main(["export", "-o", str(htm), "--format", "html"]) == cli.EXIT_OK
     assert htm.read_text(encoding="utf-8").lstrip().startswith("<!doctype html>")
+
+
+PINNED_TOML = """
+[[reviewer]]
+id = "R1"
+backend = "fake"
+model = "free-tier-model"
+
+[ac]
+backend = "fake"
+"""
+
+
+def test_discovered_config_cannot_pick_the_provider_silently(
+    tmp_path, monkeypatch, capsys, latex_project, fake_statuses
+):
+    """A found config must not route an unpublished paper to a provider of its
+    choosing (e.g. a free tier that trains on inputs) without a yes."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "prebuttal.toml").write_text(PINNED_TOML, encoding="utf-8")
+    monkeypatch.setattr(cli, "_is_interactive", lambda: False)
+    assert cli.main(["run", str(latex_project), "-y", "--no-save"]) == cli.EXIT_USAGE
+    err = capsys.readouterr().err
+    assert "sends the paper to: fake / free-tier-model" in err and "--config" in err
+    # --backend from the user overrides the file's choice: nothing to consent to
+    rc = cli.main(["run", str(latex_project), "-y", "--no-save", "--backend", "fake"])
+    assert rc == cli.EXIT_OK
+
+
+def test_config_approval_is_remembered_until_the_file_changes(
+    tmp_path, monkeypatch, latex_project, fake_statuses
+):
+    monkeypatch.chdir(tmp_path)
+    cfg = tmp_path / "prebuttal.toml"
+    cfg.write_text(PINNED_TOML, encoding="utf-8")
+    monkeypatch.setattr(cli, "_is_interactive", lambda: True)
+    asked: list[str] = []
+
+    def answer(prompt=""):
+        asked.append(prompt)
+        return "y"
+
+    monkeypatch.setattr("builtins.input", answer)
+    assert cli.main(["run", str(latex_project), "-y", "--no-save"]) == cli.EXIT_OK
+    assert len(asked) == 1
+    assert cli.main(["run", str(latex_project), "-y", "--no-save"]) == cli.EXIT_OK
+    assert len(asked) == 1  # same content: not asked again
+    cfg.write_text(PINNED_TOML.replace("free-tier-model", "other-model"), encoding="utf-8")
+    assert cli.main(["run", str(latex_project), "-y", "--no-save"]) == cli.EXIT_OK
+    assert len(asked) == 2  # edited: asked again
+
+
+def test_discovered_config_writing_outside_the_project_needs_consent(
+    tmp_path, monkeypatch, capsys, latex_project, fake_statuses
+):
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    (work / "prebuttal.toml").write_text('[output]\ndir = "../elsewhere"\n', encoding="utf-8")
+    monkeypatch.setattr(cli, "_is_interactive", lambda: False)
+    rc = cli.main(["run", str(latex_project), "-y", "--no-save", "--backend", "fake"])
+    assert rc == cli.EXIT_USAGE
+    assert "writes reports to:" in capsys.readouterr().err
+    assert not (tmp_path / "elsewhere").exists()
+
+
+def test_all_auto_discovered_config_needs_no_consent(
+    tmp_path, monkeypatch, latex_project, fake_statuses
+):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "prebuttal.toml").write_text(
+        '[default]\nvenue = "iclr"\n[[reviewer]]\nid = "R1"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(cli, "_is_interactive", lambda: False)
+    rc = cli.main(["run", str(latex_project), "-y", "--no-save", "--backend", "fake"])
+    assert rc == cli.EXIT_OK
