@@ -80,6 +80,9 @@ the tool must not leak your keys.
   matching is one-to-one.
 - A report folder is created race-free when two runs finish in the same
   minute.
+- Stored API keys are loaded only for commands that reach a backend, and
+  "using stored keys" is printed only when a model is about to be called —
+  not on `check`, `runs`, `venues` and the other commands that call none.
 
 ## [0.4.1] — 2026-10-27
 

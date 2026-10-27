@@ -1331,9 +1331,13 @@ def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        applied = key_store.apply_stored_keys()  # zero-friction: stored keys → env
-        if applied and args.cmd != "key":
-            _log("[prebuttal] using stored keys: " + ", ".join(applied))
+        # stored keys → env, only for commands that reach a backend; the notice
+        # only where a model is about to be called (backends/key show it anyway)
+        calls_model = args.cmd in ("run", "retry") or (args.cmd == "diff" and args.llm)
+        if calls_model or args.cmd in ("backends", "models", "key"):
+            applied = key_store.apply_stored_keys()
+            if applied and calls_model:
+                _log("[prebuttal] using stored keys: " + ", ".join(applied))
         if args.cmd == "init":
             return cmd_init(args)
         if args.cmd == "backends":

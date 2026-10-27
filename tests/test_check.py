@@ -318,3 +318,30 @@ def test_run_report_carries_the_preflight(tmp_path, monkeypatch, latex_project, 
     warnings = json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["paper"]["warnings"]
     assert any(w.startswith("Pre-flight check (error)") and "tab:nowhere" in w for w in warnings)
     assert "tab:nowhere" in latest_report(tmp_path / "r").read_text(encoding="utf-8")
+
+
+def test_stored_keys_load_only_for_commands_that_call_models(
+    tmp_path, monkeypatch, capsys, latex_project, fake_statuses
+):
+    """`check` calls no model: no keys in the environment, no "using stored keys"."""
+    import os
+
+    from prebuttal import keys
+
+    monkeypatch.chdir(tmp_path)
+    # setenv first so monkeypatch restores the real state afterwards
+    monkeypatch.setenv("GEMINI_API_KEY", "placeholder")
+    monkeypatch.delenv("GEMINI_API_KEY")
+    monkeypatch.setattr(keys, "_applied", set())
+    keys.store_key("GEMINI_API_KEY", "AIzaStored1234567")
+    (tmp_path / "p.pdf").write_bytes(make_paper([page1(), [(80, "References", 12)]]))
+
+    for argv in (["check", "p.pdf", "--venue", "iclr"], ["runs"], ["venues"]):
+        cli.main(argv)
+        assert "using stored keys" not in capsys.readouterr().err
+        assert "GEMINI_API_KEY" not in os.environ
+
+    cfg_path = tmp_path / "prebuttal.toml"
+    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
+    cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    assert "using stored keys: GEMINI_API_KEY" in capsys.readouterr().err
