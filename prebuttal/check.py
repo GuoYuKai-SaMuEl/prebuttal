@@ -83,7 +83,8 @@ _OWN = re.compile(
 _ANON_HOSTS = ("anonymous.4open.science", "anonymous.4open", "anonymized")
 _UNRESOLVED_REF = re.compile(
     r"(?:Figure|Fig\.|Table|Tab\.|Section|Sec\.|Appendix|App\.|Eq\.|Equation|Algorithm|"
-    r"Theorem|Lemma|Corollary|Definition|Proposition)\s*~?\(?\?\?\)?|\?\?"
+    r"Theorem|Lemma|Corollary|Definition|Proposition)\s*~?\(?\?\?\)?"
+    r"|(?<![\w?])\?\?(?![\w?])"  # a bare ??, not "what??" or "???"
 )
 _UNRESOLVED_CITE = re.compile(r"\[\?(?:,\s*\?)*\]|\(\?\)|\(author\?\)|\(\?, \?\)")
 _TODO = re.compile(r"\b(?:TODO|FIXME|TBD)\b")
@@ -382,7 +383,7 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
                     ERROR,
                     "anonymity",
                     f"{where}: `{m.group(0).strip()[-70:]}` switches the template to its "
-                    "camera-ready / preprint mode, which prints the author names",
+                    "camera-ready / preprint / non-anonymous mode, which prints the author names",
                 )
                 break
         else:

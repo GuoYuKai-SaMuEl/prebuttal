@@ -170,7 +170,9 @@ NEURIPS = Venue(
             r"^(?!.*Submitted to).*\d+(st|nd|rd|th) Conference on Neural Information",
             r"^Preprint\. Under review\.",  # [preprint] prints the author names too
         ),
-        final_latex=(r"^[^%]*\\usepackage\s*\[[^\]]*\b(final|preprint)\b[^\]]*\]\s*\{neurips",),
+        final_latex=(
+            r"^[^%]*\\usepackage\s*\[[^\]]*\b(final|preprint|nonanonymous)\b[^\]]*\]\s*\{neurips",
+        ),
         source="https://neurips.cc/Conferences/2026/CallForPapers",
     ),
     fields=[

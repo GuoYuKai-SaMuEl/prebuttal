@@ -19,7 +19,7 @@ the tool must not leak your keys.
 - **`prebuttal check <paper>`** — a deterministic desk-reject pre-flight: no
   model, no cost; `--venue` as for `run` (else `prebuttal.toml`, else neurips).
   Anonymity (author names in the PDF metadata, e-mails on page 1, a
-  camera-ready or NeurIPS `[preprint]` build, a visible acknowledgements
+  camera-ready, NeurIPS `[preprint]` or `[nonanonymous]` build, a visible acknowledgements
   section, links to your own repository, "our previous work [12]"), format
   (main-text pages over the venue's limit, a missing NeurIPS checklist / ICML
   impact statement / ARR limitations section) and leftovers (`??`, `[?]`,

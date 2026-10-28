@@ -217,6 +217,30 @@ def test_anonymous_author_is_not_flagged(tmp_path):
     assert not any("\\author{" in f.message for f in result.findings)
 
 
+@pytest.mark.parametrize(
+    "line, unresolved",
+    [
+        ("As Table ?? shows", True),
+        ("see Sec.~?? and (??).", True),
+        ("Figure??", True),
+        ("?? is how LaTeX prints it", True),
+        ('the reviewer asked "what??"', False),
+        ("really??? no", False),
+    ],
+)
+def test_bare_question_marks(line, unresolved):
+    from prebuttal.check import _UNRESOLVED_REF
+
+    assert bool(_UNRESOLVED_REF.search(line)) == unresolved
+
+
+def test_neurips_nonanonymous_option_is_flagged(tmp_path):
+    tex = MAIN_TEX.replace("[final]{neurips_2026}", "[eandd, nonanonymous]{neurips_2026}")
+    (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
+    result = check_latex(tmp_path, get_venue("neurips").rules)
+    assert any("nonanonymous" in f.message and f.level == ERROR for f in result.findings)
+
+
 def test_commented_out_switch_is_not_flagged(tmp_path):
     tex = MAIN_TEX.replace(r"\usepackage[final]{neurips_2026}", "")
     (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
