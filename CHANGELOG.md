@@ -10,7 +10,7 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-10-27
+## [0.5.0] — 2026-10-28
 
 "Nothing leaks before submission": the paper must not leak its authors, and
 the tool must not leak your keys.
