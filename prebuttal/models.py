@@ -196,7 +196,6 @@ class Review:
 
 
 PRIORITIES = ("must", "should", "could")
-EFFORTS = ("small", "medium", "large")
 
 
 @dataclass

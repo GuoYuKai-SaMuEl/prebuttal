@@ -60,11 +60,6 @@ class BackendStatus:
     detail: str
     default_model: str = ""
 
-    def line(self) -> str:
-        mark = "x" if self.available else " "
-        model = f"  model: {self.default_model}" if self.available and self.default_model else ""
-        return f"[{mark}] {self.backend:<14} {self.detail}{model}"
-
 
 class NoBackendError(Exception):
     def __init__(self, statuses: list[BackendStatus]):

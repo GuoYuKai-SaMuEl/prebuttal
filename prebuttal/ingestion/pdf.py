@@ -41,6 +41,17 @@ _HEADING_WORDS = {
     "conclusions",
     "bibliography",
 }
+# recognized heading words that are not a section start (0) or are (1)
+_SPECIAL_HEADINGS = {
+    "abstract": 0,
+    "references": 1,
+    "bibliography": 1,
+    "acknowledgments": 1,
+    "acknowledgements": 1,
+    "introduction": 1,
+    "conclusion": 1,
+    "conclusions": 1,
+}
 _NUMBERED = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+(\S.*)$")
 # A real caption has punctuation right after the number ("Table 3: ...", "Fig. 2.");
 # in-prose references like "Table 1 confirms that ..." must NOT match.
@@ -192,15 +203,20 @@ def _box(group: list[dict]) -> tuple[float, float, float, float]:
     )
 
 
-def _grid_from_region(bbox: tuple, words: list[dict]) -> list[list[str]] | None:
-    """Rows by baseline, columns by whitespace shared across every row."""
+def _words_in(bbox: tuple, words: list[dict]) -> list[dict]:
+    """Words whose centre lies inside ``bbox`` (x padded, vertically open)."""
     x0, top, x1, bottom = bbox
-    inside = [
+    return [
         w
         for w in words
         if x0 - 2 <= (w["x0"] + w["x1"]) / 2 <= x1 + 2
         and top < (w["top"] + w["bottom"]) / 2 < bottom
     ]
+
+
+def _grid_from_region(bbox: tuple, words: list[dict]) -> list[list[str]] | None:
+    """Rows by baseline, columns by whitespace shared across every row."""
+    inside = _words_in(bbox, words)
     if not inside:
         return None
     rows: list[list[dict]] = []
@@ -302,14 +318,8 @@ def _figure_like(tb: tuple, caps: list[tuple], fig_caps: list[tuple]) -> bool:
 
 def _region_text(bbox: tuple, words: list[dict]) -> str:
     """The words inside ``bbox`` as lines of text."""
-    x0, top, x1, bottom = bbox
     inside = sorted(
-        (
-            w
-            for w in words
-            if x0 - 2 <= (w["x0"] + w["x1"]) / 2 <= x1 + 2
-            and top < (w["top"] + w["bottom"]) / 2 < bottom
-        ),
+        _words_in(bbox, words),
         key=lambda w: (round(w["top"]), w["x0"]),
     )
     lines: list[list[dict]] = []
@@ -544,21 +554,12 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
             and len(ln["text"]) < 40
             and (ln["size"] >= body_size * 1.05 or ln["bold"])
         ):
-            # 0 = recognized word but not a section start (e.g. Abstract)
-            special = {
-                "abstract": 0,
-                "references": 1,
-                "bibliography": 1,
-                "acknowledgments": 1,
-                "acknowledgements": 1,
-                "introduction": 1,
-                "conclusion": 1,
-                "conclusions": 1,
-            }
             if low == "appendix":
                 return True, 1, "A", ln["text"]
-            if low in special:
-                return (True, 1, "", ln["text"]) if special[low] else (False, 0, "", "")
+            if low in _SPECIAL_HEADINGS:
+                return (
+                    (True, 1, "", ln["text"]) if _SPECIAL_HEADINGS[low] else (False, 0, "", "")
+                )
         return False, 0, "", ""
 
     for ln in lines_all:
@@ -571,7 +572,7 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
                 "number": num,
                 "title": ttl,
                 "text": "",
-                "appendix": num == "A" or num.startswith("A"),
+                "appendix": num.startswith("A"),
             }
         elif current is not None:
             cur_text = current["text"]

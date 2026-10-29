@@ -59,8 +59,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
             (f.key for f in venue.fields if f.kind == "text" and f.key == "summary"), None
         )
         summary = _clip(str(rev.fields.get(summary_key, "")) if summary_key else "", _SUMMARY_CHARS)
-        weak_key = "weaknesses" if "weaknesses" in rev.fields else ""
-        weaknesses = list(rev.fields.get(weak_key) or [])[:3]
+        weaknesses = list(rev.fields.get("weaknesses") or [])[:3]
         weak_html = ""
         if weaknesses:
             lis = "".join(f"<li>{_e(_clip(w, _ITEM_CHARS))}</li>" for w in weaknesses)

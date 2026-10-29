@@ -1403,11 +1403,9 @@ def main(argv=None) -> int:
             applied = key_store.apply_stored_keys()
             if applied and calls_model:
                 _log("[prebuttal] using stored keys: " + ", ".join(applied))
-        if args.cmd == "init":
-            return cmd_init(args)
-        if args.cmd == "backends":
-            return cmd_backends(args)
         commands = {
+            "init": cmd_init,
+            "backends": cmd_backends,
             "projects": cmd_projects,
             "runs": cmd_runs,
             "show": cmd_show,
@@ -1420,16 +1418,11 @@ def main(argv=None) -> int:
             "dashboard": cmd_dashboard,
             "retry": cmd_retry,
             "check": cmd_check,
+            "key": cmd_key,
+            "models": cmd_models,
+            "venues": cmd_venues,
         }
-        if args.cmd in commands:
-            return commands[args.cmd](args)
-        if args.cmd == "key":
-            return cmd_key(args)
-        if args.cmd == "models":
-            return cmd_models(args)
-        if args.cmd == "venues":
-            return cmd_venues(args)
-        return cmd_run(args)
+        return commands.get(args.cmd, cmd_run)(args)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)
         return EXIT_USAGE

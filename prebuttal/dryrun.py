@@ -85,7 +85,7 @@ def render_dry_run(
     lines.append("")
     lines.append("Cost estimate (indicative — see [pricing] overrides)")
     total = 0.0
-    entries = [(rid, b, m) for (rid, b, m) in resolved] + [("AC", ac[0], ac[1])]
+    entries = [*resolved, ("AC", ac[0], ac[1])]
     for rid, backend, model in entries:
         kind = kind_by_backend.get(backend, "api")
         # model "" = the CLI default: price what will actually run

@@ -10,6 +10,12 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Changed
+- Internal: dead code removed (`BackendStatus.line()`, `EFFORTS`), the
+  CLI command dispatch folded into one table, and small duplicated helpers
+  merged (key-file serialisation, words-in-box filter, heading-word table).
+  No behavior change.
+
 ## [0.5.0] — 2026-10-28
 
 "Nothing leaks before submission": the paper must not leak its authors, and
