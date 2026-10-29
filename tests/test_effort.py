@@ -198,6 +198,9 @@ def test_report_and_dry_run_show_effort(latex_project):
         ("claude-haiku-4-5", False),
         ("claude-sonnet-4", False),
         ("claude-3-7-sonnet-latest", False),
+        ("claude-sonnet-4-5-latest", False),
+        ("Claude-Haiku-4-5", False),
+        ("claude-opus-4-6-latest", True),
     ],
 )
 def test_anthropic_effort_only_where_the_api_takes_it(model, ok):

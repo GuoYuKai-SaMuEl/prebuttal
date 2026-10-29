@@ -27,6 +27,8 @@ releases (0.2, 0.3, …) are substantial new features.
 - `compress = true`: the section summaries' token usage counts in the
   report's total, and the dry run says those calls are not in its estimate.
 - `retry` with only the AC to re-run says so instead of "reviewers none".
+- A reviewer that crashed or a role cut off by Ctrl-C was archived without
+  its `--effort`, so `retry` re-ran it at the model's default effort.
 
 ## [0.5.1] — 2026-10-29
 

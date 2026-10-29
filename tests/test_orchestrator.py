@@ -231,3 +231,38 @@ def test_dry_run_mentions_compress_calls():
     cfg.compress = True
     text = render_dry_run(cfg, [("R1", "fake", "m")], ("fake", "m"), 1000, [])
     assert "compress: sections cut to fit the budget" in text
+
+
+class _EffortFake(PersonaFakeProvider):
+    """An effort-capable backend; ``stop`` makes reviewers crash and the AC see Ctrl-C."""
+
+    def __init__(self, stop: bool = False, **kw):
+        super().__init__(backend="agent-claude", **kw)
+        self.effort, self.stop = "high", stop
+
+    def _complete(self, *, system, user, temperature, seed, max_tokens):
+        if self.stop:
+            raise KeyboardInterrupt if "estimated_rating" in system else RuntimeError("bug")
+        return super()._complete(
+            system=system, user=user, temperature=temperature, seed=seed, max_tokens=max_tokens
+        )
+
+
+def test_failed_and_interrupted_roles_keep_their_effort(latex_project):
+    """`retry` rebuilds providers from the archived effort: a crashed reviewer
+    and an interrupted AC must not come back on the model's default."""
+    import pytest
+
+    from prebuttal.ingestion import ingest
+    from prebuttal.orchestrator import RunInterrupted
+
+    cfg = load_config(None)
+    providers = {r.id: _EffortFake(stop=True) for r in cfg.reviewers}
+    with pytest.raises(RunInterrupted) as exc:
+        run_report(
+            ingest(str(latex_project)), cfg, get_venue("iclr"), providers,
+            _EffortFake(stop=True), log=lambda m: None,
+        )  # fmt: skip
+    report = exc.value.report
+    assert [r.effort for r in report.reviews] == ["high"] * len(cfg.reviewers)
+    assert report.meta.effort == "high"

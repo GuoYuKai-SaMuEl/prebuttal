@@ -427,6 +427,7 @@ def _failed_review(rcfg, provider: BaseProvider, cfg: RunConfig, idx: int, error
         model=provider.model,
         temperature=rcfg.temperature,
         seed=reviewer_seed(cfg, rcfg, idx),
+        effort=provider.applied_effort,  # `retry` re-runs it with this effort
         error=error,
     )
 
@@ -681,6 +682,7 @@ def review_then_meta(
             backend=ac_provider.backend,
             model=ac_provider.model,
             temperature=cfg.ac.temperature,
+            effort=ac_provider.applied_effort,
             error=INTERRUPTED,
         )
         return RunInterrupted(reviews, report(meta))
