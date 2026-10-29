@@ -10,6 +10,8 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-10-29
+
 ### Changed
 - Internal: dead code removed (`BackendStatus.line()`, `EFFORTS`), the
   CLI command dispatch folded into one table (with `run` listed explicitly),
@@ -584,7 +586,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.3.1...v0.4.0
