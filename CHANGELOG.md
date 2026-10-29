@@ -24,7 +24,9 @@ releases (0.2, 0.3, …) are substantial new features.
 - Two `prebuttal run` processes finishing at the same moment on one project
   no longer get the same run number: history numbering takes a brief
   cross-process lock (best-effort: a stale or busy lock never blocks
-  archiving a finished run).
+  archiving a finished run).  On Windows a lock file being deleted that
+  instant read as PermissionError and could skip archiving entirely — both
+  are now treated as "busy" and retried.
 - `note` / `rm` / `projects rename` rewrite the whole history file; a run
   archived in that same moment is no longer lost to the rewrite — they take
   the same cross-process lock as archiving.

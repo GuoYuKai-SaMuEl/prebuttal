@@ -67,11 +67,17 @@ def _history_lock() -> Iterator[None]:
             os.close(fd)
             held = True
             break
-        except FileExistsError:
+        except (FileExistsError, PermissionError):
+            # Windows reports a lock file that is being unlinked this instant
+            # (delete-pending) as PermissionError, not FileExistsError — both
+            # mean "busy": sleep and retry, never let it escape the lock
             try:
                 if time.time() - p.stat().st_mtime > 60:
-                    # claim the stale lock by rename: only one waiter wins it,
-                    # the others see the lock gone and wait for the new holder
+                    # a crashed holder's lock: rename it away and try to create
+                    # the next one.  This narrows the takeover race but does
+                    # not fully close it: a waiter that stat'ed before the
+                    # takeover can still rename a freshly created lock — which
+                    # takes a stale lock to happen at all.
                     stolen = p.with_name(f"{p.name}.stolen-{os.getpid()}")
                     os.rename(p, stolen)
                     stolen.unlink(missing_ok=True)

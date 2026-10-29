@@ -419,7 +419,11 @@ def cmd_projects(args) -> int:
         except (ProjectError, OSError) as e:
             print(f"error: {e}", file=sys.stderr)
             return EXIT_USAGE
-        n = rename_in_history(args.old, new)
+        try:
+            n = rename_in_history(args.old, new)
+        except OSError as e:
+            print(f"error: cannot update the run history: {e}", file=sys.stderr)
+            return EXIT_USAGE
         print(f"renamed {args.old} → {new} ({n} run{'s' if n != 1 else ''})")
         print("Existing report folders keep their old name; new runs use the new one.")
         return EXIT_OK
@@ -431,7 +435,11 @@ def cmd_projects(args) -> int:
         what = f"project '{args.name}' and its {len(runs)} archived run(s)"
         if not _confirm(f"Delete {what}?", args.yes):
             return EXIT_USAGE
-        delete_runs({r.id for r in runs})
+        try:
+            delete_runs({r.id for r in runs})
+        except OSError as e:
+            print(f"error: cannot update the run history: {e}", file=sys.stderr)
+            return EXIT_USAGE
         forget_project(args.name)
         print(f"deleted {what} (files under ./prebuttal-reports are left alone)")
         return EXIT_OK
@@ -653,7 +661,11 @@ def cmd_note(args) -> int:
     rec = _resolve_run_or_exit(args.run)
     if rec is None:
         return EXIT_USAGE
-    set_note(rec.id, args.text.strip())
+    try:
+        set_note(rec.id, args.text.strip())
+    except OSError as e:
+        print(f"error: cannot update the run history: {e}", file=sys.stderr)
+        return EXIT_USAGE
     print(f"{rec.label}: note {'set' if args.text.strip() else 'cleared'}")
     return EXIT_OK
 
@@ -693,7 +705,11 @@ def cmd_rm(args) -> int:
     labels = ", ".join(r.label for r in recs)
     if not _confirm(f"Delete {labels} from the archive?", args.yes):
         return EXIT_USAGE
-    n = delete_runs({r.id for r in recs})
+    try:
+        n = delete_runs({r.id for r in recs})
+    except OSError as e:
+        print(f"error: cannot update the run history: {e}", file=sys.stderr)
+        return EXIT_USAGE
     print(f"deleted {n} run{'s' if n != 1 else ''}: {labels}")
     return EXIT_OK
 
