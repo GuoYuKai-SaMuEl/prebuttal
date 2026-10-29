@@ -15,6 +15,10 @@ releases (0.2, 0.3, …) are substantial new features.
   CLI command dispatch folded into one table (with `run` listed explicitly),
   and small duplicated helpers merged (key-file serialisation and its 0600
   write path, words-in-box filter, heading-word table). No behavior change.
+- Internal, second pass (−163 lines): the API providers share one constructor
+  and one backend/key table, CLI errors go through one helper, `retry`
+  reuses the orchestrator's report assembly. Reports and CLI output are
+  byte-identical before and after.
 
 ### Fixed
 - `check` page counting: a lone centred "References" heading (ACL-style
