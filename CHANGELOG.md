@@ -10,6 +10,12 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Changed
+- Internal: dead code removed (`BackendStatus.line()`, `EFFORTS`), the
+  CLI command dispatch folded into one table (with `run` listed explicitly),
+  and small duplicated helpers merged (key-file serialisation and its 0600
+  write path, words-in-box filter, heading-word table). No behavior change.
+
 ### Fixed
 - `check` page counting: a lone centred "References" heading (ACL-style
   single-column papers) no longer reads the reference entries below it as
@@ -19,15 +25,13 @@ releases (0.2, 0.3, …) are substantial new features.
   no longer get the same run number: history numbering takes a brief
   cross-process lock (best-effort: a stale or busy lock never blocks
   archiving a finished run).
+- `note` / `rm` / `projects rename` rewrite the whole history file; a run
+  archived in that same moment is no longer lost to the rewrite — they take
+  the same cross-process lock as archiving.
 - Ollama's URL is normalised in one place: `localhost` and `0.0.0.0` both
   show as and are called on `127.0.0.1`, in listings and errors alike.
-- Indicative price table: claude-haiku-5-5 added (same tier as haiku-4-5).
-
-### Changed
-- Internal: dead code removed (`BackendStatus.line()`, `EFFORTS`), the
-  CLI command dispatch folded into one table, and small duplicated helpers
-  merged (key-file serialisation, words-in-box filter, heading-word table).
-  No behavior change.
+- Indicative price table: claude-haiku-5-5 added at its launch pricing
+  ($0.10/$0.50 per 1M; 5x over 100k prompt tokens).
 
 ## [0.5.0] — 2026-10-28
 

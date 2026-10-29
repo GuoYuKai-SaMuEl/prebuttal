@@ -271,3 +271,24 @@ def test_concurrent_saves_get_distinct_run_numbers(latex_project):
         recs = list(ex.map(archive, range(4)))
     assert sorted(r.run_no for r in recs) == [1, 2, 3, 4]
     assert [r.run_no for r in load_history() if r.project == "race"] == [4, 3, 2, 1]
+
+
+def test_note_rewrites_do_not_lose_a_concurrent_run(latex_project):
+    """`note` rewrites the whole history file; a run archived in that same
+    moment must survive it — both go through the cross-process lock."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from prebuttal.runs import set_note
+
+    report, venue = make_report(latex_project)
+    cfg = load_config(None)
+
+    def work(i: int) -> None:
+        if i % 2:
+            save_run(report, venue, cfg, md="# r", json_str="{}", html=None, project="mix")
+        else:
+            set_note("no-such-run", "x")  # a rewrite that changes nothing
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        list(ex.map(work, range(12)))
+    assert len([r for r in load_history() if r.project == "mix"]) == 6

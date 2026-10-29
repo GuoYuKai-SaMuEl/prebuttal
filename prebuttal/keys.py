@@ -62,10 +62,18 @@ def _read_all() -> dict[str, str]:
 
 
 def _serialize(data: dict[str, str]) -> str:
-    return (
-        "# prebuttal API keys — loaded at startup; env vars take precedence\n"
-        + "".join(f"{k}={v}\n" for k, v in data.items())
+    return "# prebuttal API keys — loaded at startup; env vars take precedence\n" + "".join(
+        f"{k}={v}\n" for k, v in data.items()
     )
+
+
+def _write_keys_file(p: Path, text: str) -> None:
+    # O_CREAT with 0o600 (POSIX); on Windows the user profile already isolates it
+    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    with contextlib.suppress(OSError):  # pragma: no cover - e.g. some filesystems
+        os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
 
 
 def store_key(var: str, value: str) -> None:
@@ -78,12 +86,7 @@ def store_key(var: str, value: str) -> None:
     data[var] = value
     p = keys_path()
     make_private_dir(p.parent)
-    # O_CREAT with 0o600 (POSIX); on Windows the user profile already isolates it
-    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(_serialize(data))
-    with contextlib.suppress(OSError):  # pragma: no cover - e.g. some filesystems
-        os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
+    _write_keys_file(p, _serialize(data))
 
 
 def unset_key(var: str) -> bool:
@@ -95,7 +98,7 @@ def unset_key(var: str) -> bool:
     if not data:
         p.unlink(missing_ok=True)
         return True
-    p.write_text(_serialize(data), encoding="utf-8")
+    _write_keys_file(p, _serialize(data))
     return True
 
 

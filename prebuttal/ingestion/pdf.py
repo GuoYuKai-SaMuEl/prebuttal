@@ -557,9 +557,7 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
             if low == "appendix":
                 return True, 1, "A", ln["text"]
             if low in _SPECIAL_HEADINGS:
-                return (
-                    (True, 1, "", ln["text"]) if _SPECIAL_HEADINGS[low] else (False, 0, "", "")
-                )
+                return (True, 1, "", ln["text"]) if _SPECIAL_HEADINGS[low] else (False, 0, "", "")
         return False, 0, "", ""
 
     for ln in lines_all:

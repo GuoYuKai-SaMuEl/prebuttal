@@ -70,7 +70,11 @@ def _history_lock() -> Iterator[None]:
         except FileExistsError:
             try:
                 if time.time() - p.stat().st_mtime > 60:
-                    p.unlink(missing_ok=True)
+                    # claim the stale lock by rename: only one waiter wins it,
+                    # the others see the lock gone and wait for the new holder
+                    stolen = p.with_name(f"{p.name}.stolen-{os.getpid()}")
+                    os.rename(p, stolen)
+                    stolen.unlink(missing_ok=True)
                     continue
             except OSError:
                 pass
@@ -283,33 +287,52 @@ def _rewrite_history(records: list[RunRecord]) -> None:
     atomic_write(history_path(), "".join(line + "\n" for line in lines))
 
 
+def _update_history(apply: Callable[[list[RunRecord]], None]) -> list[RunRecord]:
+    """Read-modify-write the history under the cross-process lock, so a run
+    archived while ``note`` / ``rm`` / ``rename`` holds it cannot be lost to
+    their full-file rewrite."""
+    with _history_lock():
+        records = load_history()
+        apply(records)
+        _rewrite_history(records)
+    return records
+
+
 def set_note(run_id: str, note: str) -> None:
-    records = load_history()
-    for r in records:
-        if r.id == run_id:
-            r.note = note
-    _rewrite_history(records)
+    def apply(records: list[RunRecord]) -> None:
+        for r in records:
+            if r.id == run_id:
+                r.note = note
+
+    _update_history(apply)
 
 
 def delete_runs(run_ids: set[str]) -> int:
     """Remove runs from the history and delete their archived files."""
-    records = load_history()
-    keep = [r for r in records if r.id not in run_ids]
-    for r in records:
-        if r.id in run_ids and r.dir_path.parent == runs_dir():
+    removed: list[RunRecord] = []
+
+    def apply(records: list[RunRecord]) -> None:
+        removed.extend(r for r in records if r.id in run_ids)
+        records[:] = [r for r in records if r.id not in run_ids]
+
+    _update_history(apply)
+    for r in removed:
+        if r.dir_path.parent == runs_dir():
             shutil.rmtree(r.dir_path, ignore_errors=True)
-    _rewrite_history(keep)
-    return len(records) - len(keep)
+    return len(removed)
 
 
 def rename_in_history(old: str, new: str) -> int:
-    records = load_history()
     n = 0
-    for r in records:
-        if r.project == old:
-            r.project = new
-            n += 1
-    _rewrite_history(records)
+
+    def apply(records: list[RunRecord]) -> None:
+        nonlocal n
+        for r in records:
+            if r.project == old:
+                r.project = new
+                n += 1
+
+    _update_history(apply)
     return n
 
 

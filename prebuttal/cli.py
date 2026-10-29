@@ -1421,8 +1421,9 @@ def main(argv=None) -> int:
             "key": cmd_key,
             "models": cmd_models,
             "venues": cmd_venues,
+            "run": cmd_run,
         }
-        return commands.get(args.cmd, cmd_run)(args)
+        return commands[args.cmd](args)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)
         return EXIT_USAGE
