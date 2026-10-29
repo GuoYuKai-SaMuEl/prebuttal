@@ -37,6 +37,11 @@ def _fmt_score(v: float | None, maximum: float | None = None) -> str:
     return f"{s} / {maximum:g}" if maximum is not None else s
 
 
+def _para(out: list[str], *lines: str) -> None:
+    """Append ``lines`` and the blank line that ends a Markdown block."""
+    out.extend([*lines, ""])
+
+
 def _dispersion_label(agg: Aggregate, max_rating: float) -> str:
     if agg.std is None or agg.n == 0:
         return ""
@@ -76,22 +81,16 @@ def _render_review(review: Review, venue: Venue, index: int) -> str:
     temp, seed = _params(review.backend, review.model, review.temperature, review.seed)
     effort = f" · effort {review.effort}" if review.effort else ""
     figs = f" · saw {review.images} figure image(s)" if review.images else ""
-    out.append(
+    _para(
+        out,
         f"*Backend `{review.backend}` · model `{model}`{effort} · temp {temp} "
-        f"· seed {seed}{figs} · {review.duration_s:.0f}s · {review.usage.describe()}*"
+        f"· seed {seed}{figs} · {review.duration_s:.0f}s · {review.usage.describe()}*",
     )
-    out.append("")
     if review.error and not review.parse_ok:
-        out.append(f"> **Failed:** {review.error}")
-        out.append("")
+        _para(out, f"> **Failed:** {review.error}")
         if review.raw_output:
-            out.append("<details><summary>Raw model output</summary>")
-            out.append("")
-            out.append("```")
-            out.append(review.raw_output[:4000])
-            out.append("```")
-            out.append("")
-            out.append("</details>")
+            out += ["<details><summary>Raw model output</summary>", "", "```"]
+            out += [review.raw_output[:4000], "```", "", "</details>"]
         return "\n".join(out)
 
     for f in venue.fields:
@@ -99,11 +98,9 @@ def _render_review(review: Review, venue: Venue, index: int) -> str:
         if f.kind == "score":
             anchor = f.anchor_for(v) if v is not None else ""
             anchor_s = f" — {anchor}" if anchor else ""
-            out.append(f"### {f.label}: {_fmt_score(v, f.max)}{anchor_s}")
-            out.append("")
+            _para(out, f"### {f.label}: {_fmt_score(v, f.max)}{anchor_s}")
         elif f.kind == "list":
-            out.append(f"### {f.label}")
-            out.append("")
+            _para(out, f"### {f.label}")
             items = v or []
             if items:
                 out += [f"- {item}" for item in items]
@@ -111,10 +108,8 @@ def _render_review(review: Review, venue: Venue, index: int) -> str:
                 out.append("*(none given)*")
             out.append("")
         else:
-            out.append(f"### {f.label}")
-            out.append("")
-            out.append(str(v or "*(not provided)*"))
-            out.append("")
+            _para(out, f"### {f.label}")
+            _para(out, str(v or "*(not provided)*"))
     return "\n".join(out)
 
 
@@ -124,22 +119,20 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     assert max_rating is not None  # rating fields always carry a scale
     out: list[str] = []
 
-    out.append(f"# Prebuttal Report — {r.paper.title}")
-    out.append("")
+    _para(out, f"# Prebuttal Report — {r.paper.title}")
     out.append(
         f"> **Venue:** {venue.name} ({venue.key}) · **Generated:** {r.run.generated_at} · "
         f"**Source:** {r.run.source_type} `{r.run.source}`"
     )
-    out.append(
+    _para(
+        out,
         f"> prebuttal v{r.run.prebuttal_version} · seed {r.run.seed} · "
-        f"pack {r.run.pack_chars:,} chars (sha256/{r.run.pack_sha256})"
+        f"pack {r.run.pack_chars:,} chars (sha256/{r.run.pack_sha256})",
     )
-    out.append("")
 
     # --- predicted outcome
     agg = r.aggregate
-    out.append("## Predicted outcome")
-    out.append("")
+    _para(out, "## Predicted outcome")
     if agg.mean is not None:
         out.append(
             f"**{agg.mean:g} / {max_rating:g}** — σ {agg.std:g}, "  # noqa: RUF001
@@ -162,83 +155,65 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     out.append("")
 
     if r.paper.warnings:
-        out.append("**Notes:** " + "; ".join(r.paper.warnings))
-        out.append("")
+        _para(out, "**Notes:** " + "; ".join(r.paper.warnings))
 
     # --- revision plan (the AC's, distilled from all reviews)
     if r.meta.action_plan:
-        out.append("## Revision plan")
-        out.append("")
-        out.extend(render_plan(r.meta.action_plan))
-        out.append("")
+        _para(out, "## Revision plan")
+        _para(out, *render_plan(r.meta.action_plan))
 
     # --- meta review
-    out.append(
-        f"## Meta-review (Area Chair — `{r.meta.backend}` / `{r.meta.model or 'CLI default'}`)"
+    _para(
+        out, f"## Meta-review (Area Chair — `{r.meta.backend}` / `{r.meta.model or 'CLI default'}`)"
     )
-    out.append("")
     if r.meta.error and not r.meta.parse_ok:
-        out.append(f"> **AC failed:** {r.meta.error}")
-        out.append("")
+        _para(out, f"> **AC failed:** {r.meta.error}")
     else:
         if r.meta.meta_review:
-            out.append(r.meta.meta_review)
-            out.append("")
+            _para(out, r.meta.meta_review)
         if r.meta.estimated_rating is not None:
             anchor = venue.rating_field.anchor_for(r.meta.estimated_rating)
-            out.append(
+            _para(
+                out,
                 f"**AC estimate: {_fmt_score(r.meta.estimated_rating, max_rating)}"
                 + (f" — {anchor}" if anchor else "")
-                + "**"
+                + "**",
             )
-            out.append("")
         if r.meta.confidence is not None:
-            out.append(f"AC confidence: {r.meta.confidence:g} / 5")
-            out.append("")
+            _para(out, f"AC confidence: {r.meta.confidence:g} / 5")
         if r.meta.recommendation:
-            out.append(f"*Recommendation:* {r.meta.recommendation}")
-            out.append("")
+            _para(out, f"*Recommendation:* {r.meta.recommendation}")
         if r.meta.disagreements:
-            out.append(f"*Disagreements:* {r.meta.disagreements}")
-            out.append("")
+            _para(out, f"*Disagreements:* {r.meta.disagreements}")
 
     # --- individual reviews
-    out.append("---")
-    out.append("")
+    _para(out, "---")
     for i, rev in enumerate(r.reviews, 1):
-        out.append(_render_review(rev, venue, i))
-        out.append("")
+        _para(out, _render_review(rev, venue, i))
 
     # --- transparency table
-    out.append("---")
-    out.append("")
-    out.append("## Backend transparency")
-    out.append("")
+    _para(out, "---")
+    _para(out, "## Backend transparency")
     out.append("| Reviewer | Persona | Backend | Model | Effort | Temp | Seed |")
     out.append("|---|---|---|---|---|---|---|")
-    for rev in r.reviews:
-        temp, seed = _params(rev.backend, rev.model, rev.temperature, rev.seed)
+    rows: list[tuple[str, str, Review | MetaReview, int | None]] = [
+        (rev.reviewer_id, rev.persona, rev, rev.seed) for rev in r.reviews
+    ]
+    rows.append(("AC", "area_chair", r.meta, r.run.seed))
+    for rid, persona, role, role_seed in rows:
+        temp, seed = _params(role.backend, role.model, role.temperature, role_seed)
         out.append(
-            f"| {rev.reviewer_id} | {rev.persona} | `{rev.backend}` | "
-            f"`{rev.model or 'CLI default'}` | {rev.effort or 'default'} | {temp} | {seed} |"
+            f"| {rid} | {persona} | `{role.backend}` | "
+            f"`{role.model or 'CLI default'}` | {role.effort or 'default'} | {temp} | {seed} |"
         )
-    temp, seed = _params(r.meta.backend, r.meta.model, r.meta.temperature, r.run.seed)
-    out.append(
-        f"| AC | area_chair | `{r.meta.backend}` | `{r.meta.model or 'CLI default'}` | "
-        f"{r.meta.effort or 'default'} | {temp} | {seed} |"
-    )
-    roles = [(rev.backend, rev.model) for rev in r.reviews] + [(r.meta.backend, r.meta.model)]
-    if any(param_support(b, m) != (True, True) for b, m in roles):
+    if any(param_support(role.backend, role.model) != (True, True) for _id, _p, role, _s in rows):
         out.append("")
         out.append(f"*{PARAM_NOTE}*")
     out.append("")
-    out.append(f"Total usage: {r.usage_total.describe()}.")
-    out.append("")
+    _para(out, f"Total usage: {r.usage_total.describe()}.")
 
-    out.append("---")
-    out.append("")
-    out.append(f"*{HONESTY_NOTE}*")
-    out.append("")
+    _para(out, "---")
+    _para(out, f"*{HONESTY_NOTE}*")
     return "\n".join(out)
 
 

@@ -15,8 +15,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from .config import ReviewerConfig, RunConfig
-from .models import FigureImage, ReviewReport, RunInfo, Usage, make_aggregate, sha256_text
-from .orchestrator import Log, run_meta, run_reviews
+from .models import FigureImage, ReviewReport
+from .orchestrator import Log, assemble_report, run_meta, run_reviews
 from .providers import BaseProvider
 from .report import report_from_dict
 from .venues import Venue, VenueError, get_venue, venue_from_report
@@ -106,29 +106,6 @@ def retry_report(
     for i, review in zip(targets, fresh, strict=True):
         reviews[i] = review
     meta = run_meta(sub, venue, pack, reviews, ac_provider, log)
-
-    usage = Usage()
-    for r in reviews:
-        usage.add(r.usage)
-    usage.add(meta.usage)
-    run = RunInfo(
-        venue=old.run.venue,
-        seed=old.run.seed,
-        generated_at=RunInfo.now_iso(),
-        source=old.run.source,
-        source_type=old.run.source_type,
-        pack_chars=len(pack),
-        pack_sha256=sha256_text(pack),
-        config_path=cfg.config_path,
-    )
     old.paper.figure_images = list(images or [])  # archived again: a retry can be retried
-    return ReviewReport(
-        paper=old.paper,
-        venue_key=old.venue_key,
-        reviews=reviews,
-        meta=meta,
-        aggregate=make_aggregate(reviews),
-        run=run,
-        usage_total=usage,
-        pack=pack,
-    )
+    old.paper.source_path, old.paper.source_type = old.run.source, old.run.source_type
+    return assemble_report(old.paper, sub, venue, pack, reviews, meta)

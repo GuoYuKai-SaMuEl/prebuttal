@@ -6,7 +6,13 @@ from collections.abc import Callable
 
 from ..config import RunConfig
 from .agent_cli import AgentCLIProvider, claude_provider, codex_provider
-from .api import AnthropicProvider, GeminiProvider, OpenAIProvider, OpenRouterProvider
+from .api import (
+    API_PROVIDERS,
+    AnthropicProvider,
+    GeminiProvider,
+    OpenAIProvider,
+    OpenRouterProvider,
+)
 from .base import BaseProvider, Completion, ProviderError, TransientProviderError
 from .detect import (
     RELAY_AGENT_HINT,
@@ -84,6 +90,7 @@ def _make_provider(
 
 
 __all__ = [
+    "API_PROVIDERS",
     "RELAY_AGENT_HINT",
     "AgentCLIProvider",
     "AnthropicProvider",

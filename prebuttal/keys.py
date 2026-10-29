@@ -13,7 +13,7 @@ import os
 import stat
 from pathlib import Path
 
-from .runs import make_private_dir
+from .runs import make_private_dir, runs_root
 
 # friendly name -> environment variable (accept either, case-insensitively)
 KEY_MAP = {
@@ -29,9 +29,7 @@ class KeyError_(Exception):
 
 
 def keys_path() -> Path:
-    base = os.environ.get("PREBUTTAL_HOME")
-    root = Path(base) if base else Path.home() / ".prebuttal"
-    return root / "keys.env"
+    return runs_root() / "keys.env"
 
 
 def resolve_name(name: str) -> str:

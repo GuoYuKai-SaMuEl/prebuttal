@@ -273,16 +273,19 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
         if venue_is_path(cfg.venue) and not Path(cfg.venue).expanduser().is_absolute():
             cfg.venue = str(path.parent / cfg.venue)  # relative to the config file
     check_venue(cfg.venue, f" (venue set in {path})")
-    cfg.seed = int(d.get("seed", cfg.seed))
-    cfg.budget_chars = int(d.get("budget_chars", cfg.budget_chars))
+    for key in (
+        "seed",
+        "budget_chars",
+        "max_tokens",
+        "est_completion_tokens",
+        "timeout_s",
+        "retries",
+    ):
+        setattr(cfg, key, int(d.get(key, getattr(cfg, key))))
+    for key in ("compress", "figures"):
+        setattr(cfg, key, bool(d.get(key, getattr(cfg, key))))
     cfg.effort = check_effort(d.get("effort", cfg.effort), f"{path} [default]")
-    cfg.compress = bool(d.get("compress", cfg.compress))
-    cfg.figures = bool(d.get("figures", cfg.figures))
     cfg.max_figures = max(1, min(int(d.get("max_figures", cfg.max_figures)), 20))
-    cfg.max_tokens = int(d.get("max_tokens", cfg.max_tokens))
-    cfg.est_completion_tokens = int(d.get("est_completion_tokens", cfg.est_completion_tokens))
-    cfg.timeout_s = int(d.get("timeout_s", cfg.timeout_s))
-    cfg.retries = int(d.get("retries", cfg.retries))
 
     reviewers: list[ReviewerConfig] = []
     seen_ids: set[str] = set()

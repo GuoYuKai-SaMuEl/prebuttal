@@ -37,7 +37,6 @@ the fields drive the JSON reviewers must return and every report.
 from __future__ import annotations
 
 import json
-import os
 import re
 import tomllib
 from pathlib import Path
@@ -56,8 +55,9 @@ _FIELD_KEYS = {"key", "label", "kind", "required", "max", "half_steps", "anchors
 
 
 def home_dir() -> Path:
-    base = os.environ.get("PREBUTTAL_HOME")
-    return (Path(base) if base else Path.home() / ".prebuttal") / "venues"
+    from ..runs import runs_root  # runs -> projects -> ingestion; keep venues light
+
+    return runs_root() / "venues"
 
 
 def search_dirs() -> list[Path]:

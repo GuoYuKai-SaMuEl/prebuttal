@@ -51,6 +51,7 @@ from .projects import (
     slugify,
 )
 from .providers import (
+    API_PROVIDERS,
     RELAY_AGENT_HINT,
     NoBackendError,
     ProviderError,
@@ -88,6 +89,12 @@ EXIT_CHECK_FAILED = 6  # `check` found something that can get the paper desk-rej
 
 def _log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
+
+
+def _fail(msg: str, code: int = EXIT_USAGE) -> int:
+    """Print ``error: msg`` to stderr; the exit code to return."""
+    print(f"error: {msg}", file=sys.stderr)
+    return code
 
 
 RUN_REF = "a run: name#3, name~1 (one before the newest) or an id prefix"
@@ -303,12 +310,7 @@ def build_parser() -> argparse.ArgumentParser:
 # ------------------------------------------------------------------ commands
 
 
-_API_KEYS = {
-    "api-gemini": "GEMINI_API_KEY",
-    "api-openai": "OPENAI_API_KEY",
-    "api-anthropic": "ANTHROPIC_API_KEY",
-    "api-openrouter": "OPENROUTER_API_KEY",
-}
+_API_KEYS = {cls.BACKEND: cls.KEY_VARS[0] for cls in API_PROVIDERS}
 
 
 def _auth(s) -> str:
@@ -366,13 +368,11 @@ def cmd_check(args) -> int:
         # only the venue is read from a found prebuttal.toml: nothing runs, nothing is sent
         venue = get_venue(args.venue or load_config(None).venue)
     except VenueError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(str(e))
     try:
         result = check_source(args.paper, venue)
     except CheckError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(str(e))
     print(render_check(result, venue))
     return EXIT_CHECK_FAILED if result.errors else EXIT_OK
 
@@ -412,34 +412,29 @@ def cmd_projects(args) -> int:
     if action == "rename":
         known = {p.key for p in project_summaries()} | set(load_projects())
         if args.old not in known:
-            print(f"error: no project '{args.old}' — see `prebuttal projects`", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(f"no project '{args.old}' — see `prebuttal projects`")
         try:
             new = rename_project(args.old, args.new)
         except (ProjectError, OSError) as e:
-            print(f"error: {e}", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(str(e))
         try:
             n = rename_in_history(args.old, new)
         except OSError as e:
-            print(f"error: cannot update the run history: {e}", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(f"cannot update the run history: {e}")
         print(f"renamed {args.old} → {new} ({n} run{'s' if n != 1 else ''})")
         print("Existing report folders keep their old name; new runs use the new one.")
         return EXIT_OK
     if action == "rm":
         runs = [r for r in load_history() if r.project == args.name]
         if not runs and args.name not in load_projects():
-            print(f"error: no project '{args.name}'", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(f"no project '{args.name}'")
         what = f"project '{args.name}' and its {len(runs)} archived run(s)"
         if not _confirm(f"Delete {what}?", args.yes):
             return EXIT_USAGE
         try:
             delete_runs({r.id for r in runs})
         except OSError as e:
-            print(f"error: cannot update the run history: {e}", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(f"cannot update the run history: {e}")
         forget_project(args.name)
         print(f"deleted {what} (files under ./prebuttal-reports are left alone)")
         return EXIT_OK
@@ -473,8 +468,7 @@ def cmd_runs(args) -> int:
     if args.project:
         records = [r for r in records if r.project == args.project]
         if not records:
-            print(f"error: no runs in project '{args.project}'", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(f"no runs in project '{args.project}'")
     if args.paper:
         q = args.paper.lower()
         records = [
@@ -513,15 +507,13 @@ def cmd_show(args) -> int:
     if args.output:
         ext = Path(args.output).suffix.lstrip(".").lower()
         if ext not in FORMATS:
-            print("error: -o needs a .md, .html or .json file name", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail("-o needs a .md, .html or .json file name")
         return _save_report(rec, ext, Path(args.output))
     name = "report.json" if args.json else "report.md"
     try:
         print((rec.dir_path / name).read_text(encoding="utf-8"))
     except OSError as e:
-        print(f"error: archived {name} for {rec.label} is missing ({e})", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"archived {name} for {rec.label} is missing ({e})")
     return EXIT_OK
 
 
@@ -532,8 +524,7 @@ def cmd_plan(args) -> int:
     try:
         data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        print(f"error: archived report.json for {rec.label} is unreadable ({e})", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"archived report.json for {rec.label} is unreadable ({e})")
     plan = report_from_dict(data).meta.action_plan
     if args.json:
         print(json.dumps([dataclass_to_dict(it) for it in plan], indent=2, ensure_ascii=False))
@@ -565,8 +556,7 @@ def _open_report(rec, *, md: bool = False) -> int:
     try:
         path = rec.dir_path / "report.md" if md else ensure_html(rec)
     except (OSError, ValueError, KeyError) as e:
-        print(f"error: cannot open {rec.label}: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"cannot open {rec.label}: {e}")
     print(f"{rec.label}: {path}")
     _open_in_browser(path)
     return EXIT_OK
@@ -580,8 +570,7 @@ def _save_report(rec, fmt: str, dest: Path) -> int:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dest)
     except (OSError, ValueError, KeyError) as e:
-        print(f"error: cannot save {rec.label}: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"cannot save {rec.label}: {e}")
     print(f"{rec.label} → {dest}")
     return EXIT_OK
 
@@ -604,12 +593,10 @@ def cmd_diff(args) -> int:
             return EXIT_USAGE
         a = previous_run(b)
         if a is None:
-            print(
-                f"error: {b.label} is the first run of '{b.project}' — nothing to compare yet. "
-                "Revise the paper and run it again.",
-                file=sys.stderr,
+            return _fail(
+                f"{b.label} is the first run of '{b.project}' — nothing to compare yet. "
+                "Revise the paper and run it again."
             )
-            return EXIT_USAGE
     else:
         a = _resolve_run_or_exit(args.run_a)
         if a is None:
@@ -625,8 +612,7 @@ def cmd_diff(args) -> int:
     try:
         print(render_diff(a, b, match_plan=matcher))
     except (FileNotFoundError, ValueError) as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(str(e))
     return EXIT_OK
 
 
@@ -664,8 +650,7 @@ def cmd_note(args) -> int:
     try:
         set_note(rec.id, args.text.strip())
     except OSError as e:
-        print(f"error: cannot update the run history: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"cannot update the run history: {e}")
     print(f"{rec.label}: note {'set' if args.text.strip() else 'cleared'}")
     return EXIT_OK
 
@@ -692,12 +677,10 @@ def cmd_rm(args) -> int:
         if ref.strip() in projects:
             # a bare project name means "its newest run" elsewhere; here that
             # is one letter away from `projects rm`, which deletes them all
-            print(
-                f"error: '{ref}' is a project — name the run (`{ref}#3`, `{ref}~1`), "
-                f"or delete the whole project with `prebuttal projects rm {ref}`",
-                file=sys.stderr,
+            return _fail(
+                f"'{ref}' is a project — name the run (`{ref}#3`, `{ref}~1`), "
+                f"or delete the whole project with `prebuttal projects rm {ref}`"
             )
-            return EXIT_USAGE
         rec = _resolve_run_or_exit(ref)
         if rec is None:
             return EXIT_USAGE
@@ -708,8 +691,7 @@ def cmd_rm(args) -> int:
     try:
         n = delete_runs({r.id for r in recs})
     except OSError as e:
-        print(f"error: cannot update the run history: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"cannot update the run history: {e}")
     print(f"deleted {n} run{'s' if n != 1 else ''}: {labels}")
     return EXIT_OK
 
@@ -746,8 +728,7 @@ def _overview(*, open_it: bool) -> int:
         make_private_dir(path.parent)
         path.write_text(render_dashboard(projects), encoding="utf-8")
     except OSError as e:
-        print(f"error: cannot write the overview: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"cannot write the overview: {e}")
     print(f"Overview: {path}")
     if open_it:
         _open_in_browser(path)
@@ -766,20 +747,16 @@ def cmd_venues(args) -> int:
     if args.venues_cmd == "new":
         key = args.key.strip().lower()
         if not custom.KEY_RE.match(key):
-            print("error: use a short lowercase name like 'cvpr' or 'lab-review'", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail("use a short lowercase name like 'cvpr' or 'lab-review'")
         if key in VENUES:
-            print(
-                f"error: '{key}' is built in — pick another name "
-                f"(e.g. `prebuttal venues new {key}-2027 --from {key}`)",
-                file=sys.stderr,
+            return _fail(
+                f"'{key}' is built in — pick another name "
+                f"(e.g. `prebuttal venues new {key}-2027 --from {key}`)"
             )
-            return EXIT_USAGE
         folder = custom.search_dirs()[0] if args.here else custom.home_dir()
         toml_path, form_path = folder / f"{key}.toml", folder / f"{key}.md"
         if toml_path.exists() or form_path.exists():
-            print(f"error: {toml_path} or {form_path} already exists", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(f"{toml_path} or {form_path} already exists")
         toml_text, form_text = custom.render_template(key, VENUES[args.base] if args.base else None)
         folder.mkdir(parents=True, exist_ok=True)
         toml_path.write_text(toml_text, encoding="utf-8")
@@ -796,8 +773,7 @@ def cmd_venues(args) -> int:
         try:
             venue = get_venue(args.venue)
         except VenueError as e:
-            print(f"error: {e}", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(str(e))
         origin = venue.origin or "built in"
         print(f"{venue.name} ({venue.key}) — {origin}\n")
         print(venue.json_spec())
@@ -824,8 +800,7 @@ def _backend_models(name: str) -> int:
     from .modelscan import BACKENDS, scan
 
     if name not in BACKENDS:
-        print(f"error: unknown backend '{name}' — one of: {', '.join(BACKENDS)}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"unknown backend '{name}' — one of: {', '.join(BACKENDS)}")
     (listing,) = scan(only=name)
     print(listing.render(max_rows=60))
     print(
@@ -870,41 +845,13 @@ def _menu(prompt: str, options: list[str], default: int = 1) -> int:
 
 def _model_options(backend: str) -> list[str]:
     """Model choices for a backend; empty list = nothing to choose."""
-    import os
+    from .modelscan import BACKENDS, scan
 
-    from .modelscan import (
-        _CLAUDE_ALIASES,
-        anthropic_models,
-        gemini_models,
-        openai_models,
-    )
-    from .providers.ollama import ollama_base_url, ollama_models
-
-    if backend in ("auto", "agent-codex", "relay"):
+    if backend not in BACKENDS or backend in ("agent-codex", "relay"):
         return []
-    if backend == "agent-claude":
-        return ["(CLI decides)", *list(_CLAUDE_ALIASES)]
-
-    def _with_default(models: list[str] | None, first: str = "(backend default)") -> list[str]:
-        return [first, *(models or [])]
-
-    if backend == "api-gemini":
-        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        return _with_default(gemini_models(key) if key else None)
-    if backend == "api-openai":
-        key = os.environ.get("OPENAI_API_KEY")
-        return _with_default(openai_models(key) if key else None)
-    if backend == "api-anthropic":
-        key = os.environ.get("ANTHROPIC_API_KEY")
-        return _with_default(anthropic_models(key) if key else None)
-    if backend == "ollama":
-        return ["(first installed)", *ollama_models(ollama_base_url())]
-    if backend == "api-openrouter":
-        from .modelscan import openrouter_catalog
-
-        cat = openrouter_catalog()
-        return ["(backend default)", *(cat[0] if cat else [])]
-    return []
+    first = {"agent-claude": "(CLI decides)", "ollama": "(first installed)"}
+    (listing,) = scan(only=backend)
+    return [first.get(backend, "(backend default)"), *listing.models]
 
 
 def _edit_reviewers(cfg, statuses) -> None:
@@ -963,16 +910,14 @@ def cmd_key(args) -> int:
     try:
         var = key_store.resolve_name(args.backend)
     except key_store.KeyError_ as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(str(e))
 
     if args.key_cmd == "set":
         value = args.key or getpass.getpass(f"Paste your {args.backend} API key (input hidden): ")
         try:
             key_store.store_key(var, value)
         except key_store.KeyError_ as e:
-            print(f"error: {e}", file=sys.stderr)
-            return EXIT_USAGE
+            return _fail(str(e))
         print(f"stored {var} in {key_store.keys_path()}")
         print("Real environment variables still take precedence over stored keys.")
         print("Next: `prebuttal backends` should now show the backend as available.")
@@ -1058,8 +1003,7 @@ def cmd_run(args) -> int:
         if args.project:
             normalize_key(args.project)
     except (ValueError, ProjectError) as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(str(e))
 
     _log(f"[prebuttal] ingesting {args.paper} ...")
     try:
@@ -1067,8 +1011,7 @@ def cmd_run(args) -> int:
             cfg.figures = True
         paper = ingest(args.paper, figure_images=cfg.max_figures if cfg.figures else 0)
     except IngestError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(str(e))
     _log(
         f"[prebuttal] parsed: “{paper.title}” — "
         f"{len(paper.sections)} sections, {len(paper.tables)} tables, "
@@ -1085,29 +1028,29 @@ def cmd_run(args) -> int:
     try:
         resolved, ac = resolve_backends(cfg, statuses)
     except NoBackendError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_NO_BACKEND
+        return _fail(str(e), EXIT_NO_BACKEND)
 
-    uses_relay = any(b == "relay" for (_r, b, _m) in resolved) or ac[0] == "relay"
     host_agent = detect_host_agent()
-    if host_agent and not uses_relay:
+    if host_agent and "relay" not in (ac[0], *(b for _r, b, _m in resolved)):
         _log("[prebuttal] hint: " + RELAY_AGENT_HINT.format(agent=host_agent))
 
     pack = render_pack(paper, budget_chars=cfg.budget_chars)
 
+    def plan() -> str:
+        return render_dry_run(cfg, resolved, ac, len(pack), statuses)
+
     if args.dry_run:
-        print(render_dry_run(cfg, resolved, ac, len(pack), statuses))
+        print(plan())
         return EXIT_OK
 
     # Plan confirmation: only when something is still on `auto` (ambiguity to
     # resolve), never in non-interactive contexts (CI/pipes), skippable with -y.
     any_auto = cfg.ac.backend == "auto" or any(r.backend == "auto" for r in cfg.reviewers)
     if any_auto and not args.yes:
-        plan = render_dry_run(cfg, resolved, ac, len(pack), statuses)
         if _is_interactive():
             try:
                 while True:
-                    print("\n" + plan)
+                    print("\n" + plan())
                     choice = (
                         input("[Enter] run with this plan · [e] edit reviewers · [n] abort: ")
                         .strip()
@@ -1116,15 +1059,10 @@ def cmd_run(args) -> int:
                     if choice == "n":
                         _log("aborted by user")
                         return EXIT_USAGE
-                    if choice == "e":
-                        _edit_reviewers(cfg, statuses)
-                        resolved, ac = resolve_backends(cfg, statuses)
-                        uses_relay = (
-                            any(b == "relay" for (_r, b, _m) in resolved) or ac[0] == "relay"
-                        )
-                        plan = render_dry_run(cfg, resolved, ac, len(pack), statuses)
-                        continue
-                    break
+                    if choice != "e":
+                        break
+                    _edit_reviewers(cfg, statuses)
+                    resolved, ac = resolve_backends(cfg, statuses)
             except EOFError:
                 _log("aborted (no input available)")
                 return EXIT_USAGE
@@ -1133,11 +1071,12 @@ def cmd_run(args) -> int:
                 "[prebuttal] auto mode (non-interactive) — plan follows; "
                 "preview with --dry-run, silence with -y:"
             )
-            _log(plan)
+            _log(plan())
 
     from .trust import pinned_by_file
 
     roles = [(b, m) for (_r, b, m) in resolved] + [ac]
+    uses_relay = any(b == "relay" for b, _m in roles)
     if not _config_trusted(cfg, roles, pinned=pinned_by_file(args.backend), relay=uses_relay):
         return EXIT_USAGE
 
@@ -1147,8 +1086,7 @@ def cmd_run(args) -> int:
             providers[rid] = build_provider(backend, model, cfg, effort=role_effort(cfg, rid))
         ac_provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
     except ProviderError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_NO_BACKEND
+        return _fail(str(e), EXIT_NO_BACKEND)
 
     custom = sorted({b for b, _m in roles if b.startswith("agent-") and b[6:] in cfg.agents})
     if custom and key_store.keys_path().is_file():
@@ -1325,8 +1263,7 @@ def cmd_retry(args) -> int:
         data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
         old = report_from_dict(data)
     except (OSError, ValueError, KeyError) as e:
-        print(f"error: archived report.json for {rec.label} is unreadable ({e})", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"archived report.json for {rec.label} is unreadable ({e})")
     targets = failed_reviewers(old)
     if not targets and old.meta.parse_ok:
         print(f"{rec.label}: every reviewer and the AC finished — nothing to retry")
@@ -1337,8 +1274,7 @@ def cmd_retry(args) -> int:
         venue = venue_for_retry(data)
         pack = load_pack(rec.dir_path)
     except RetryError as e:
-        print(f"error: cannot retry {rec.label}: {e}", file=sys.stderr)
-        return EXIT_USAGE
+        return _fail(f"cannot retry {rec.label}: {e}")
 
     roles = [
         (r.reviewer_id, r.backend, r.model, r.effort) for r in (old.reviews[i] for i in targets)
@@ -1351,8 +1287,7 @@ def cmd_retry(args) -> int:
     try:
         built = {rid: build_provider(b, m, cfg, effort=e) for rid, b, m, e in roles}
     except ProviderError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return EXIT_NO_BACKEND
+        return _fail(str(e), EXIT_NO_BACKEND)
     ac_provider = built.pop("AC")
     names = ", ".join(old.reviews[i].reviewer_id for i in targets) or "none"
     _log(f"[prebuttal] retrying {rec.label}: reviewers {names}, then the AC")

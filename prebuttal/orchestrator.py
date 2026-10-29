@@ -14,7 +14,6 @@ import re
 import threading
 import time
 from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
 from typing import Any
 
 from .config import RunConfig, reviewer_seed
@@ -278,10 +277,6 @@ def build_ac_user(pack: str, reviews: list[Review], venue: Venue) -> str:
 # ------------------------------------------------------------------ execution
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
-
-
 def free_tier_retries(provider: BaseProvider, base: int) -> int:
     """:free pools saturate in minutes-long waves; give them extra patience."""
     return base + 3 if provider.model.endswith(":free") else base
@@ -318,7 +313,7 @@ def run_one_reviewer(
         temperature=rcfg.temperature,
         seed=seed,
         effort=provider.applied_effort,
-        started_at=_now(),
+        started_at=RunInfo.now_iso(),
     )
     try:
         persona_text = load_persona(rcfg.persona)
@@ -331,32 +326,28 @@ def run_one_reviewer(
     t0 = time.monotonic()
     shown = f" + {len(images)} figure image(s)" if images else ""
     log(f"[{rcfg.id}] dispatching {rcfg.persona} via {provider.describe()}{shown}")
+
+    def call(user: str, pngs: list[bytes] | None):
+        return provider.complete(
+            system=system,
+            user=user,
+            temperature=rcfg.temperature,
+            seed=seed,
+            max_tokens=cfg.max_tokens,
+            retries=free_tier_retries(provider, cfg.retries),
+            images=pngs,
+        )
+
     try:
         try:
-            comp = provider.complete(
-                system=system,
-                user=user,
-                temperature=rcfg.temperature,
-                seed=seed,
-                max_tokens=cfg.max_tokens,
-                retries=free_tier_retries(provider, cfg.retries),
-                images=[im.png for im in images] or None,
-            )
+            comp = call(user, [im.png for im in images] or None)
         except ProviderError as e:
             if not images or not _about_images(str(e)):
                 raise
             # a text-only model behind a vision-capable API: go without
             log(f"[{rcfg.id}] request with figure images failed ({str(e)[:120]}); text only")
             images = ()
-            user = build_reviewer_user(pack)
-            comp = provider.complete(
-                system=system,
-                user=user,
-                temperature=rcfg.temperature,
-                seed=seed,
-                max_tokens=cfg.max_tokens,
-                retries=free_tier_retries(provider, cfg.retries),
-            )
+            comp = call(build_reviewer_user(pack), None)
         review.images = len(images)
     except ProviderError as e:
         review.duration_s = time.monotonic() - t0
@@ -637,17 +628,17 @@ def run_report(
     try:
         reviews = run_reviews(cfg, venue, pack, providers, log, paper.figure_images)
     except RunInterrupted as e:
-        report = _assemble(paper, cfg, venue, pack, e.reviews, unfinished_meta())
+        report = assemble_report(paper, cfg, venue, pack, e.reviews, unfinished_meta())
         raise RunInterrupted(e.reviews, report) from None
     try:
         meta = run_meta(cfg, venue, pack, reviews, ac_provider, log)
     except KeyboardInterrupt:
-        report = _assemble(paper, cfg, venue, pack, reviews, unfinished_meta())
+        report = assemble_report(paper, cfg, venue, pack, reviews, unfinished_meta())
         raise RunInterrupted(reviews, report) from None
-    return _assemble(paper, cfg, venue, pack, reviews, meta)
+    return assemble_report(paper, cfg, venue, pack, reviews, meta)
 
 
-def _assemble(
+def assemble_report(
     paper: StructuredPaper,
     cfg: RunConfig,
     venue: Venue,
@@ -655,12 +646,10 @@ def _assemble(
     reviews: list[Review],
     meta: MetaReview,
 ) -> ReviewReport:
-    aggregate = make_aggregate(reviews)
-
+    """The report of a finished (or interrupted) run; also used by `retry`."""
     usage_total = Usage()
-    for r in reviews:
-        usage_total.add(r.usage)
-    usage_total.add(meta.usage)
+    for usage in [*(r.usage for r in reviews), meta.usage]:
+        usage_total.add(usage)
 
     run_info = RunInfo(
         venue=venue.key,
@@ -677,7 +666,7 @@ def _assemble(
         venue_key=venue.key,
         reviews=reviews,
         meta=meta,
-        aggregate=aggregate,
+        aggregate=make_aggregate(reviews),
         run=run_info,
         usage_total=usage_total,
         pack=pack,

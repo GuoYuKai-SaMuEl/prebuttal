@@ -157,47 +157,28 @@ def openrouter_catalog(max_rows: int = 40) -> tuple[list[str], dict[str, str]] |
     return ids[:max_rows], {k: prices[k] for k in ids[:max_rows]}
 
 
-def _gemini() -> ModelListing:
-    from .providers.api import GeminiProvider
+def _keyed(
+    cls_name: str, short: str, fetch: Callable[[str], list[str] | None], where: str
+) -> Callable[[], ModelListing]:
+    """Lister for an API that needs a key to list its models."""
 
-    gkey = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not gkey:
-        return ModelListing(
-            "api-gemini", [], GeminiProvider.default_model(), "(no key — prebuttal key set gemini)"
-        )
-    models = gemini_models(gkey)
-    note = "" if models is not None else "(could not reach the Gemini API)"
-    return ModelListing("api-gemini", models or [], GeminiProvider.default_model(), note)
+    def listing() -> ModelListing:
+        from .providers import api
 
+        cls = getattr(api, cls_name)
+        key = cls.env_key()
+        if not key:
+            note = f"(no key — prebuttal key set {short})"
+            return ModelListing(cls.BACKEND, [], cls.default_model(), note)
+        models = fetch(key)
+        note = "" if models is not None else f"(could not reach {where})"
+        return ModelListing(cls.BACKEND, models or [], cls.default_model(), note)
 
-def _openai() -> ModelListing:
-    from .providers.api import OpenAIProvider
-
-    okey = os.environ.get("OPENAI_API_KEY")
-    if not okey:
-        return ModelListing(
-            "api-openai", [], OpenAIProvider.default_model(), "(no key — prebuttal key set openai)"
-        )
-    base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    models = openai_models(okey, base)
-    note = "" if models is not None else "(could not reach the OpenAI-compatible endpoint)"
-    return ModelListing("api-openai", models or [], OpenAIProvider.default_model(), note)
+    return listing
 
 
-def _anthropic() -> ModelListing:
-    from .providers.api import AnthropicProvider
-
-    akey = os.environ.get("ANTHROPIC_API_KEY")
-    if not akey:
-        return ModelListing(
-            "api-anthropic",
-            [],
-            AnthropicProvider.default_model(),
-            "(no key — prebuttal key set anthropic)",
-        )
-    models = anthropic_models(akey)
-    note = "" if models is not None else "(could not reach the Anthropic API)"
-    return ModelListing("api-anthropic", models or [], AnthropicProvider.default_model(), note)
+def _openai_here(key: str) -> list[str] | None:
+    return openai_models(key, os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"))
 
 
 def _openrouter() -> ModelListing:
@@ -235,9 +216,13 @@ def _ollama() -> ModelListing:
 
 
 _LISTERS: dict[str, Callable[[], ModelListing]] = {
-    "api-gemini": _gemini,
-    "api-openai": _openai,
-    "api-anthropic": _anthropic,
+    "api-gemini": _keyed("GeminiProvider", "gemini", gemini_models, "the Gemini API"),
+    "api-openai": _keyed(
+        "OpenAIProvider", "openai", _openai_here, "the OpenAI-compatible endpoint"
+    ),
+    "api-anthropic": _keyed(
+        "AnthropicProvider", "anthropic", anthropic_models, "the Anthropic API"
+    ),
     "api-openrouter": _openrouter,
     "ollama": _ollama,
     "agent-claude": lambda: ModelListing(

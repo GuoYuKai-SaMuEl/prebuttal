@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from ..config import RunConfig
 from ..keys import KEY_MAP
-from .api import AnthropicProvider, GeminiProvider, OpenAIProvider, OpenRouterProvider
+from .api import API_PROVIDERS
 from .ollama import ollama_base_url, ollama_models
 
 _PREFERENCE = [
@@ -92,24 +92,14 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
             )
         )
 
-    for backend, env, cls in (
-        ("api-gemini", "GEMINI_API_KEY", GeminiProvider),
-        ("api-openai", "OPENAI_API_KEY", OpenAIProvider),
-        ("api-anthropic", "ANTHROPIC_API_KEY", AnthropicProvider),
-        ("api-openrouter", "OPENROUTER_API_KEY", OpenRouterProvider),
-    ):
+    for cls in API_PROVIDERS:
+        env = cls.KEY_VARS[0]
         has = bool(os.environ.get(env))
         note = f"{env} set"
         if not has:
-            where = {
-                "GEMINI_API_KEY": "free key: aistudio.google.com/apikey",
-                "OPENAI_API_KEY": "platform.openai.com",
-                "ANTHROPIC_API_KEY": "console.anthropic.com",
-                "OPENROUTER_API_KEY": "openrouter.ai/keys — has :free models",
-            }[env]
             friendly = next(k for k, v in KEY_MAP.items() if v == env)
-            note = f"{env} not set ({where}; `prebuttal key set {friendly}`)"
-        out.append(BackendStatus(backend, "api", has, note, cls.default_model() if has else ""))
+            note = f"{env} not set ({cls.KEY_HELP}; `prebuttal key set {friendly}`)"
+        out.append(BackendStatus(cls.BACKEND, "api", has, note, cls.default_model() if has else ""))
 
     base = ollama_base_url()
     models = ollama_models(base)

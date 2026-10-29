@@ -235,28 +235,35 @@ def save_run(
     return rec
 
 
-def load_history() -> list[RunRecord]:
-    """All archived runs, newest first.
-
-    Records written before projects existed get one derived from the title
-    and are numbered in date order, so old archives keep working unchanged.
-    """
+def _read_history() -> tuple[list[RunRecord], list[str]]:
+    """The history file's records, and the lines that are not one (kept on rewrite)."""
     p = history_path()
     if not p.is_file():
-        return []
-    out: list[RunRecord] = []
+        return [], []
+    records: list[RunRecord] = []
+    unreadable: list[str] = []
     for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
             data = json.loads(line)
-            rec = RunRecord(**{k: v for k, v in data.items() if k in _FIELDS})
+            records.append(RunRecord(**{k: v for k, v in data.items() if k in _FIELDS}))
         except (ValueError, TypeError, AttributeError):
-            continue  # skip corrupt lines, never crash history reads
+            unreadable.append(line)  # skip corrupt lines, never crash history reads
+    return records, unreadable
+
+
+def load_history() -> list[RunRecord]:
+    """All archived runs, newest first.
+
+    Records written before projects existed get one derived from the title
+    and are numbered in date order, so old archives keep working unchanged.
+    """
+    out, _unreadable = _read_history()
+    for rec in out:
         if rec.scale is None:  # runs archived before 0.2.0 have no scale
             rec.scale = _venue_scale(rec.venue)
-        out.append(rec)
     out.sort(key=_order)
     counters: dict[str, int] = {}
     for r in out:
@@ -269,27 +276,10 @@ def load_history() -> list[RunRecord]:
     return out
 
 
-def _unreadable_history_lines() -> list[str]:
-    """Lines load_history() skips; a rewrite keeps them rather than deleting them."""
-    p = history_path()
-    if not p.is_file():
-        return []
-    out = []
-    for line in p.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            RunRecord(**{k: v for k, v in json.loads(line).items() if k in _FIELDS})
-        except (ValueError, TypeError, AttributeError):
-            out.append(line)
-    return out
-
-
 def _rewrite_history(records: list[RunRecord]) -> None:
     ordered = sorted(records, key=_order)
     lines = [json.dumps(r.__dict__, ensure_ascii=False) for r in ordered]
-    lines += _unreadable_history_lines()
+    lines += _read_history()[1]  # lines load_history() skips are kept, not deleted
     atomic_write(history_path(), "".join(line + "\n" for line in lines))
 
 
@@ -437,10 +427,20 @@ def previous_run(rec: RunRecord) -> RunRecord | None:
 # ------------------------------------------------------------------ rendering
 
 
+def _g(v: float | None) -> str:
+    return "n/a" if v is None else f"{v:g}"
+
+
+def _scored(mean: float | None, scale: float | None) -> str:
+    return f"{mean:g}/{scale:g}" if mean is not None and scale else _g(mean)
+
+
+def _delta(a: float | None, b: float | None) -> str:
+    return f"  (Δ {b - a:+g})" if a is not None and b is not None else ""
+
+
 def _score(r: RunRecord) -> str:
-    if r.mean is None:
-        return "n/a"
-    return f"{r.mean:g}/{r.scale:g}" if r.scale else f"{r.mean:g}"
+    return _scored(r.mean, r.scale)
 
 
 def _table(rows: list[tuple[str, ...]]) -> str:
@@ -538,16 +538,8 @@ def render_diff(
     out.append(f"B · {b.id} · {b.ts} · seed {b.seed}")
     out.append("")
 
-    def _score(m: float | None) -> str:
-        return (
-            f"{m:g}/{scale:g}" if (m is not None and scale) else ("n/a" if m is None else f"{m:g}")
-        )
-
     out.append("## Predicted outcome")
-    if ma is not None and mb is not None:
-        out.append(f"- A {_score(ma)} → B {_score(mb)}  (Δ {mb - ma:+g})")
-    else:
-        out.append(f"- A {_score(ma)} → B {_score(mb)}")
+    out.append(f"- A {_scored(ma, scale)} → B {_scored(mb, scale)}{_delta(ma, mb)}")
     sa, sb = _num(aa.get("std")), _num(ab.get("std"))
     if sa is not None and sb is not None:
         out.append(f"- disagreement σ {sa:g} → {sb:g}")  # noqa: RUF001
@@ -556,11 +548,8 @@ def render_diff(
     ea, eb = da.get("meta", {}), db.get("meta", {})
     va, vb = _num(ea.get("estimated_rating")), _num(eb.get("estimated_rating"))
     if va is not None or vb is not None:
-        line = f"- AC estimate A {_score(va)} → B {_score(vb)}"
-        if va is not None and vb is not None:
-            line += f"  (Δ {vb - va:+g})"
         out.append("## Area chair")
-        out.append(line)
+        out.append(f"- AC estimate A {_scored(va, scale)} → B {_scored(vb, scale)}{_delta(va, vb)}")
         out.append("")
 
     ra, rb = _by_persona(da.get("reviewers", [])), _by_persona(db.get("reviewers", []))
@@ -569,13 +558,7 @@ def render_diff(
         x, y = ra.get(persona), rb.get(persona)
         fa = _num(x.get("rating")) if x else None
         fb = _num(y.get("rating")) if y else None
-        line = f"- {persona}: "
-        line += f"{fa:g}" if fa is not None else "n/a"
-        line += " → "
-        line += f"{fb:g}" if fb is not None else "n/a"
-        if fa is not None and fb is not None:
-            line += f"  (Δ {fb - fa:+g})"
-        out.append(line)
+        out.append(f"- {persona}: {_g(fa)} → {_g(fb)}{_delta(fa, fb)}")
     out.append("")
 
     out.append("## Weakness movement (heuristic: ≥35% word overlap counts as the same weakness)")

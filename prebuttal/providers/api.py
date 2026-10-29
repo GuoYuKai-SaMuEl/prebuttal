@@ -57,6 +57,27 @@ def _openai_user(user: str, images: list[bytes] | None) -> str | list[dict]:
 class _HTTPProvider(BaseProvider):
     kind = "api"
     supports_images = True  # every vision model of these APIs; others answer 400
+    BACKEND = ""
+    DEFAULT_MODEL = ""
+    MODEL_ENV = ""  # PREBUTTAL_<MODEL_ENV>_MODEL overrides DEFAULT_MODEL
+    KEY_VARS: tuple[str, ...] = ()  # the first one set is used
+    KEY_HELP = ""  # where to get a key
+    MISSING_KEY = ""
+
+    @classmethod
+    def env_key(cls) -> str | None:
+        return next((os.environ[v] for v in cls.KEY_VARS if os.environ.get(v)), None)
+
+    def __init__(self, backend: str = "", model: str = "", **kw):
+        key = self.env_key()
+        if not key:
+            raise ProviderError(self.MISSING_KEY)
+        super().__init__(backend or self.BACKEND, model or self.default_model(), **kw)
+        self.api_key = key
+
+    @classmethod
+    def default_model(cls) -> str:
+        return _env_default(cls.MODEL_ENV, cls.DEFAULT_MODEL)
 
     def _post_json(self, url: str, headers: dict, payload: dict) -> dict:
         try:
@@ -83,19 +104,13 @@ class _HTTPProvider(BaseProvider):
 
 
 class OpenAIProvider(_HTTPProvider):
-    DEFAULT_MODEL = "gpt-5.6-terra"
+    BACKEND, DEFAULT_MODEL, MODEL_ENV = "api-openai", "gpt-5.6-terra", "OPENAI"
+    KEY_VARS, KEY_HELP = ("OPENAI_API_KEY",), "platform.openai.com"
+    MISSING_KEY = "OPENAI_API_KEY is not set (get one at platform.openai.com)"
 
-    def __init__(self, backend: str = "api-openai", model: str = "", **kw):
-        key = os.environ.get("OPENAI_API_KEY")
-        if not key:
-            raise ProviderError("OPENAI_API_KEY is not set (get one at platform.openai.com)")
-        super().__init__(backend, model or _env_default("OPENAI", self.DEFAULT_MODEL), **kw)
-        self.api_key = key
+    def __init__(self, backend: str = "", model: str = "", **kw):
+        super().__init__(backend, model, **kw)
         self.base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-
-    @classmethod
-    def default_model(cls) -> str:
-        return _env_default("OPENAI", cls.DEFAULT_MODEL)
 
     def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
         payload: dict = {
@@ -142,22 +157,12 @@ class OpenRouterProvider(_HTTPProvider):
 
     # Non-reasoning instruct model: reasoning models on the free tier burn the
     # whole max-tokens budget on hidden thinking and return no content.
-    DEFAULT_MODEL = "google/gemma-4-31b-it:free"
+    BACKEND, DEFAULT_MODEL, MODEL_ENV = "api-openrouter", "google/gemma-4-31b-it:free", "OPENROUTER"
+    KEY_VARS, KEY_HELP = ("OPENROUTER_API_KEY",), "openrouter.ai/keys — has :free models"
+    MISSING_KEY = (
+        "OPENROUTER_API_KEY is not set (get one at openrouter.ai/keys; free models available)"
+    )
     BASE_URL = "https://openrouter.ai/api/v1"
-
-    def __init__(self, backend: str = "api-openrouter", model: str = "", **kw):
-        key = os.environ.get("OPENROUTER_API_KEY")
-        if not key:
-            raise ProviderError(
-                "OPENROUTER_API_KEY is not set (get one at openrouter.ai/keys; "
-                "free models available)"
-            )
-        super().__init__(backend, model or _env_default("OPENROUTER", self.DEFAULT_MODEL), **kw)
-        self.api_key = key
-
-    @classmethod
-    def default_model(cls) -> str:
-        return _env_default("OPENROUTER", cls.DEFAULT_MODEL)
 
     def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
         payload = {
@@ -209,18 +214,9 @@ class OpenRouterProvider(_HTTPProvider):
 
 
 class AnthropicProvider(_HTTPProvider):
-    DEFAULT_MODEL = "claude-sonnet-5-5"
-
-    def __init__(self, backend: str = "api-anthropic", model: str = "", **kw):
-        key = os.environ.get("ANTHROPIC_API_KEY")
-        if not key:
-            raise ProviderError("ANTHROPIC_API_KEY is not set (get one at console.anthropic.com)")
-        super().__init__(backend, model or _env_default("ANTHROPIC", self.DEFAULT_MODEL), **kw)
-        self.api_key = key
-
-    @classmethod
-    def default_model(cls) -> str:
-        return _env_default("ANTHROPIC", cls.DEFAULT_MODEL)
+    BACKEND, DEFAULT_MODEL, MODEL_ENV = "api-anthropic", "claude-sonnet-5-5", "ANTHROPIC"
+    KEY_VARS, KEY_HELP = ("ANTHROPIC_API_KEY",), "console.anthropic.com"
+    MISSING_KEY = "ANTHROPIC_API_KEY is not set (get one at console.anthropic.com)"
 
     def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
         content: str | list[dict] = user
@@ -263,20 +259,10 @@ class AnthropicProvider(_HTTPProvider):
 class GeminiProvider(_HTTPProvider):
     """Google Gemini — the default "first key" path thanks to its free tier."""
 
-    DEFAULT_MODEL = "gemini-3.5-flash-lite"
-
-    def __init__(self, backend: str = "api-gemini", model: str = "", **kw):
-        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        if not key:
-            raise ProviderError(
-                "GEMINI_API_KEY is not set (free tier available at aistudio.google.com)"
-            )
-        super().__init__(backend, model or _env_default("GEMINI", self.DEFAULT_MODEL), **kw)
-        self.api_key = key
-
-    @classmethod
-    def default_model(cls) -> str:
-        return _env_default("GEMINI", cls.DEFAULT_MODEL)
+    BACKEND, DEFAULT_MODEL, MODEL_ENV = "api-gemini", "gemini-3.5-flash-lite", "GEMINI"
+    KEY_VARS = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
+    KEY_HELP = "free key: aistudio.google.com/apikey"
+    MISSING_KEY = "GEMINI_API_KEY is not set (free tier available at aistudio.google.com)"
 
     def _complete(self, *, system, user, temperature, seed, max_tokens, images=None):
         gen = {
@@ -318,3 +304,12 @@ class GeminiProvider(_HTTPProvider):
         except (KeyError, IndexError, TypeError) as e:
             raise ProviderError(f"unexpected Gemini response shape: {str(data)[:300]}") from e
         return text, usage
+
+
+# in auto-mode preference order
+API_PROVIDERS: tuple[type[_HTTPProvider], ...] = (
+    GeminiProvider,
+    OpenAIProvider,
+    AnthropicProvider,
+    OpenRouterProvider,
+)
