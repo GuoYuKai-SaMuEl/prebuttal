@@ -292,3 +292,29 @@ def test_note_rewrites_do_not_lose_a_concurrent_run(latex_project):
     with ThreadPoolExecutor(max_workers=4) as ex:
         list(ex.map(work, range(12)))
     assert len([r for r in load_history() if r.project == "mix"]) == 6
+
+
+def test_history_rewrites_refuse_a_busy_lock(latex_project, monkeypatch):
+    """note / rm rewrite the whole file: without the lock they stop, not go on."""
+    import prebuttal.runs as runs_mod
+
+    report, venue = make_report(latex_project)
+    rec = save_run(report, venue, load_config(None), md="# r", json_str="{}", html=None)
+    (runs_mod.runs_root() / "history.lock").write_text("", encoding="utf-8")  # held elsewhere
+    monkeypatch.setattr(runs_mod.time, "sleep", lambda s: None)
+    with pytest.raises(OSError, match="busy"):
+        runs_mod.set_note(rec.id, "x")
+    # archiving a finished run still goes through
+    save_run(report, venue, load_config(None), md="# r", json_str="{}", html=None)
+    assert len(load_history()) == 2
+
+
+def test_note_on_a_busy_history_is_a_clean_error(latex_project, monkeypatch, capsys):
+    import prebuttal.runs as runs_mod
+
+    report, venue = make_report(latex_project)
+    save_run(report, venue, load_config(None), md="# r", json_str="{}", html=None)
+    (runs_mod.runs_root() / "history.lock").write_text("", encoding="utf-8")
+    monkeypatch.setattr(runs_mod.time, "sleep", lambda s: None)
+    assert cli.main(["note", "latest", "x"]) == cli.EXIT_USAGE
+    assert "busy" in capsys.readouterr().err

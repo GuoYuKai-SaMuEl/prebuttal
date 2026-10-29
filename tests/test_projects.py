@@ -314,3 +314,15 @@ def test_local_folder_named_like_an_arxiv_id_stays_local(tmp_path, monkeypatch):
     assert ingestion.ingest("2312.00752").title == "My Revision"
     assert source_identity("2312.00752").startswith("path:")
     assert source_identity("2401.00001").startswith("arxiv:")  # no such folder here
+
+
+def test_concurrent_registrations_are_all_kept(tmp_path):
+    """Two runs of different papers finishing together: both projects stay."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def register(i: int) -> str:
+        return assign_project(str(tmp_path / f"paper{i}.pdf"), f"Paper number {i}")
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        keys = list(ex.map(register, range(16)))
+    assert set(load_projects()) == set(keys) and len(keys) == 16

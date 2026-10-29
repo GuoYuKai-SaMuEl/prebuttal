@@ -29,11 +29,16 @@ def _read_text(p: Path) -> str:
         raise LatexError(f"cannot read {p}: {e}") from e
 
 
+# a % that starts a comment: preceded by an even number of backslashes
+# (`\%` is a percent sign, `\\%` a line break and then a comment)
+_COMMENT = re.compile(r"(?<!\\)(?:\\\\)*%")
+
+
 def _strip_comments(tex: str) -> str:
     out = []
     for line in tex.splitlines():
-        m = re.search(r"(?<!\\)%", line)
-        out.append(line[: m.start()] if m else line)
+        m = _COMMENT.search(line)
+        out.append(line[: m.end() - 1] if m else line)
     return "\n".join(out)
 
 

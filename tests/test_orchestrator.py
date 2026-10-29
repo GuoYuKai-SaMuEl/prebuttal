@@ -180,3 +180,54 @@ def test_non_finite_ratings_are_dropped():
     fields = coerce_fields(payload, get_venue("iclr"))
     assert fields["rating"] is None
     assert fields["confidence"] is None
+
+
+class _BrokenFirstAC(PersonaFakeProvider):
+    """The AC answers in prose first, then valid JSON when asked to repair it."""
+
+    def _complete(self, *, system, user, temperature, seed, max_tokens):
+        text, usage = super()._complete(
+            system=system, user=user, temperature=temperature, seed=seed, max_tokens=max_tokens
+        )
+        if "not valid JSON" in system:
+            return text, usage
+        return "My meta-review, in words: the paper is fine.", usage
+
+
+def test_ac_gets_one_json_repair_pass(latex_project, shared_calls):
+    from prebuttal.ingestion import ingest
+
+    cfg = load_config(None)
+    providers, _ac = _providers(cfg, shared_calls)
+    ac = _BrokenFirstAC(backend="fake-ac", model="fake-1", calls=shared_calls)
+    report = run_report(
+        ingest(str(latex_project)), cfg, get_venue("iclr"), providers, ac, log=lambda m: None
+    )
+    assert report.meta.parse_ok, report.meta.error
+    assert report.meta.action_plan
+    repairs = [c for c in shared_calls if "not valid JSON" in c["system"]]
+    assert len(repairs) == 1 and repairs[0]["temperature"] == 0.0
+    assert report.meta.usage.prompt_tokens == 2000  # the repair call is counted
+
+
+def test_compress_summaries_count_in_the_total_usage(latex_project, shared_calls):
+    from prebuttal.ingestion import ingest
+
+    cfg = load_config(None)
+    cfg.compress, cfg.budget_chars = True, 6000
+    paper = ingest(str(latex_project))
+    paper.sections[0].text += " filler" * 3000  # too long: summarized, not cut
+    providers, ac = _providers(cfg, shared_calls)
+    report = run_report(paper, cfg, get_venue("iclr"), providers, ac, log=lambda m: None)
+    summaries = [c for c in shared_calls if "You compress" in c["system"]]
+    assert summaries
+    assert report.usage_total.prompt_tokens == 1000 * len(shared_calls)
+
+
+def test_dry_run_mentions_compress_calls():
+    from prebuttal.dryrun import render_dry_run
+
+    cfg = load_config(None)
+    cfg.compress = True
+    text = render_dry_run(cfg, [("R1", "fake", "m")], ("fake", "m"), 1000, [])
+    assert "compress: sections cut to fit the budget" in text

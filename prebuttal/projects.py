@@ -70,6 +70,13 @@ def _root() -> Path:
     return runs_root()
 
 
+def _lock(*, required: bool) -> contextlib.AbstractContextManager[None]:
+    """The archive's write lock; the registry is rewritten whole, like the history."""
+    from .runs import store_lock
+
+    return store_lock(required=required)
+
+
 def registry_path() -> Path:
     return _root() / "projects.json"
 
@@ -145,6 +152,13 @@ def assign_project(
 
     ``register=False`` (``run --no-save``) only looks the project up.
     """
+    if not register:
+        return _assign(source, title, explicit, register=False)
+    with _lock(required=False):
+        return _assign(source, title, explicit, register=True)
+
+
+def _assign(source: str, title: str, explicit: str | None, *, register: bool) -> str:
     projects = load_projects()
     ident = source_identity(source)
     if explicit:
@@ -169,20 +183,22 @@ def assign_project(
 
 def rename_project(old: str, new: str) -> str:
     """Rename a project in the registry; the caller rewrites run history."""
-    projects = load_projects()
     new_key = normalize_key(new)
-    if new_key in projects and new_key != old:
-        raise ProjectError(f"project '{new_key}' already exists")
-    proj = projects.pop(old, None)
-    if proj is None:
-        proj = Project(key=old)  # legacy project known only from run history
-    proj.key = new_key
-    projects[new_key] = proj
-    save_projects(projects)
+    with _lock(required=True):
+        projects = load_projects()
+        if new_key in projects and new_key != old:
+            raise ProjectError(f"project '{new_key}' already exists")
+        proj = projects.pop(old, None)
+        if proj is None:
+            proj = Project(key=old)  # legacy project known only from run history
+        proj.key = new_key
+        projects[new_key] = proj
+        save_projects(projects)
     return new_key
 
 
 def forget_project(key: str) -> None:
-    projects = load_projects()
-    if projects.pop(key, None) is not None:
-        save_projects(projects)
+    with _lock(required=True):
+        projects = load_projects()
+        if projects.pop(key, None) is not None:
+            save_projects(projects)

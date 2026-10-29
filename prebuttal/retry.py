@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .config import ReviewerConfig, RunConfig
 from .models import FigureImage, ReviewReport
-from .orchestrator import Log, assemble_report, run_meta, run_reviews
+from .orchestrator import Log, review_then_meta
 from .providers import BaseProvider
 from .report import report_from_dict
 from .venues import Venue, VenueError, get_venue, venue_from_report
@@ -82,7 +82,8 @@ def retry_report(
 ) -> ReviewReport:
     """Re-run the failed reviewers of ``data`` (a report.json) plus the AC.
 
-    ``providers`` maps the ids of the reviewers to retry to their backends."""
+    ``providers`` maps the ids of the reviewers to retry to their backends.
+    Ctrl-C raises RunInterrupted with what finished, as for `prebuttal run`."""
     old = report_from_dict(data)
     targets = failed_reviewers(old)
     sub = replace(
@@ -101,11 +102,7 @@ def retry_report(
         ],
     )
     sub.ac = replace(cfg.ac, temperature=old.meta.temperature)
-    fresh = run_reviews(sub, venue, pack, providers, log, images or []) if targets else []
-    reviews = list(old.reviews)
-    for i, review in zip(targets, fresh, strict=True):
-        reviews[i] = review
-    meta = run_meta(sub, venue, pack, reviews, ac_provider, log)
-    old.paper.figure_images = list(images or [])  # archived again: a retry can be retried
+    old.paper.figure_images = list(images or [])  # shown again, archived again
     old.paper.source_path, old.paper.source_type = old.run.source, old.run.source_type
-    return assemble_report(old.paper, sub, venue, pack, reviews, meta)
+    keep = [None if i in targets else r for i, r in enumerate(old.reviews)]
+    return review_then_meta(old.paper, sub, venue, pack, providers, ac_provider, log, keep)

@@ -51,13 +51,15 @@ def runs_dir() -> Path:
 
 
 @contextlib.contextmanager
-def _history_lock() -> Iterator[None]:
-    """Serialize run-number allocation between concurrent processes.
+def store_lock(*, required: bool = False) -> Iterator[None]:
+    """Serialize writes to the history and the project registry between
+    concurrent processes.
 
-    Best-effort like the archive itself: a lock older than a minute means its
-    holder crashed and is stolen; a busy lock gives way after ~5s so the
-    archiving of a (paid) run is never blocked — the worst case is the
-    duplicate number this lock exists to avoid."""
+    A lock older than a minute means its holder crashed and is stolen.  A
+    busy lock gives way after ~5s: archiving a (paid) run is never blocked,
+    the worst case being the duplicate number this lock exists to avoid.
+    ``required`` writers (note, rm, rename: whole-file rewrites that could
+    drop a concurrent run) raise OSError instead of going on unlocked."""
     p = runs_root() / "history.lock"
     make_private_dir(runs_root())
     held = False
@@ -85,6 +87,8 @@ def _history_lock() -> Iterator[None]:
             except OSError:
                 pass
             time.sleep(0.05)
+    if required and not held:
+        raise OSError("the run history is busy (another prebuttal is writing it) — try again")
     try:
         yield
     finally:
@@ -212,7 +216,7 @@ def save_run(
     (out_dir / "resolved-config.json").write_text(
         json.dumps(resolved, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    with _history_lock():
+    with store_lock():
         run_no = 1 + max((r.run_no for r in load_history() if r.project == project), default=0)
         rec = RunRecord(
             id=run_id,
@@ -287,7 +291,7 @@ def _update_history(apply: Callable[[list[RunRecord]], None]) -> list[RunRecord]
     """Read-modify-write the history under the cross-process lock, so a run
     archived while ``note`` / ``rm`` / ``rename`` holds it cannot be lost to
     their full-file rewrite."""
-    with _history_lock():
+    with store_lock(required=True):
         records = load_history()
         apply(records)
         _rewrite_history(records)

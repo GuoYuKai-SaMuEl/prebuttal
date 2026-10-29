@@ -163,9 +163,26 @@ def param_support(backend: str, model: str = "") -> tuple[bool, bool]:
     return True, True
 
 
+_CLAUDE_VERSION = re.compile(r"claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$")
+
+
+def anthropic_effort_model(model: str) -> bool:
+    """The Messages API takes ``output_config.effort`` from Claude 4.6 on, and
+    on Opus 4.5; older models answer it with a 400. Unknown ids get it."""
+    if model.startswith("claude-3"):
+        return False
+    m = _CLAUDE_VERSION.match(model)
+    if not m:
+        return True
+    version = (int(m[2]), int(m[3] or 0))
+    return version >= (4, 6) or (m[1] == "opus" and version == (4, 5))
+
+
 def effort_support(backend: str, model: str = "") -> bool:
     """Whether ``backend`` (with ``model``) has a reasoning-effort control we can set."""
-    if backend in ("agent-claude", "agent-codex", "api-anthropic", "api-gemini", "api-openrouter"):
+    if backend == "api-anthropic":
+        return anthropic_effort_model(model)
+    if backend in ("agent-claude", "agent-codex", "api-gemini", "api-openrouter"):
         return True
     if backend == "api-openai":
         return openai_reasoning_model(model)

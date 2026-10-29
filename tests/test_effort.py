@@ -183,3 +183,22 @@ def test_report_and_dry_run_show_effort(latex_project):
     plan = render_dry_run(cfg, [("R1", "agent-claude", "")], ("relay", ""), 1000, statuses)
     assert "effort: medium" in plan
     assert "not supported here" in plan  # relay AC has no effort control
+
+
+@pytest.mark.parametrize(
+    "model, ok",
+    [
+        ("", True),  # the default model
+        ("claude-sonnet-5-5", True),
+        ("claude-opus-4-6", True),
+        ("claude-fable-5-1", True),
+        ("claude-opus-4-5", True),
+        ("claude-opus-4-5-20251101", True),
+        ("claude-sonnet-4-5", False),
+        ("claude-haiku-4-5", False),
+        ("claude-sonnet-4", False),
+        ("claude-3-7-sonnet-latest", False),
+    ],
+)
+def test_anthropic_effort_only_where_the_api_takes_it(model, ok):
+    assert effort_support("api-anthropic", model) is ok

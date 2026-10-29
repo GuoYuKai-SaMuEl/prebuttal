@@ -82,6 +82,11 @@ def render_dry_run(
             f"  figures: up to {cfg.max_figures} images per reviewer on vision-capable API "
             "backends (~1.5k tokens each, not in the estimate below)"
         )
+    if cfg.compress:
+        lines.append(
+            "  compress: sections cut to fit the budget are first summarized by the AC's "
+            "backend (one call each, not in the estimate below)"
+        )
     lines.append("")
     lines.append("Cost estimate (indicative — see [pricing] overrides)")
     total = 0.0

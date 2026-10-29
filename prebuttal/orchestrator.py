@@ -14,7 +14,7 @@ import re
 import threading
 import time
 from collections.abc import Callable, Sequence
-from typing import Any
+from typing import Any, cast
 
 from .config import RunConfig, reviewer_seed
 from .models import (
@@ -137,6 +137,34 @@ def extract_json_object(text: str) -> dict | None:
                         pass
                     break
     return None
+
+
+def parse_or_repair(
+    provider: BaseProvider,
+    system: str,
+    text: str,
+    seed: int | None,
+    max_tokens: int,
+    usage: Usage,
+) -> dict | None:
+    """The JSON object in ``text``, else one repair pass (models sometimes wrap
+    JSON in prose or fences, or break it); the repair's usage goes to ``usage``."""
+    payload = extract_json_object(text)
+    if payload is not None:
+        return payload
+    try:
+        comp = provider.complete(
+            system=system + "\nYour previous answer was not valid JSON.",
+            user=text[:8000] + "\n\nReturn ONLY the corrected JSON object.",
+            temperature=0.0,
+            seed=seed,
+            max_tokens=max_tokens,
+            retries=0,
+        )
+    except Exception:  # a failed repair only means there is no JSON
+        return None
+    usage.add(comp.usage)
+    return extract_json_object(comp.text)
 
 
 def _to_number(v) -> float | None:
@@ -358,23 +386,7 @@ def run_one_reviewer(
 
     review.usage = comp.usage
     text = comp.text
-    payload = extract_json_object(text)
-    if payload is None:
-        # one repair pass: models sometimes wrap JSON in prose/fences
-        try:
-            comp2 = provider.complete(
-                system=system + "\nYour previous answer was not valid JSON.",
-                user=text[:8000] + "\n\nReturn ONLY the corrected JSON object.",
-                temperature=0.0,
-                seed=seed,
-                max_tokens=cfg.max_tokens,
-                retries=0,
-            )
-            payload = extract_json_object(comp2.text)
-            review.usage.add(comp2.usage)
-        except ProviderError:
-            payload = None
-
+    payload = parse_or_repair(provider, system, text, seed, cfg.max_tokens, review.usage)
     review.duration_s = time.monotonic() - t0
     review.raw_output = text[:_RAW_CAP]
 
@@ -487,13 +499,15 @@ def run_meta(
     )
     t0 = time.monotonic()
     log(f"[AC] synthesizing via {provider.describe()}")
+    system = build_ac_system(venue)
+    max_tokens = min(cfg.max_tokens, 6000)  # meta-review + revision plan
     try:
         comp = provider.complete(
-            system=build_ac_system(venue),
+            system=system,
             user=build_ac_user(pack, reviews, venue),
             temperature=cfg.ac.temperature,
             seed=cfg.seed,
-            max_tokens=min(cfg.max_tokens, 6000),  # meta-review + revision plan
+            max_tokens=max_tokens,
             retries=free_tier_retries(provider, cfg.retries),
         )
     except Exception as e:  # never lose the finished reviews to a crash here
@@ -504,7 +518,7 @@ def run_meta(
         return meta
 
     meta.usage = comp.usage
-    payload = extract_json_object(comp.text)
+    payload = parse_or_repair(provider, system, comp.text, cfg.seed, max_tokens, meta.usage)
     meta.duration_s = time.monotonic() - t0
     meta.raw_output = comp.text[:_RAW_CAP]
     if payload is None:
@@ -578,8 +592,11 @@ def _clamp_score(v: float | None, venue: Venue | None = None, max_val: float = 5
     return min(max(v, 1.0), float(hi))
 
 
-def make_summarizer(provider: BaseProvider, log: Log) -> Callable[[str, str], str | None]:
-    """LLM compression for oversized sections (cfg.compress = true)."""
+def make_summarizer(
+    provider: BaseProvider, log: Log, spent: Usage
+) -> Callable[[str, str], str | None]:
+    """LLM compression for oversized sections (cfg.compress = true); the
+    calls' usage is added to ``spent``."""
 
     def summarize(heading: str, text: str) -> str | None:
         try:
@@ -595,6 +612,7 @@ def make_summarizer(provider: BaseProvider, log: Log) -> Callable[[str, str], st
                 max_tokens=800,
                 retries=1,
             )
+            spent.add(comp.usage)
             return comp.text.strip() or None
         except ProviderError as e:
             log(f"[pack] summarizer failed for '{heading}': {e}")
@@ -614,28 +632,66 @@ def run_report(
     ac_provider: BaseProvider,
     log: Log,
 ) -> ReviewReport:
-    summarizer = make_summarizer(ac_provider, log) if cfg.compress else None
+    spent = Usage()  # by the section summarizer, before any review
+    summarizer = make_summarizer(ac_provider, log, spent) if cfg.compress else None
     pack = render_pack(paper, budget_chars=cfg.budget_chars, summarizer=summarizer)
+    try:
+        report = review_then_meta(paper, cfg, venue, pack, providers, ac_provider, log)
+    except RunInterrupted as e:
+        if e.report is not None:
+            e.report.usage_total.add(spent)
+        raise
+    report.usage_total.add(spent)
+    return report
 
-    def unfinished_meta() -> MetaReview:
-        return MetaReview(
+
+def review_then_meta(
+    paper: StructuredPaper,
+    cfg: RunConfig,
+    venue: Venue,
+    pack: str,
+    providers: dict[str, BaseProvider],
+    ac_provider: BaseProvider,
+    log: Log,
+    keep: list[Review | None] | None = None,
+) -> ReviewReport:
+    """Run ``cfg.reviewers``, then the AC over every review.
+
+    ``keep`` (for `retry`) holds reviews to reuse; its empty slots are filled,
+    in order, by ``cfg.reviewers``.  Ctrl-C raises RunInterrupted carrying the
+    report of what had finished, so the caller can archive it."""
+    slots: list[Review | None] = list(keep) if keep is not None else [None] * len(cfg.reviewers)
+    targets = [i for i, r in enumerate(slots) if r is None]
+    try:
+        fresh = (
+            run_reviews(cfg, venue, pack, providers, log, paper.figure_images) if targets else []
+        )
+        stopped = False
+    except RunInterrupted as e:
+        fresh, stopped = e.reviews, True
+    for i, review in zip(targets, fresh, strict=True):
+        slots[i] = review
+    reviews = cast(list[Review], slots)  # every slot is filled now
+
+    def report(meta: MetaReview) -> ReviewReport:
+        return assemble_report(paper, cfg, venue, pack, reviews, meta)
+
+    def interrupted() -> RunInterrupted:
+        meta = MetaReview(
             backend=ac_provider.backend,
             model=ac_provider.model,
             temperature=cfg.ac.temperature,
             error=INTERRUPTED,
         )
+        return RunInterrupted(reviews, report(meta))
 
-    try:
-        reviews = run_reviews(cfg, venue, pack, providers, log, paper.figure_images)
-    except RunInterrupted as e:
-        report = assemble_report(paper, cfg, venue, pack, e.reviews, unfinished_meta())
-        raise RunInterrupted(e.reviews, report) from None
+    if stopped:
+        raise interrupted()
     try:
         meta = run_meta(cfg, venue, pack, reviews, ac_provider, log)
     except KeyboardInterrupt:
-        report = assemble_report(paper, cfg, venue, pack, reviews, unfinished_meta())
-        raise RunInterrupted(reviews, report) from None
-    return assemble_report(paper, cfg, venue, pack, reviews, meta)
+        raise interrupted() from None
+    return report(meta)
 
 
 def assemble_report(

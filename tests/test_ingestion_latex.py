@@ -284,3 +284,19 @@ def test_section_levels_and_unnumbered_sections(tmp_path):
         ("2", "Method", 1),
         ("2.1", "Detail", 2),
     ]
+
+
+@pytest.mark.parametrize(
+    "line, kept",
+    [
+        (r"a & b \\% trailing comment", r"a & b \\"),  # line break, then a comment
+        (r"50\% of runs % comment", r"50\% of runs "),  # escaped percent sign
+        (r"x \\\% y % comment", r"x \\\% y "),  # line break + escaped percent
+        (r"% whole line", ""),
+        (r"no comment", r"no comment"),
+    ],
+)
+def test_strip_comments_counts_backslashes(line, kept):
+    from prebuttal.ingestion.latex import _strip_comments
+
+    assert _strip_comments(line) == kept

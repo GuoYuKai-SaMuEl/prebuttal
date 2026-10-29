@@ -433,9 +433,9 @@ def cmd_projects(args) -> int:
             return EXIT_USAGE
         try:
             delete_runs({r.id for r in runs})
+            forget_project(args.name)
         except OSError as e:
             return _fail(f"cannot update the run history: {e}")
-        forget_project(args.name)
         print(f"deleted {what} (files under ./prebuttal-reports are left alone)")
         return EXIT_OK
 
@@ -1289,24 +1289,36 @@ def cmd_retry(args) -> int:
     except ProviderError as e:
         return _fail(str(e), EXIT_NO_BACKEND)
     ac_provider = built.pop("AC")
-    names = ", ".join(old.reviews[i].reviewer_id for i in targets) or "none"
-    _log(f"[prebuttal] retrying {rec.label}: reviewers {names}, then the AC")
-
-    report = retry_report(
-        data, pack, venue, cfg, built, ac_provider, _log, load_figures(rec.dir_path)
+    names = ", ".join(old.reviews[i].reviewer_id for i in targets)
+    _log(
+        f"[prebuttal] retrying {rec.label}: "
+        + (f"reviewers {names}, then the AC" if names else "the AC")
     )
-    return _deliver(
+
+    interrupted = False
+    try:
+        report = retry_report(
+            data, pack, venue, cfg, built, ac_provider, _log, load_figures(rec.dir_path)
+        )
+    except RunInterrupted as e:
+        # keep a reviewer that finished (and was paid for) this time
+        if e.report is None or not any(e.report.reviews[i].parse_ok for i in targets):
+            raise
+        _log("\n[prebuttal] interrupted — saving the reviews that finished")
+        report, interrupted = e.report, True
+    rc = _deliver(
         report,
         venue,
         cfg,
         project=rec.project,
-        note=f"retry of {rec.label}",
+        note=f"retry of {rec.label}" + (" (interrupted)" if interrupted else ""),
         formats=cfg.output_formats,
         out_dir=cfg.output_dir,
         json_path=None,
         stdout=False,
         save=True,
     )
+    return 130 if interrupted else rc
 
 
 def _utf8_stdio() -> None:

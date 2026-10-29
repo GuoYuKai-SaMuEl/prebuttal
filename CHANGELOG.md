@@ -10,6 +10,24 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- LaTeX: a comment after a line break (`\\% ...`, common at the end of
+  table rows) was kept as text and leaked into the last cell; only an
+  escaped `\%` is a percent sign now.
+- The area chair gets the same one JSON-repair pass as the reviewers: a
+  meta-review wrapped in prose no longer loses the whole revision plan.
+- `prebuttal retry` interrupted with Ctrl-C saves the reviewers that
+  finished this time (marked "interrupted"), like `prebuttal run` does.
+- `--effort` with an older Claude API model (Sonnet / Haiku 4.5, Claude 3)
+  is no longer sent: those models answer it with an HTTP 400.
+- `note`, `rm` and `projects rename|rm` stop with "the run history is busy"
+  instead of rewriting it without the lock; the project registry now takes
+  the same lock, so two runs of different papers finishing together both
+  stay registered.
+- `compress = true`: the section summaries' token usage counts in the
+  report's total, and the dry run says those calls are not in its estimate.
+- `retry` with only the AC to re-run says so instead of "reviewers none".
+
 ## [0.5.1] — 2026-10-29
 
 ### Changed

@@ -131,3 +131,30 @@ def test_ctrl_c_saves_finished_reviews_for_retry(
     # the backend recovers; retry re-runs R3 on it as archived
     register_backend("hung", lambda m, cfg, t: PersonaFakeProvider(backend="hung", calls=calls))
     assert cli.main(["retry"]) == cli.EXIT_OK
+
+
+class _ACInterrupted(PersonaFakeProvider):
+    """Ctrl-C while the area chair is writing."""
+
+    def _complete(self, **kw):
+        if "estimated_rating" in kw["system"]:
+            raise KeyboardInterrupt
+        return super()._complete(**kw)
+
+
+def test_ctrl_c_during_retry_keeps_the_reviewer_that_finished(
+    latex_project, fake_statuses, flaky_config
+):
+    cfg_path, calls = flaky_config
+    cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    first = load_history()[0]
+
+    _Flaky.down = False
+    register_backend("fake", lambda m, cfg, t: _ACInterrupted(model="fake-m", calls=calls))
+    assert cli.main(["retry"]) == 130
+
+    hist = load_history()
+    assert len(hist) == 2 and hist[0].note == f"retry of {first.label} (interrupted)"
+    saved = json.loads((hist[0].dir_path / "report.json").read_text(encoding="utf-8"))
+    assert all(r["parse_ok"] for r in saved["reviewers"])  # R2 finished this time
+    assert not saved["meta"]["parse_ok"]
