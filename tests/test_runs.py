@@ -254,3 +254,20 @@ def test_weakness_matching_is_one_to_one(latex_project):
     text = render_diff(recs[0], recs[1])
     section = text.split("### ")[1]
     assert section.count("- persists:") == 1 and section.count("- gone:") == 1
+
+
+def test_concurrent_saves_get_distinct_run_numbers(latex_project):
+    """Two runs finishing at the same moment on one project: the history lock
+    allocates each its own run number (labels like proj#3 stay unique)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    report, venue = make_report(latex_project)
+    cfg = load_config(None)
+
+    def archive(_i):
+        return save_run(report, venue, cfg, md="# r", json_str="{}", html=None, project="race")
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        recs = list(ex.map(archive, range(4)))
+    assert sorted(r.run_no for r in recs) == [1, 2, 3, 4]
+    assert [r.run_no for r in load_history() if r.project == "race"] == [4, 3, 2, 1]

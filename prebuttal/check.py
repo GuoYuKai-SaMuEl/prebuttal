@@ -263,8 +263,18 @@ def _pdf_format(
     # reading order: page, then column (left before right), then top to bottom
     end = min(ends, key=lambda ln: (ln["page"], ln["x"] > sizes[ln["page"]][0] / 2, ln["y"]))
     page = end["page"] + 1
-    # the end page counts if main text comes before the heading on it: above it,
-    # or in the column to its left (two-column layouts); running headers aside
+    # the end page counts if main text comes before the heading on it: above
+    # it, or in the column to its left (two-column layouts); running headers
+    # aside.  A second column is real only when several lines start right of
+    # the page's middle — a lone centred heading is not one, or the reference
+    # entries below it would read as main text on single-column pages.
+    width = sizes[end["page"]][0]
+    second_column = (
+        sum(
+            1 for ln in lines if ln["page"] == end["page"] and ln is not end and ln["x"] > width / 2
+        )
+        >= 3
+    )
     top = 0.07 * sizes[end["page"]][1]
     before = [
         ln
@@ -272,7 +282,7 @@ def _pdf_format(
         if ln["page"] == end["page"]
         and ln is not end
         and ln["y"] > top
-        and (ln["y"] < end["y"] - 2 or ln["x"] < end["x"] - 100)
+        and (ln["y"] < end["y"] - 2 or (second_column and ln["x"] < end["x"] - 100))
     ]
     used = page if before else page - 1
     heading = " ".join(end["text"].split())

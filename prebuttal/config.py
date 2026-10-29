@@ -31,6 +31,7 @@ DEFAULT_PRICING: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-5": (3.00, 15.00),
     "claude-sonnet-5-5": (2.00, 10.00),
     "claude-haiku-4-5": (1.00, 5.00),
+    "claude-haiku-5-5": (1.00, 5.00),
 }
 
 DEFAULT_CONFIG_TOML = """\

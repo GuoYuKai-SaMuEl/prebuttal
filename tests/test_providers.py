@@ -820,7 +820,8 @@ def test_codex_unknown_feature_is_not_retried(monkeypatch):
 @pytest.mark.parametrize(
     ("value", "url"),
     [
-        ("", "http://localhost:11434"),
+        ("", "http://127.0.0.1:11434"),
+        ("localhost:11434", "http://127.0.0.1:11434"),  # normalised like 0.0.0.0
         ("0.0.0.0:11434", "http://127.0.0.1:11434"),  # Ollama's own server setting
         ("0.0.0.0", "http://127.0.0.1:11434"),
         ("gpu-box:8080", "http://gpu-box:8080"),

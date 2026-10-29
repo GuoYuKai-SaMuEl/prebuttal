@@ -15,7 +15,7 @@ import re
 import shutil
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -48,6 +48,39 @@ def history_path() -> Path:
 
 def runs_dir() -> Path:
     return runs_root() / "runs"
+
+
+@contextlib.contextmanager
+def _history_lock() -> Iterator[None]:
+    """Serialize run-number allocation between concurrent processes.
+
+    Best-effort like the archive itself: a lock older than a minute means its
+    holder crashed and is stolen; a busy lock gives way after ~5s so the
+    archiving of a (paid) run is never blocked — the worst case is the
+    duplicate number this lock exists to avoid."""
+    p = runs_root() / "history.lock"
+    make_private_dir(runs_root())
+    held = False
+    for _ in range(100):
+        try:
+            fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            held = True
+            break
+        except FileExistsError:
+            try:
+                if time.time() - p.stat().st_mtime > 60:
+                    p.unlink(missing_ok=True)
+                    continue
+            except OSError:
+                pass
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        if held:
+            with contextlib.suppress(OSError):
+                p.unlink(missing_ok=True)
 
 
 def new_run_id(paper_title: str) -> str:
@@ -128,7 +161,6 @@ def save_run(
     run_id = new_run_id(report.paper.title)
     make_private_dir(runs_root())
     project = project or slugify(report.paper.title)
-    run_no = 1 + max((r.run_no for r in load_history() if r.project == project), default=0)
     out_dir = runs_dir() / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(md, encoding="utf-8")
@@ -170,24 +202,26 @@ def save_run(
     (out_dir / "resolved-config.json").write_text(
         json.dumps(resolved, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    rec = RunRecord(
-        id=run_id,
-        ts=report.run.generated_at,
-        paper_title=report.paper.title,
-        source=report.run.source,
-        venue=venue.key,
-        seed=cfg.seed,
-        mean=report.aggregate.mean,
-        std=report.aggregate.std,
-        n=report.aggregate.n,
-        dir=str(out_dir),
-        project=project,
-        run_no=run_no,
-        note=note,
-        scale=venue.rating_field.max,
-    )
-    with history_path().open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
+    with _history_lock():
+        run_no = 1 + max((r.run_no for r in load_history() if r.project == project), default=0)
+        rec = RunRecord(
+            id=run_id,
+            ts=report.run.generated_at,
+            paper_title=report.paper.title,
+            source=report.run.source,
+            venue=venue.key,
+            seed=cfg.seed,
+            mean=report.aggregate.mean,
+            std=report.aggregate.std,
+            n=report.aggregate.n,
+            dir=str(out_dir),
+            project=project,
+            run_no=run_no,
+            note=note,
+            scale=venue.rating_field.max,
+        )
+        with history_path().open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
     return rec
 
 

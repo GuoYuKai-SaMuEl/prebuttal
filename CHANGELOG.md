@@ -10,6 +10,19 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- `check` page counting: a lone centred "References" heading (ACL-style
+  single-column papers) no longer reads the reference entries below it as
+  main text; lines to the heading's left now count only on a page with a
+  real second column.
+- Two `prebuttal run` processes finishing at the same moment on one project
+  no longer get the same run number: history numbering takes a brief
+  cross-process lock (best-effort: a stale or busy lock never blocks
+  archiving a finished run).
+- Ollama's URL is normalised in one place: `localhost` and `0.0.0.0` both
+  show as and are called on `127.0.0.1`, in listings and errors alike.
+- Indicative price table: claude-haiku-5-5 added (same tier as haiku-4-5).
+
 ### Changed
 - Internal: dead code removed (`BackendStatus.line()`, `EFFORTS`), the
   CLI command dispatch folded into one table, and small duplicated helpers

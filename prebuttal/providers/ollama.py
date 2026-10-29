@@ -13,7 +13,8 @@ from .base import BaseProvider, ProviderError, TransientProviderError
 def ollama_base_url() -> str:
     """The Ollama URL to call. ``OLLAMA_HOST`` is often the *server's* bind
     address as Ollama documents it (``0.0.0.0:11434``, no scheme): a client
-    reaches that on loopback, over http."""
+    reaches that on loopback, over http.  ``localhost`` and ``0.0.0.0`` are
+    normalised here once, so listings, errors and requests all agree."""
     host = (
         (
             os.environ.get("PREBUTTAL_OLLAMA_HOST")
@@ -28,11 +29,13 @@ def ollama_base_url() -> str:
     scheme, rest = host.split("://", 1)
     if scheme == "http" and ":" not in rest.split("/", 1)[0]:  # like Ollama: port 11434
         rest = rest.replace("/", ":11434/", 1) if "/" in rest else rest + ":11434"
-    return f"{scheme}://{rest}".replace("://0.0.0.0", "://127.0.0.1")
+    return f"{scheme}://{rest}".replace("://0.0.0.0", "://127.0.0.1").replace(
+        "://localhost:", "://127.0.0.1:"
+    )
 
 
 def ollama_models(base_url: str | None = None) -> list[str]:
-    base = (base_url or ollama_base_url()).replace("://localhost:", "://127.0.0.1:")
+    base = base_url or ollama_base_url()
     try:
         r = httpx.get(f"{base}/api/tags", timeout=2.5)
         r.raise_for_status()
@@ -55,7 +58,7 @@ class OllamaProvider(BaseProvider):
                 )
             model = installed[0]
         super().__init__(backend, model, **kw)
-        self.base_url = base.replace("://localhost:", "://127.0.0.1:")
+        self.base_url = base
 
     def _complete(self, *, system, user, temperature, seed, max_tokens):
         options = {"temperature": temperature, "num_predict": max_tokens}

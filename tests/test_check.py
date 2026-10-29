@@ -77,6 +77,33 @@ def test_page_limit_counts_to_the_references_heading():
     assert check_pdf_bytes(make_paper(top), CheckRules(page_limit=3)).errors == []
 
 
+def test_page_limit_with_a_centred_references_heading():
+    """ACL-style centred heading: reference entries below a lone centred
+    heading are not a second column, so a references-only page does not count."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    height = A4[1]
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(72, height - 80, "Deep Widgets for Structured Prediction")
+    c.setFont("Helvetica", 10)
+    for i in range(10):
+        c.drawString(72, height - 140 - 14 * i, f"Body sentence number {i} about widgets.")
+    c.showPage()
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(290, height - 100, "References")  # centred on the page
+    c.setFont("Helvetica", 10)
+    for i in range(12):
+        c.drawString(72, height - 160 - 14 * i, f"Some Author {i}. A journal paper, 2020.")
+    c.showPage()
+    c.save()
+    result = check_pdf_bytes(buf.getvalue(), CheckRules(page_limit=1))
+    assert result.errors == []
+    assert "main text 1 of 1 pages" in result.passed
+
+
 def test_uncounted_statement_ends_the_main_text():
     """ICML: the impact statement before References is outside the 8 pages."""
     pages = [page1(), body(30), [(80, "Impact Statement", 12), *body(5, 100)], body(30)]
