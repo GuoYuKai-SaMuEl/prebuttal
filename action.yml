@@ -31,12 +31,18 @@ runs:
       env:
         PYTHON: ${{ steps.python.outputs.python-path }}
       # the prebuttal source at the ref this action was used at (@v0.5.3 → 0.5.3),
-      # in its own venv so the workflow's own Python stays untouched
+      # in its own venv so the workflow's own Python stays untouched; installed
+      # once per job, however many papers the job checks
       run: |
-        "$PYTHON" -m venv "$RUNNER_TEMP/prebuttal-venv"
-        bin="$RUNNER_TEMP/prebuttal-venv/bin"
-        [ -d "$bin" ] || bin="$RUNNER_TEMP/prebuttal-venv/Scripts"
-        "$bin/python" -m pip install --quiet --disable-pip-version-check "$GITHUB_ACTION_PATH"
+        venv="$RUNNER_TEMP/prebuttal-venv"
+        if [ ! -d "$venv" ]; then
+          "$PYTHON" -m venv "$venv"
+          bin="$venv/bin"
+          [ -d "$bin" ] || bin="$venv/Scripts"
+          "$bin/python" -m pip install --quiet --disable-pip-version-check "$GITHUB_ACTION_PATH"
+        fi
+        bin="$venv/bin"
+        [ -d "$bin" ] || bin="$venv/Scripts"
         echo "PREBUTTAL_BIN=$bin" >> "$GITHUB_ENV"
     - name: prebuttal check
       shell: bash
@@ -49,9 +55,10 @@ runs:
         [ -z "$VENUE" ] || args+=(--venue "$VENUE")
         out="$RUNNER_TEMP/prebuttal-check.txt"
         set +e
-        "$PREBUTTAL_BIN/prebuttal" "${args[@]}" | tee "$out"
+        # stderr too: a wrong path or venue prints only an error there
+        "$PREBUTTAL_BIN/prebuttal" "${args[@]}" 2>&1 | tee "$out"
         rc=${PIPESTATUS[0]}
         set -e
-        { echo '### prebuttal check'; echo '```'; grep -v '^::' "$out"; echo '```'; } \
+        { echo '### prebuttal check'; echo '```'; grep -v '^::' "$out" || true; echo '```'; } \
           >> "$GITHUB_STEP_SUMMARY"
         exit "$rc"

@@ -335,7 +335,7 @@ _BIB_KEY = re.compile(r"@\s*[a-zA-Z]+\s*\{\s*([^,\s]+)\s*,")
 _BIBITEM = re.compile(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 _TODO_CMD = re.compile(r"\\(?:todo|TODO|fixme|FIXME)\b")
 # venue styles that hide \author in their default (submission) mode; any
-# package or class loaded with a review / anonymous / blind option does too
+# package or class loaded with a review / rebuttal / anonymous / blind option does too
 _LOAD = re.compile(
     r"^[^%\n]*\\(?:usepackage|documentclass)\s*(?:\[([^\]]*)\])?\s*\{([^{}]*)\}", re.M
 )
@@ -345,7 +345,7 @@ _AUTHOR = re.compile(r"\\author\s*(?:\[[^\]]*\])?\s*\{")
 
 def _hides_authors(tex: str) -> bool:
     for m in _LOAD.finditer(tex):
-        if re.search(r"\b(review|anonymous|blind)\b", (m.group(1) or "").lower()):
+        if re.search(r"\b(review|rebuttal|anonymous|blind)\b", (m.group(1) or "").lower()):
             return True
         if any(_ANON_STYLE.fullmatch(n.strip()) for n in m.group(2).split(",")):
             return True

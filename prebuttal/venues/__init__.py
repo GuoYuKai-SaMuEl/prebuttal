@@ -328,7 +328,7 @@ CVPR = Venue(
     rules=CheckRules(
         page_limit=8,
         # only references and the LLM statement may run past the 8 pages
-        uncounted=("LLM Usage Statement", "References"),
+        uncounted=("LLM Usage Statement", "References", "Bibliography"),
         required_sections=("LLM Usage Statement",),
         # [review] is the submission build; no option or [pagenumbers] is camera-ready
         final_latex=(

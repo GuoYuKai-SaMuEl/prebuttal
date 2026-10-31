@@ -279,11 +279,13 @@ def test_neurips_nonanonymous_option_is_flagged(tmp_path):
     ],
 )
 def test_cvpr_camera_ready_build_is_flagged(tmp_path, load, camera_ready):
-    tex = MAIN_TEX.replace(r"\usepackage[final]{neurips_2026}", load)
+    tex = MAIN_TEX.replace(r"\usepackage[final]{neurips_2026}", load + "\n\\author{Ada Lovelace}")
     (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
     result = check_latex(tmp_path, get_venue("cvpr").rules)
     flagged = any("camera-ready" in f.message for f in result.errors)
     assert flagged is camera_ready
+    # the review and rebuttal builds hide \author: no "is printed" warning either
+    assert any("is printed" in f.message for f in result.warnings) is load.startswith("%")
 
 
 def test_cvpr_requires_the_llm_usage_statement():
@@ -295,6 +297,10 @@ def test_cvpr_requires_the_llm_usage_statement():
     pages.append([(80, "References", 12), *body(5, 100)])
     result = check_pdf_bytes(make_paper(pages), rules)
     assert result.errors == []
+    assert "main text 8 of 8 pages" in result.passed
+    # a "Bibliography" heading ends the main text as well
+    pages = [page1(), *[body(30)] * 7, [(80, "Bibliography", 12), *body(5, 100)]]
+    result = check_pdf_bytes(make_paper(pages), rules)
     assert "main text 8 of 8 pages" in result.passed
 
 
