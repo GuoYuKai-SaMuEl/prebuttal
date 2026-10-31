@@ -10,6 +10,8 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-10-31
+
 ### Fixed
 - LaTeX: a comment after a line break (`\\% ...`, common at the end of
   table rows) was kept as text and leaked into the last cell; only an
@@ -606,7 +608,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.0...v0.4.1
