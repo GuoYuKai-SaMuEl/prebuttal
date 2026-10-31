@@ -158,3 +158,14 @@ def test_ctrl_c_during_retry_keeps_the_reviewer_that_finished(
     saved = json.loads((hist[0].dir_path / "report.json").read_text(encoding="utf-8"))
     assert all(r["parse_ok"] for r in saved["reviewers"])  # R2 finished this time
     assert not saved["meta"]["parse_ok"]
+
+
+def test_retry_of_a_custom_venue_whose_name_is_now_built_in():
+    """A run made with a custom 'cvpr' venue before CVPR was built in (0.5.3)."""
+    from prebuttal.retry import RetryError, venue_for_retry
+    from prebuttal.venues import VENUES
+    from prebuttal.venues.custom import venue_to_spec
+
+    data = {"venue": {"key": "cvpr", "custom": True, "definition": venue_to_spec(VENUES["icml"])}}
+    with pytest.raises(RetryError, match="now a built-in venue"):
+        venue_for_retry(data)

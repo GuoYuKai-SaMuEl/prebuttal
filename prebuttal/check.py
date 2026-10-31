@@ -550,8 +550,11 @@ def github_annotations(result: CheckResult) -> str:
     def esc(s: str) -> str:
         return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
+    def esc_property(s: str) -> str:  # property values also reserve : and ,
+        return esc(s).replace(":", "%3A").replace(",", "%2C")
+
     return "\n".join(
-        f"::{f.level} title=prebuttal check ({f.area})::{esc(f.message)}"
+        f"::{f.level} title={esc_property(f'prebuttal check ({f.area})')}::{esc(f.message)}"
         for f in result.errors + result.warnings
     )
 

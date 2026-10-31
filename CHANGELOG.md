@@ -28,7 +28,8 @@ releases (0.2, 0.3, …) are substantial new features.
 ### Changed
 - A custom venue named `cvpr` now has to be renamed (e.g. `cvpr-lab.toml`):
   built-in names can't be shadowed. Archived reports of such a venue still
-  render with their own stored fields.
+  render with their own stored fields; `retry` of such a run says the name is
+  now built in, since the run's review form was the old custom file.
 
 ## [0.5.2] — 2026-10-31
 

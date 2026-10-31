@@ -63,6 +63,12 @@ def venue_for_retry(data: dict) -> Venue:
         live = get_venue(stored.key)
     except VenueError as e:
         raise RetryError(f"custom venue '{stored.key}' is needed to retry: {e}") from e
+    if not live.custom:  # the name became built in after that run (cvpr in 0.5.3)
+        raise RetryError(
+            f"'{stored.key}' is now a built-in venue, so the custom '{stored.key}' venue of "
+            "that run can't be retried — rename your venue file (e.g. "
+            f"{stored.key}-lab.toml) and start a new run with it"
+        )
     from .venues.custom import venue_to_spec
 
     if venue_to_spec(live) != venue_to_spec(stored):

@@ -494,3 +494,6 @@ def test_annotation_messages_are_escaped():
     assert github_annotations(result) == (
         "::warning title=prebuttal check (leftovers)::100%25 done%0Anext line"
     )
+    result = CheckResult(source="p.pdf", kind="pdf")
+    result.add(ERROR, "a: b, c", "m")  # the title is a property: : and , are escaped too
+    assert github_annotations(result) == "::error title=prebuttal check (a%3A b%2C c)::m"
