@@ -30,6 +30,13 @@ releases (0.2, 0.3, …) are substantial new features.
   that would land outside it are refused, symlinks skipped, and the unpacked
   size capped at 512 MB while writing.
 
+### Documentation
+- One-page Simplified and Traditional Chinese READMEs
+  (`README.zh-CN.md`, `README.zh-TW.md`) and landing pages (`/zh-cn/`,
+  `/zh-tw/`), linked from the English ones; the English README remains the
+  full reference. The README and site now describe CVPR, the GitHub Action
+  and .zip sources.
+
 ### Changed
 - A custom venue named `cvpr` now has to be renamed (e.g. `cvpr-lab.toml`):
   built-in names can't be shadowed. Archived reports of such a venue still

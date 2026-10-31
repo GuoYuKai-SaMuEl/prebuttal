@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prebuttal — 在 Reviewer 2 出现之前先回应他</title>
+<meta name="description" content="机器学习论文的投稿前压力测试：三位相互独立的 AI 审稿人加一位领域主席，使用 NeurIPS/ICLR/ICML/ARR/CVPR 的真实审稿表；另有无需模型、免费的直接拒稿（desk reject）检查。">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+  <nav>
+    <div class="wordmark">pre<span>buttal</span></div>
+    <div class="links">
+      <a href="../">English</a>
+      <span class="here">简体中文</span>
+      <a href="../zh-tw/" lang="zh-Hant">繁體中文</a>
+      <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1>在 <em>Reviewer 2</em> 出现之前，先回应他。</h1>
+    <p class="lead">
+      Prebuttal 是机器学习论文的投稿前<strong>压力测试</strong>：三位风格不同、在完全独立的上下文中阅读论文的 AI 审稿人，加上一位领域主席（AC），在真正的审稿人看到稿件之前，先给你一份会议格式的审稿报告。
+    </p>
+    <div class="install">pip install prebuttal</div>
+    <div class="btns">
+      <a class="btn primary" href="../reports/sample.html">▶ 查看示例报告（英文）</a>
+      <a class="btn" href="#check">直接拒稿检查</a>
+      <a class="btn" href="https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.zh-CN.md">中文文档</a>
+    </div>
+  </section>
+
+  <h2>为什么不直接把论文丢给聊天机器人？</h2>
+  <p class="sub">在同一个对话里扮演三位审稿人，意见最后会收敛成一个不痛不痒的折中。</p>
+  <div class="grid">
+    <div class="card">
+      <h3>三位审稿人，互不共享上下文</h3>
+      <p>每位审稿人都是独立的调用或进程，有自己的角色和模型，结论确实会不同；意见分歧（σ）一定会写进报告。</p>
+    </div>
+    <div class="card">
+      <h3>真实的审稿表</h3>
+      <p>NeurIPS 1–6、ICLR 1–10、ICML 1–10、CVPR 1–5，以及 ARR 的
+      Soundness / Excitement / Overall，附官方的评分说明。其他会议或期刊，一个 TOML 文件就能定义。</p>
+    </div>
+    <div class="card">
+      <h3>表格逐格读取</h3>
+      <p>解析 LaTeX，或按坐标从 PDF 提取表格，审稿人引用的是<em>你的</em>“Table 3 第 4 列”，而不是猜出来的数字。</p>
+    </div>
+    <div class="card">
+      <h3>修改清单，不只是分数</h3>
+      <p>AC 把所有意见整理成 must / should / could 的修改清单；改完重跑，<code>prebuttal diff</code> 会告诉你哪些问题还在、哪些已经解决。</p>
+    </div>
+  </div>
+
+  <h2 id="check">投稿前：直接拒稿检查</h2>
+  <p class="sub">无需模型、不花钱、几秒钟：匿名信息泄露、会议的页数限制和必需章节，以及残留的 <code>??</code>、TODO 或隐藏文字。</p>
+  <pre class="term"><span># Overleaf 的 Menu → Download → Source 下载的 .zip 也可以直接检查</span>
+$ prebuttal check paper.pdf --venue cvpr
+$ prebuttal check paper.zip --venue cvpr
+$ prebuttal check ./latex-src/ --venue iclr</pre>
+  <div class="grid two">
+    <div class="card">
+      <h3>匿名</h3>
+      <p>PDF 元数据里的作者姓名、第一页的邮箱、camera-ready 或 <code>[preprint]</code> 版本、致谢部分、自己的 GitHub 链接、“our previous work [12]”这类暴露身份的引用。</p>
+    </div>
+    <div class="card">
+      <h3>格式与残留</h3>
+      <p>正文超过页数限制（包括双栏排版）、缺少 NeurIPS checklist / ICML impact
+      statement / CVPR LLM usage statement / ARR limitations，<code>??</code>、<code>[?]</code>、TODO。LaTeX 项目无需编译；也提供 GitHub Action，每次 push 都检查。</p>
+    </div>
+  </div>
+
+  <h2>用你已有的模型</h2>
+  <p class="sub">启动时自动检测；每份报告都记录了哪个模型写了哪份审稿意见。</p>
+  <table>
+    <tr><th>后端</th><th>费用</th><th>说明</th></tr>
+    <tr><td><code>agent-claude</code> / <code>agent-codex</code></td><td>订阅制，无需 API key</td><td>两者都有时就是跨模型审稿</td></tr>
+    <tr><td><code>api-gemini</code></td><td>免费额度</td><td>最省事的第一个 key</td></tr>
+    <tr><td><code>api-openrouter</code></td><td><code>:free</code> 模型免费</td><td>一个 key，数百个模型</td></tr>
+    <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td>自带 key</td><td>默认使用中档模型</td></tr>
+    <tr><td><code>ollama</code></td><td>免费、本地</td><td>未发表的论文不会离开你的电脑</td></tr>
+    <tr><td><code>relay</code></td><td>免费</td><td>由你、你的 agent 的子代理或任何系统来回答</td></tr>
+  </table>
+  <div class="note">
+    隐私：论文内容会发送给你选择的后端服务商，之后如何处理由该服务商的政策决定，而不是本工具。免费额度通常以你的数据为代价；未发表的论文请先确认条款、改用付费方案，或用 <code>ollama</code>、<code>relay</code> 留在本地。
+  </div>
+  <div class="note">
+    这是压力测试，不是预测：分数尚未校准（与 OpenReview 真实评分的校准结果还没有发布），单次运行的分数波动多半是噪声。工具输出和审稿表都是英文。
+  </div>
+
+  <footer>
+    MIT 许可 · Prebuttal 与 NeurIPS、ICLR、ICML、ARR、CVPR 均无关联 ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">源代码</a><br>
+    本网站使用 <a href="https://www.goatcounter.com/">GoatCounter</a> 统计匿名访问量（不使用 cookie、不收集个人数据）。<code>prebuttal</code> 工具本身不发送任何统计数据。
+  </footer>
+</main>
+<!-- site-analytics -->
+<script data-goatcounter="https://prebuttal.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+<!-- /site-analytics -->
+</body>
+</html>

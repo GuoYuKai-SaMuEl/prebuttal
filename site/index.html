@@ -4,104 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prebuttal — answer Reviewer 2 before Reviewer 2 exists</title>
-<meta name="description" content="A pre-submission stress test for ML papers: three independent AI reviewers plus an area chair, real NeurIPS/ICLR/ICML/ARR review forms, a calibration pipeline against OpenReview.">
-<style>
-  :root {
-    --bg: #ffffff; --bg2: #f6f8fa; --fg: #1f2328; --muted: #59636e;
-    --border: #d1d9e0; --accent: #2ea44f; --accent2: #5087d2;
-    --code-bg: #f0f2f5; --card-bg: #ffffff;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0d1117; --bg2: #161b22; --fg: #e6edf3; --muted: #9198a1;
-      --border: #30363d; --accent: #3fb950; --accent2: #6ca9f0;
-      --code-bg: #1c2129; --card-bg: #161b22;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--fg);
-    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-          "Noto Sans", "PingFang TC", "Microsoft JhengHei", sans-serif;
-  }
-  main { max-width: 920px; margin: 0 auto; padding: 0 24px 80px; }
-  a { color: var(--accent2); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  nav {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 18px 0; border-bottom: 1px solid var(--border);
-  }
-  .wordmark { font-weight: 700; font-size: 18px; color: var(--fg); }
-  .wordmark span { color: var(--accent); }
-  .hero { padding: 64px 0 40px; text-align: center; }
-  .hero h1 { font-size: 40px; line-height: 1.2; margin: 0 0 16px; }
-  .hero h1 em { color: var(--accent); font-style: normal; }
-  .hero p.lead { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 auto 28px; }
-  .install {
-    display: inline-block; background: var(--code-bg); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 18px; font: 14px/1.4 ui-monospace, Consolas, monospace;
-    user-select: all; margin-bottom: 26px;
-  }
-  .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .btn {
-    display: inline-block; padding: 10px 22px; border-radius: 8px; font-weight: 600;
-    border: 1px solid var(--border); color: var(--fg); background: var(--bg2);
-  }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn.primary:hover { text-decoration: none; filter: brightness(1.08); }
-  h2 { font-size: 24px; margin: 56px 0 8px; }
-  .sub { color: var(--muted); margin: 0 0 24px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-  .grid.two { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
-  .card {
-    background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 18px 20px;
-  }
-  .card h3 { margin: 0 0 8px; font-size: 16px; }
-  .card p { margin: 0; color: var(--muted); font-size: 14px; }
-  .paper {
-    display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
-    padding: 22px 24px; margin-bottom: 14px;
-  }
-  .paper .left { max-width: 520px; }
-  .paper h3 { margin: 0 0 6px; }
-  .paper .venue { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
-  .score {
-    text-align: center; min-width: 150px; align-self: center;
-    border-left: 1px solid var(--border); padding-left: 24px;
-  }
-  .score .num { font-size: 34px; font-weight: 700; }
-  .score .cap { color: var(--muted); font-size: 13px; }
-  .score .real { margin-top: 8px; font-size: 13px; color: var(--muted); }
-  table { border-collapse: collapse; width: 100%; font-size: 14px; }
-  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
-  th { color: var(--muted); font-weight: 600; }
-  td code, p code {
-    background: var(--code-bg); border-radius: 5px; padding: 1px 6px;
-    font: 13px ui-monospace, Consolas, monospace;
-  }
-  .term {
-    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 16px 18px; overflow-x: auto; margin: 0 0 20px;
-    font: 13px/1.7 ui-monospace, Consolas, monospace;
-  }
-  .term a, .term span { color: inherit; }
-  .note {
-    border-left: 3px solid var(--accent2); background: var(--bg2);
-    padding: 12px 18px; border-radius: 0 8px 8px 0; font-size: 14px; color: var(--muted);
-    margin: 20px 0;
-  }
-  footer {
-    border-top: 1px solid var(--border); margin-top: 72px; padding-top: 24px;
-    color: var(--muted); font-size: 13px;
-  }
-</style>
+<meta name="description" content="A pre-submission stress test for ML papers: three independent AI reviewers plus an area chair, real NeurIPS/ICLR/ICML/ARR/CVPR review forms, a calibration pipeline against OpenReview.">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
   <nav>
     <div class="wordmark">pre<span>buttal</span></div>
-    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub ↗</a>
+    <div class="links">
+      <span class="here">English</span>
+      <a href="zh-cn/" lang="zh-Hans">简体中文</a>
+      <a href="zh-tw/" lang="zh-Hant">繁體中文</a>
+      <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub ↗</a>
+    </div>
   </nav>
 
   <section class="hero">
@@ -130,9 +45,10 @@
     </div>
     <div class="card">
       <h3>Real review forms</h3>
-      <p>NeurIPS 1–6, ICLR 1–10, ICML 1–10 and ARR Soundness/Excitement/Overall —
-      with the official scale anchors, not invented ones. Another venue? Any form
-      and scale is one TOML file: <code>prebuttal venues new cvpr</code>.</p>
+      <p>NeurIPS 1–6, ICLR 1–10, ICML 1–10, CVPR 1–5 and ARR
+      Soundness/Excitement/Overall — with the official scale anchors, not invented
+      ones. Another venue? Any form and scale is one TOML file:
+      <code>prebuttal venues new aaai</code>.</p>
     </div>
     <div class="card">
       <h3>Cell-accurate ingestion</h3>
@@ -233,9 +149,10 @@ prebuttal check — paper.pdf · ICML rules (8 pages, double-blind, requires Imp
     <div class="card">
       <h3>Format and leftovers</h3>
       <p>Main-text pages over the limit (two-column layouts too), a missing NeurIPS
-      checklist / ICML impact statement / ARR limitations section, <code>??</code>,
-      <code>[?]</code>, TODOs. LaTeX projects are checked without compiling.
-      Exit code 6 drops it into CI.</p>
+      checklist / ICML impact statement / CVPR LLM usage statement / ARR
+      limitations section, <code>??</code>, <code>[?]</code>, TODOs. LaTeX
+      projects — a folder or Overleaf's source <code>.zip</code> — are checked
+      without compiling. A GitHub Action runs it on every push.</p>
     </div>
   </div>
 
@@ -313,7 +230,7 @@ $ prebuttal diff --llm mamba-revision#17 mamba-revision#18
   </div>
 
   <footer>
-    MIT License · Prebuttal is not affiliated with NeurIPS, ICLR, ICML or ARR ·
+    MIT License · Prebuttal is not affiliated with NeurIPS, ICLR, ICML, ARR or CVPR ·
     Reports on this page were generated by Prebuttal from the public arXiv
     versions of the papers · <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">Source</a><br>
     This site counts anonymous page views with <a href="https://www.goatcounter.com/">GoatCounter</a>

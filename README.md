@@ -18,6 +18,8 @@ and an area chair, on the real NeurIPS / ICLR / ICML / ARR / CVPR review forms.
 [Changelog](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CHANGELOG.md) ·
 [Roadmap](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md)
 
+English · [简体中文](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.zh-CN.md) · [繁體中文](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.zh-TW.md)
+
 </div>
 
 ```console
@@ -58,7 +60,7 @@ Report:   prebuttal-reports/globalgate-a-universal/2026-10-27_2228_neurips/repor
   it against the next round.
 - **A desk-reject pre-flight.** `prebuttal check` catches anonymity leaks,
   page-limit overruns, missing required sections and leftover `??` — no
-  model, no cost.
+  model, no cost, also as a GitHub Action.
 - **Zero setup if you have a subscription.** Uses `claude` / `codex` CLIs you
   are already logged into, a free Gemini key, OpenRouter, or a local Ollama —
   and stays honest about which model wrote what.
@@ -192,7 +194,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: GuoYuKai-SaMuEl/prebuttal@v0.5.3
         with:
-          paper: paper/          # the LaTeX folder, a main .tex, or a built PDF
+          paper: paper/          # a LaTeX folder, main .tex or .zip, or a built PDF
           venue: cvpr            # optional: else prebuttal.toml, else neurips
 ```
 
@@ -244,8 +246,8 @@ be the model, not your revision.
 
 ### Projects, reports & history
 
-Each paper gets a **project**, found from its source: the same PDF path,
-LaTeX folder or arXiv id always lands in the same project, even when the title
+Each paper gets a **project**, found from its source: the same PDF or .zip
+path, LaTeX folder or arXiv id always lands in the same project, even when the title
 changes (`--project NAME` picks one; a local folder named like an arXiv id is
 read locally, never swapped for the public version). Every run gets a number
 — `mamba#3` — and its own report folder, so nothing is overwritten:
@@ -473,7 +475,7 @@ passed to agent CLIs, and the agent CLIs get no tool that could read the file.
 ## How it works
 
 ```
-PDF / LaTeX dir / arXiv link
+PDF / LaTeX (folder or .zip) / arXiv link
    ├─ pre-flight check: anonymity, page limit, required sections, leftovers
    └─ ingestion: sections, cell-accurate tables, figure captions, refs
         └─ reviewer pack (budget-aware; tables are never truncated)
@@ -489,7 +491,7 @@ from a terminal, inside any coding agent, or in CI.
 
 | Approach | Form | Venue forms | Calibration | Cross-model | Tables in-pipeline |
 |---|---|---|---|---|---|
-| **Prebuttal** | CLI + agent skill | NeurIPS / ICLR / ICML / ARR + any custom | OpenReview script (results pending) | claude × codex × API × Ollama | cell-by-cell |
+| **Prebuttal** | CLI + agent skill | NeurIPS / ICLR / ICML / ARR / CVPR + any custom | OpenReview script (results pending) | claude × codex × API × Ollama | cell-by-cell |
 | generic "review my paper" prompts / skills | prompt or skill | varies | rarely | single model | via the host model |
 | multi-agent peer-review research code | research code | study-specific | study-specific | sometimes | rarely |
 | paste into a chatbot | chat | ✗ | ✗ | ✗ | ✗ |
@@ -500,9 +502,9 @@ Pre-1.0: patch releases are fixes and small additions, minor releases are
 substantial features. In short (details in
 [ROADMAP.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md)):
 
-1. **0.5 (current) — nothing leaks before submission**: `prebuttal check`,
-   agent CLIs with no tool that can read your keys, `backends` as the one
-   setup view
+1. **0.5 (current) — nothing leaks before submission**: `prebuttal check`
+   (also as a GitHub Action), agent CLIs with no tool that can read your
+   keys, `backends` as the one setup view; CVPR and Overleaf .zip sources
 2. **0.6 — a revision loop you can trust**: repeated reviews, a diff that
    says when a change is within noise, meaning-based matching by default
 3. **0.7 — reach**: more venues, community personas
@@ -551,6 +553,6 @@ Please follow the [Code of Conduct](https://github.com/GuoYuKai-SaMuEl/prebuttal
 ## License
 
 MIT. Prebuttal is an independent project, not affiliated with or endorsed by
-NeurIPS, ICLR, ICML, ACL/ARR or any model provider. Venue names only describe
+NeurIPS, ICLR, ICML, ACL/ARR, CVPR or any model provider. Venue names only describe
 which review form a report follows; the forms are paraphrased summaries of the
 public reviewer guidelines.
