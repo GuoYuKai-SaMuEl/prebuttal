@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..models import StructuredPaper
+from .archive import ArchiveError, unpacked_zip
 from .arxiv import ingest_arxiv, parse_arxiv_id
 from .latex import LatexError, ingest_latex_source
 from .pdf import PDFError, ingest_pdf_bytes
@@ -76,7 +77,14 @@ def _ingest(source: str, figure_images: int) -> StructuredPaper:
         except LatexError as e:
             raise IngestError(f"LaTeX ingestion failed: {e}") from e
 
+    if p.suffix.lower() == ".zip":  # a LaTeX project, e.g. Overleaf's Download Source
+        try:
+            with unpacked_zip(p) as folder:
+                return ingest_latex_source(folder, figure_images=figure_images)
+        except (ArchiveError, LatexError) as e:
+            raise IngestError(f"LaTeX ingestion failed: {e}") from e
+
     raise IngestError(
-        f"unsupported source {s!r} — expected a .pdf file, a LaTeX project directory, "
-        "or an arXiv link/id"
+        f"unsupported source {s!r} — expected a .pdf file, a LaTeX project (folder, "
+        ".tex or .zip), or an arXiv link/id"
     )

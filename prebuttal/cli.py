@@ -1,7 +1,7 @@
 """Prebuttal CLI.
 
 Commands:
-  prebuttal run <paper>       review a PDF / LaTeX project / arXiv link
+  prebuttal run <paper>       review a PDF / LaTeX project (folder or .zip) / arXiv link
   prebuttal retry [run]       re-run only the reviewers that failed, then the AC
   prebuttal check <paper>     desk-reject pre-flight (anonymity, page limit, ??) — no model
   prebuttal projects          list papers (one project per paper, runs grouped)
@@ -113,9 +113,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     # no abbreviations: `--out x` must not silently mean `--out-dir x`
     run = sub.add_parser(
-        "run", help="review a paper (PDF / LaTeX dir / arXiv link)", allow_abbrev=False
+        "run", help="review a paper (PDF / LaTeX dir or .zip / arXiv link)", allow_abbrev=False
     )
-    run.add_argument("paper", help="path to .pdf, LaTeX project dir, or arXiv link/id")
+    run.add_argument(
+        "paper", help="path to .pdf, LaTeX project (dir, .tex or .zip), or arXiv link/id"
+    )
     run.add_argument(
         "--venue",
         default=None,
@@ -183,7 +185,9 @@ def build_parser() -> argparse.ArgumentParser:
         "check",
         help="desk-reject pre-flight: anonymity, page limit, required sections, ?? — no model",
     )
-    check_p.add_argument("paper", help="path to .pdf, LaTeX project dir, or arXiv link/id")
+    check_p.add_argument(
+        "paper", help="path to .pdf, LaTeX project (dir, .tex or .zip), or arXiv link/id"
+    )
     check_p.add_argument(
         "--venue",
         default=None,

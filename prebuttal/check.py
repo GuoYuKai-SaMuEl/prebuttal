@@ -490,7 +490,8 @@ def _latex_citations(result: CheckResult, tex: str, folder: Path) -> None:
 
 
 def check_source(source: str, venue: Venue) -> CheckResult:
-    """Check a PDF file, a LaTeX project (folder or .tex) or an arXiv paper."""
+    """Check a PDF file, a LaTeX project (folder, .tex or .zip) or an arXiv paper."""
+    from .ingestion.archive import ArchiveError, unpacked_zip
     from .ingestion.arxiv import fetch_pdf_bytes, parse_arxiv_id
 
     s = source.strip()
@@ -498,6 +499,14 @@ def check_source(source: str, venue: Venue) -> CheckResult:
     if p.exists():
         if p.is_dir() or p.suffix.lower() == ".tex":
             return check_latex(p, venue.rules)
+        if p.suffix.lower() == ".zip":
+            try:
+                with unpacked_zip(p) as folder:
+                    result = check_latex(folder, venue.rules)
+            except ArchiveError as e:
+                raise CheckError(str(e)) from e
+            result.source = s  # not the temporary folder
+            return result
         try:
             data = p.read_bytes()
         except OSError as e:

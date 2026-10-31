@@ -72,6 +72,7 @@ prebuttal check paper.pdf --venue iclr      # desk-reject pre-flight, seconds, f
 prebuttal run paper.pdf --venue iclr        # the full simulated review
 prebuttal run https://arxiv.org/abs/2510.12345 --venue neurips
 prebuttal run ./latex-src/ --venue acl      # a LaTeX project, no compiling needed
+prebuttal run paper.zip --venue cvpr        # Overleaf: Menu → Download → Source
 ```
 
 Python 3.11+. `prebuttal backends` shows what you can review with; if nothing
@@ -148,6 +149,7 @@ stay local with `ollama` or `relay`. More in [Privacy & data custody](#privacy--
 ```bash
 prebuttal check paper.pdf --venue iclr      # the PDF you will upload
 prebuttal check ./latex-src/ --venue iclr   # the LaTeX project, without compiling
+prebuttal check paper.zip --venue iclr      # the same, as Overleaf's source .zip
 ```
 
 A deterministic pre-flight against what gets papers desk-rejected — no model,

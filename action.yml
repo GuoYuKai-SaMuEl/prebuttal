@@ -9,7 +9,7 @@ branding:
 
 inputs:
   paper:
-    description: The PDF, or the LaTeX project folder / main .tex, to check.
+    description: The PDF, or the LaTeX project (folder, main .tex or .zip), to check.
     required: true
   venue:
     description: >-

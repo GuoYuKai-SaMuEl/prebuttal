@@ -24,6 +24,11 @@ releases (0.2, 0.3, …) are substantial new features.
   shows every finding as an annotation plus the full check in the job
   summary. Outside the Action, `check` writes the annotations whenever it
   runs on GitHub Actions.
+- **A LaTeX project as a .zip** — Overleaf's Menu → Download → Source — for
+  `run` and `check` alike, flat or with one top folder. It is unpacked into
+  a temporary folder that is removed afterwards, and never trusted: members
+  that would land outside it are refused, symlinks skipped, and the unpacked
+  size capped at 512 MB while writing.
 
 ### Changed
 - A custom venue named `cvpr` now has to be renamed (e.g. `cvpr-lab.toml`):
