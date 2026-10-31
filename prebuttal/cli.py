@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -292,7 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
     ven_p = sub.add_parser("venues", help="list review forms; add your own venue")
     ven_sub = ven_p.add_subparsers(dest="venues_cmd", metavar="[new|show]")
     ven_new = ven_sub.add_parser("new", help="write a venue template to edit")
-    ven_new.add_argument("key", help="short name, e.g. cvpr or lab-review")
+    ven_new.add_argument("key", help="short name, e.g. aaai or lab-review")
     ven_new.add_argument(
         "--from", dest="base", default=None, choices=VENUE_KEYS, help="start from a built-in venue"
     )
@@ -362,7 +363,7 @@ def cmd_backends(args) -> int:
 
 
 def cmd_check(args) -> int:
-    from .check import CheckError, check_source, render_check
+    from .check import CheckError, check_source, github_annotations, render_check
 
     try:
         # only the venue is read from a found prebuttal.toml: nothing runs, nothing is sent
@@ -374,6 +375,8 @@ def cmd_check(args) -> int:
     except CheckError as e:
         return _fail(str(e))
     print(render_check(result, venue))
+    if os.environ.get("GITHUB_ACTIONS") == "true" and result.findings:
+        print(github_annotations(result))  # annotations on the workflow run and the PR
     return EXIT_CHECK_FAILED if result.errors else EXIT_OK
 
 
@@ -747,7 +750,7 @@ def cmd_venues(args) -> int:
     if args.venues_cmd == "new":
         key = args.key.strip().lower()
         if not custom.KEY_RE.match(key):
-            return _fail("use a short lowercase name like 'cvpr' or 'lab-review'")
+            return _fail("use a short lowercase name like 'aaai' or 'lab-review'")
         if key in VENUES:
             return _fail(
                 f"'{key}' is built in — pick another name "
@@ -792,7 +795,7 @@ def cmd_venues(args) -> int:
         else:
             print(f"  {cv.key:<12} {cv.name:<22} {_scale_summary(cv)}  ({path})")
     print("\nSearched: " + " · ".join(str(d) for d in custom.search_dirs()))
-    print("Add one:  prebuttal venues new cvpr   (or --from icml to copy a built-in form)")
+    print("Add one:  prebuttal venues new aaai   (or --from icml to copy a built-in form)")
     return 0
 
 

@@ -87,10 +87,11 @@ Done when: on Mamba v1 → v2 the tool itself reports "no measurable change".
 
 ## 0.7 — reach
 
-- More venue forms (CVPR, AAAI, ARR, TMLR, COLM, KDD), each linked to its
-  official source; community personas.
-- A GitHub Action — CI for papers: `prebuttal check` on every push to a
-  LaTeX repo, an optional full review with the user's own secrets.
+- More venue forms (AAAI, TMLR, COLM, KDD), each linked to its official
+  source; community personas. (CVPR shipped early, in 0.5.3, for its
+  November deadline.)
+- The GitHub Action: `prebuttal check` on every push shipped in 0.5.3;
+  still to come, an optional full review with the user's own secrets.
 - Maybe: a browser-only quick scan on GitHub Pages (drop a PDF, bring your
   own key, no server — we stay a non-custodian). Only if usage asks for it.
 

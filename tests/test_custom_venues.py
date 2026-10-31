@@ -123,10 +123,10 @@ def test_template_from_builtin_round_trips(tmp_path, base):
 
 
 def test_blank_template_is_valid(tmp_path):
-    toml, form = render_template("cvpr")
-    (tmp_path / "cvpr.toml").write_text(toml, encoding="utf-8")
-    (tmp_path / "cvpr.md").write_text(form, encoding="utf-8")
-    assert load_venue_file(tmp_path / "cvpr.toml").rating_field.max == 10
+    toml, form = render_template("aaai")
+    (tmp_path / "aaai.toml").write_text(toml, encoding="utf-8")
+    (tmp_path / "aaai.md").write_text(form, encoding="utf-8")
+    assert load_venue_file(tmp_path / "aaai.toml").rating_field.max == 10
 
 
 def test_config_venue_path_is_relative_to_config(tmp_path, monkeypatch):
@@ -136,23 +136,23 @@ def test_config_venue_path_is_relative_to_config(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path.parent)
     cfg = load_config(str(cfg_path))
     assert get_venue(cfg.venue).key == "lab"
-    with pytest.raises(ConfigError, match="unknown venue 'cvpr'"):
-        apply_overrides(cfg, venue="cvpr")
+    with pytest.raises(ConfigError, match="unknown venue 'aaai'"):
+        apply_overrides(cfg, venue="aaai")
 
 
 def test_cli_new_list_show(tmp_path, monkeypatch, capsys, isolated_prebuttal_home):
     monkeypatch.chdir(tmp_path)
-    assert cli.main(["venues", "new", "cvpr"]) == 0
-    assert (isolated_prebuttal_home / "venues" / "cvpr.toml").is_file()
+    assert cli.main(["venues", "new", "aaai"]) == 0
+    assert (isolated_prebuttal_home / "venues" / "aaai.toml").is_file()
     assert cli.main(["venues", "new", "icml-2027", "--from", "icml", "--here"]) == 0
     assert (tmp_path / ".prebuttal" / "venues" / "icml-2027.md").is_file()
     assert cli.main(["venues", "new", "icml"]) == cli.EXIT_USAGE  # built in
-    assert cli.main(["venues", "new", "cvpr"]) == cli.EXIT_USAGE  # exists
+    assert cli.main(["venues", "new", "aaai"]) == cli.EXIT_USAGE  # exists
     (isolated_prebuttal_home / "venues" / "broken.toml").write_text("name = 1\n", encoding="utf-8")
     capsys.readouterr()
     assert cli.main(["venues"]) == 0
     out = capsys.readouterr().out
-    assert "icml-2027" in out and "cvpr" in out and "broken" in out and "INVALID" in out
+    assert "icml-2027" in out and "aaai" in out and "broken" in out and "INVALID" in out
     assert cli.main(["venues", "show", "icml-2027"]) == 0
     assert "Marginally above publication threshold" in capsys.readouterr().out
 
@@ -185,3 +185,7 @@ def test_run_with_custom_venue_and_render_after_file_is_gone(
     venue = venue_from_report(data)
     html = render_share_html(report_from_dict(data), venue, "https://x")
     assert "Lab Review" in html
+
+    # a custom venue whose name was built in later (cvpr in 0.5.3) keeps its own fields
+    data["venue"]["key"] = "cvpr"
+    assert venue_from_report(data).rating_field.max == 10

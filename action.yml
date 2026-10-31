@@ -1,0 +1,57 @@
+name: prebuttal check
+description: >-
+  Desk-reject pre-flight for ML papers: anonymity, page limit, required
+  sections, unresolved ?? and TODOs. Deterministic: no LLM, no API key.
+author: GuoYuKai-SaMuEl
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  paper:
+    description: The PDF, or the LaTeX project folder / main .tex, to check.
+    required: true
+  venue:
+    description: >-
+      neurips, iclr, icml, acl, cvpr, or a custom venue file. Default: the
+      venue in the repository's prebuttal.toml, else neurips.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+        update-environment: false
+      id: python
+    - name: Install prebuttal
+      shell: bash
+      env:
+        PYTHON: ${{ steps.python.outputs.python-path }}
+      # the prebuttal source at the ref this action was used at (@v0.5.3 → 0.5.3),
+      # in its own venv so the workflow's own Python stays untouched
+      run: |
+        "$PYTHON" -m venv "$RUNNER_TEMP/prebuttal-venv"
+        bin="$RUNNER_TEMP/prebuttal-venv/bin"
+        [ -d "$bin" ] || bin="$RUNNER_TEMP/prebuttal-venv/Scripts"
+        "$bin/python" -m pip install --quiet --disable-pip-version-check "$GITHUB_ACTION_PATH"
+        echo "PREBUTTAL_BIN=$bin" >> "$GITHUB_ENV"
+    - name: prebuttal check
+      shell: bash
+      env:
+        PAPER: ${{ inputs.paper }}
+        VENUE: ${{ inputs.venue }}
+        PYTHONUTF8: "1"
+      run: |
+        args=(check "$PAPER")
+        [ -z "$VENUE" ] || args+=(--venue "$VENUE")
+        out="$RUNNER_TEMP/prebuttal-check.txt"
+        set +e
+        "$PREBUTTAL_BIN/prebuttal" "${args[@]}" | tee "$out"
+        rc=${PIPESTATUS[0]}
+        set -e
+        { echo '### prebuttal check'; echo '```'; grep -v '^::' "$out"; echo '```'; } \
+          >> "$GITHUB_STEP_SUMMARY"
+        exit "$rc"

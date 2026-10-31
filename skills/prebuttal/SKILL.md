@@ -3,7 +3,7 @@ name: prebuttal
 description: >-
   Pre-submission AI review stress test for machine-learning papers. Use when the
   user mentions paper review, peer review, referee report, simulate review,
-  review my paper, prebuttal, reviewer 2, NeurIPS / ICLR / ICML / ACL review,
+  review my paper, prebuttal, reviewer 2, NeurIPS / ICLR / ICML / ACL / CVPR review,
   paper feedback, or wants to know how reviewers will judge their submission
   before the conference deadline.
 ---
@@ -21,7 +21,7 @@ exactly what this tool exists to avoid.
 
 - "Review my paper / draft / preprint"
 - "What would reviewers say about this?"
-- "Simulate a NeurIPS/ICLR/ICML/ACL review"
+- "Simulate a NeurIPS/ICLR/ICML/ACL/CVPR review"
 - "Give me a referee report before I submit"
 - "Am I ready for the rebuttal / submission deadline?"
 
@@ -31,7 +31,7 @@ exactly what this tool exists to avoid.
    If missing: `pip install prebuttal` (or `pipx install prebuttal`; `uvx prebuttal ...` for a one-shot run).
 2. Identify the paper source and target venue:
    - source: a PDF path, a LaTeX project directory, or an arXiv link/id
-   - venue: `neurips` | `iclr` | `icml` | `acl` (ask if unclear; default neurips).
+   - venue: `neurips` | `iclr` | `icml` | `acl` | `cvpr` (ask if unclear; default neurips).
      Other venues: `prebuttal venues` lists custom ones; `prebuttal venues new <name>`
      writes a template the user fills with the venue's form and scale.
 3. Run:
@@ -55,7 +55,7 @@ exactly what this tool exists to avoid.
 When the user is about to submit ("is my paper ready?", "check anonymity",
 "am I over the page limit?"), run `prebuttal check <paper> --venue <venue>` — no model, no
 cost, seconds. It checks anonymity, the venue's page limit and required
-sections (NeurIPS checklist, ICML impact statement, ARR limitations), and
+sections (NeurIPS checklist, ICML impact statement, CVPR LLM usage statement, ARR limitations), and
 leftovers (`??`, `[?]`, TODO, hidden text). Exit code 6 = something can get
 the paper desk-rejected; present those `[x]` lines first, then the `[!]`
 warnings. Check the PDF they will upload (a LaTeX folder is checked without

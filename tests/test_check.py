@@ -268,6 +268,36 @@ def test_neurips_nonanonymous_option_is_flagged(tmp_path):
     assert any("nonanonymous" in f.message and f.level == ERROR for f in result.findings)
 
 
+@pytest.mark.parametrize(
+    "load, camera_ready",
+    [
+        (r"\usepackage[review]{cvpr}", False),
+        (r"\usepackage[rebuttal]{cvpr}", False),
+        (r"\usepackage{cvpr}", True),
+        (r"\usepackage[pagenumbers]{cvpr}", True),
+        (r"% \usepackage{cvpr}", False),
+    ],
+)
+def test_cvpr_camera_ready_build_is_flagged(tmp_path, load, camera_ready):
+    tex = MAIN_TEX.replace(r"\usepackage[final]{neurips_2026}", load)
+    (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
+    result = check_latex(tmp_path, get_venue("cvpr").rules)
+    flagged = any("camera-ready" in f.message for f in result.errors)
+    assert flagged is camera_ready
+
+
+def test_cvpr_requires_the_llm_usage_statement():
+    rules = get_venue("cvpr").rules
+    missing = make_paper([page1(), body(30), [(80, "References", 12)]])
+    assert any("LLM Usage Statement" in f.message for f in check_pdf_bytes(missing, rules).errors)
+    # the statement and the references may run past the eight pages
+    pages = [page1(), *[body(30)] * 7, [(80, "LLM Usage Statement", 12), *body(5, 100)]]
+    pages.append([(80, "References", 12), *body(5, 100)])
+    result = check_pdf_bytes(make_paper(pages), rules)
+    assert result.errors == []
+    assert "main text 8 of 8 pages" in result.passed
+
+
 def test_commented_out_switch_is_not_flagged(tmp_path):
     tex = MAIN_TEX.replace(r"\usepackage[final]{neurips_2026}", "")
     (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
@@ -434,3 +464,27 @@ def test_stored_keys_load_only_for_commands_that_call_models(
     cfg_path.write_text(FAKE_TOML, encoding="utf-8")
     cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
     assert "using stored keys: GEMINI_API_KEY" in capsys.readouterr().err
+
+
+def test_check_annotates_findings_on_github_actions(tmp_path, monkeypatch, capsys):
+    """In a GitHub workflow the findings also become annotations on the run / PR."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "p.pdf").write_bytes(make_paper([page1(extra=[(118, "a@b.org", 9)])]))
+    assert cli.main(["check", "p.pdf", "--venue", "iclr"]) == cli.EXIT_CHECK_FAILED
+    assert "::error" not in capsys.readouterr().out  # nothing extra in a terminal
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert cli.main(["check", "p.pdf", "--venue", "iclr"]) == cli.EXIT_CHECK_FAILED
+    lines = [x for x in capsys.readouterr().out.splitlines() if x.startswith("::")]
+    assert lines and lines[0].startswith("::error title=prebuttal check (anonymity)::")
+    assert "a@b.org" in lines[0]
+
+
+def test_annotation_messages_are_escaped():
+    from prebuttal.check import CheckResult, github_annotations
+
+    result = CheckResult(source="p.pdf", kind="pdf")
+    result.add(WARNING, "leftovers", "100% done\nnext line")
+    assert github_annotations(result) == (
+        "::warning title=prebuttal check (leftovers)::100%25 done%0Anext line"
+    )

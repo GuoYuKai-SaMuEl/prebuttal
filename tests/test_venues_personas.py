@@ -4,8 +4,8 @@ from prebuttal.personas import available_personas, load_persona
 from prebuttal.venues import VENUES, get_venue
 
 
-def test_all_four_venues():
-    assert set(VENUES) == {"neurips", "iclr", "icml", "acl"}
+def test_all_built_in_venues():
+    assert set(VENUES) == {"neurips", "iclr", "icml", "acl", "cvpr"}
     for _key, venue in VENUES.items():
         assert venue.rating_field.max >= 5
         assert venue.confidence_key is not None
@@ -32,7 +32,7 @@ def test_rating_scales():
 
 def test_get_venue_unknown():
     with pytest.raises(KeyError):
-        get_venue("cvpr")
+        get_venue("aaai")
 
 
 def test_personas():

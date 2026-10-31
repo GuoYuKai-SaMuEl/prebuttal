@@ -44,7 +44,7 @@ DEFAULT_CONFIG_TOML = """\
 # unpublished work, use `ollama` (local) or `relay` (you pick the responder).
 
 [default]
-venue = "iclr"          # neurips | iclr | icml | acl, a custom venue name, or a
+venue = "iclr"          # neurips | iclr | icml | acl | cvpr, a custom venue, or a
                         # venue .toml path (relative to this file) — `prebuttal venues`
 seed = 42               # reproducibility: recorded in every report
 budget_chars = 120000   # max chars of the reviewer pack (tables always kept)

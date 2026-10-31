@@ -311,7 +311,43 @@ ARR = Venue(
     ],
 )
 
-VENUES: dict[str, Venue] = {v.key: v for v in (NEURIPS, ICLR, ICML, ARR)}
+_CVPR_RATING = {
+    "1": "Reject",
+    "2": "Weak reject",
+    "3": "Borderline",
+    "4": "Weak accept",
+    "5": "Strong accept",
+}
+
+CVPR = Venue(
+    key="cvpr",
+    name="CVPR",
+    rating_key="rating",
+    confidence_key="confidence",
+    form_file="cvpr.md",
+    rules=CheckRules(
+        page_limit=8,
+        # only references and the LLM statement may run past the 8 pages
+        uncounted=("LLM Usage Statement", "References"),
+        required_sections=("LLM Usage Statement",),
+        # [review] is the submission build; no option or [pagenumbers] is camera-ready
+        final_latex=(
+            r"^[^%]*\\usepackage\s*(?:\[(?![^\]]*\b(?:review|rebuttal)\b)[^\]]*\])?\s*\{cvpr\}",
+        ),
+        source="https://cvpr.thecvf.com/Conferences/2027/AuthorGuidelines",
+    ),
+    fields=[
+        _text("summary", "Summary"),
+        _list("strengths", "Strengths"),
+        _list("weaknesses", "Weaknesses"),
+        _list("suggestions", "Suggestions", required=False),
+        _score("rating", "Rating", 5, _CVPR_RATING),
+        _text("justification", "Justification for the rating"),
+        _score("confidence", "Confidence", 5, _CONFIDENCE_5),
+    ],
+)
+
+VENUES: dict[str, Venue] = {v.key: v for v in (NEURIPS, ICLR, ICML, ARR, CVPR)}
 VENUE_KEYS = list(VENUES)
 
 
@@ -349,9 +385,8 @@ def venue_from_report(d: dict) -> Venue:
 
     v = d.get("venue")
     key = (v.get("key", "") if isinstance(v, dict) else str(v or "")).lower()
-    if key in VENUES:
-        return VENUES[key]
     spec = v.get("definition") if isinstance(v, dict) else None
+    # a stored definition wins: a custom venue may share a name built in later (cvpr)
     if isinstance(spec, dict):
         # the form text is not stored: it is only needed to run a review
         return custom.venue_from_spec(key, spec, form="(review form not stored in the report)")

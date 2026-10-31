@@ -544,6 +544,18 @@ def render_check(result: CheckResult, venue: Venue) -> str:
     return "\n".join(out)
 
 
+def github_annotations(result: CheckResult) -> str:
+    """Findings as GitHub Actions workflow commands (shown on the run and the PR)."""
+
+    def esc(s: str) -> str:
+        return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+    return "\n".join(
+        f"::{f.level} title=prebuttal check ({f.area})::{esc(f.message)}"
+        for f in result.errors + result.warnings
+    )
+
+
 def preflight_warnings(result: CheckResult) -> list[str]:
     """Findings as report warnings, for `run` (errors first)."""
     ordered = result.errors + result.warnings

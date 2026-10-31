@@ -139,3 +139,29 @@ jobs:
           assert "Rating" in get_venue("iclr").form_text()
           print("package data OK")
           EOF
+
+  action:
+    name: GitHub Action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - name: A clean paper passes
+        uses: ./
+        with:
+          paper: examples/weak-paper
+          venue: iclr
+      - name: A paper with an unresolved reference fails
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          paper: examples/demo-paper
+          venue: iclr
+      - name: Expect the failure
+        shell: bash
+        run: test "${{ steps.broken.outcome }}" = failure

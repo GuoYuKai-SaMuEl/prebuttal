@@ -8,8 +8,8 @@ Looked up by name in, first to last::
 or used directly as ``--venue path/to/venue.toml``.  ``prebuttal venues new``
 writes a commented template.  A file looks like::
 
-    name = "CVPR 2027"
-    form = "cvpr.md"              # review-form text, relative to this file
+    name = "AAAI 2027"
+    form = "aaai.md"              # review-form text, relative to this file
     rating = "rating"             # which score is the overall rating
     confidence = "confidence"     # optional
 
@@ -84,7 +84,7 @@ def load_venue_file(path: str | Path) -> Venue:
     key = path.stem.lower()
     if not KEY_RE.match(key):
         raise VenueError(
-            f"{path}: file name must be a short lowercase key like 'cvpr.toml' or 'lab-review.toml'"
+            f"{path}: file name must be a short lowercase key like 'aaai.toml' or 'lab-review.toml'"
         )
     if key in VENUES:
         raise VenueError(

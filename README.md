@@ -5,7 +5,7 @@
 **Answer Reviewer 2 before Reviewer 2 exists.**
 
 A pre-submission stress test for ML papers: three independent AI reviewers
-and an area chair, on the real NeurIPS / ICLR / ICML / ARR review forms.
+and an area chair, on the real NeurIPS / ICLR / ICML / ARR / CVPR review forms.
 
 [![PyPI](https://img.shields.io/pypi/v/prebuttal.svg)](https://pypi.org/project/prebuttal/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/pyproject.toml)
@@ -48,7 +48,7 @@ Report:   prebuttal-reports/globalgate-a-universal/2026-10-27_2228_neurips/repor
 - **Three reviewers, zero shared context.** Each runs as its own call or
   process — optionally on different models (Claude × Codex × Gemini × …) — so
   verdicts genuinely differ, and the disagreement is always reported.
-- **Real review forms.** NeurIPS 1–6, ICLR 1–10, ICML 1–10, ARR
+- **Real review forms.** NeurIPS 1–6, ICLR 1–10, ICML 1–10, CVPR 1–5, ARR
   Soundness/Excitement/Overall with the official anchors; any other venue is
   one TOML file.
 - **Your tables, cell by cell.** LaTeX and PDF ingestion keeps every number,
@@ -158,8 +158,8 @@ no cost, a few seconds:
   acknowledgements section, links to your own repository, "our previous
   work [12]".
 - **Format** — main-text pages over the venue's limit (two-column layouts
-  included), a missing NeurIPS checklist / ICML impact statement / ARR
-  limitations section.
+  included), a missing NeurIPS checklist / ICML impact statement / CVPR LLM
+  usage statement / ARR limitations section.
 - **Leftovers** — `??` references, `[?]` citations, TODOs, and text hidden
   from human readers.
 
@@ -173,6 +173,30 @@ from, so confirm against this year's CFP.
 `prebuttal run` performs the same check on your own draft (a local PDF or
 LaTeX project — not on arXiv papers, which are public and camera-ready) and
 lists what it found in the report's notes.
+
+### On every push: the GitHub Action
+
+For a paper kept in a GitHub repository, the check runs on every push and
+pull request. It needs no secrets: nothing is sent anywhere.
+
+```yaml
+# .github/workflows/paper.yml
+name: Paper
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: GuoYuKai-SaMuEl/prebuttal@v0.5.3
+        with:
+          paper: paper/          # the LaTeX folder, a main .tex, or a built PDF
+          venue: cvpr            # optional: else prebuttal.toml, else neurips
+```
+
+The job fails on anything that can get the paper desk-rejected; every
+finding is also an annotation on the run and the pull request, and the full
+check is in the job summary.
 
 ## The reviewers
 
@@ -258,21 +282,21 @@ where you want them: `--out-dir`, an `[output]` section in `prebuttal.toml`
 
 ## Your own venue
 
-Built in: `neurips`, `iclr`, `icml`, `acl`. Anything else — CVPR, AAAI, a
+Built in: `neurips`, `iclr`, `icml`, `acl`, `cvpr`. Anything else — AAAI, KDD, a
 journal, this year's revised form, your lab's mock review — is one TOML file
 plus the form text:
 
 ```bash
-prebuttal venues new cvpr                          # template in ~/.prebuttal/venues/
+prebuttal venues new aaai                          # template in ~/.prebuttal/venues/
 prebuttal venues new icml-2027 --from icml --here  # copy a built-in, project-local
-prebuttal venues show cvpr                         # what reviewers will see
-prebuttal run paper.pdf --venue cvpr               # or --venue path/to/venue.toml
+prebuttal venues show aaai                         # what reviewers will see
+prebuttal run paper.pdf --venue aaai               # or --venue path/to/venue.toml
 ```
 
 ```toml
-# cvpr.toml
-name = "CVPR 2027"
-form = "cvpr.md"          # the reviewer guidelines, shown to reviewers verbatim
+# aaai.toml
+name = "AAAI 2027"
+form = "aaai.md"          # the reviewer guidelines, shown to reviewers verbatim
 rating = "rating"         # which score is the overall recommendation
 
 [[fields]]
@@ -479,7 +503,7 @@ substantial features. In short (details in
    setup view
 2. **0.6 — a revision loop you can trust**: repeated reviews, a diff that
    says when a change is within noise, meaning-based matching by default
-3. **0.7 — reach**: more venues, community personas, a GitHub Action for papers
+3. **0.7 — reach**: more venues, community personas
 4. **Separate track** — calibration against real OpenReview outcomes
 
 ## Contributing

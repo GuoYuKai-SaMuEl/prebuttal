@@ -74,12 +74,12 @@ out = 10.0
 
 def test_invalid_venue_rejected(tmp_path):
     f = tmp_path / "prebuttal.toml"
-    f.write_text('[default]\nvenue = "cvpr"\n', encoding="utf-8")
+    f.write_text('[default]\nvenue = "aaai"\n', encoding="utf-8")
     try:
         load_config(f)
         raise AssertionError("should raise")
     except ConfigError as e:
-        assert "cvpr" in str(e)
+        assert "aaai" in str(e)
 
 
 def test_duplicate_reviewer_id_rejected(tmp_path):

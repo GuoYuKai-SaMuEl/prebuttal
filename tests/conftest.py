@@ -23,7 +23,7 @@ def isolated_prebuttal_home(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def neutral_host_env(monkeypatch):
     """Same results whether the suite runs in CI, a terminal or a coding agent."""
-    for var in ("PREBUTTAL_BACKEND", "CLAUDECODE", "GEMINI_CLI"):
+    for var in ("PREBUTTAL_BACKEND", "CLAUDECODE", "GEMINI_CLI", "GITHUB_ACTIONS"):
         monkeypatch.delenv(var, raising=False)
 
 

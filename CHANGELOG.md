@@ -10,6 +10,26 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Added
+- **CVPR** as a built-in venue (`--venue cvpr`), for the CVPR 2027 deadline
+  (16 November 2026). The recommendation scale (Reject → Strong accept, 1–5)
+  and the fields follow the official reviewer training material, since CVPR
+  does not publish its OpenReview form. `check` holds a paper to the 2027
+  author guidelines: 8 pages, the LLM Usage Statement required (it and the
+  references may run past the limit), and `\usepackage{cvpr}` without
+  `[review]` flagged as a camera-ready build.
+- **A GitHub Action** for `prebuttal check` (`uses:
+  GuoYuKai-SaMuEl/prebuttal@v0.5.3`): runs on every push to a paper's
+  repository, needs no secrets, fails the job on desk-reject problems, and
+  shows every finding as an annotation plus the full check in the job
+  summary. Outside the Action, `check` writes the annotations whenever it
+  runs on GitHub Actions.
+
+### Changed
+- A custom venue named `cvpr` now has to be renamed (e.g. `cvpr-lab.toml`):
+  built-in names can't be shadowed. Archived reports of such a venue still
+  render with their own stored fields.
+
 ## [0.5.2] — 2026-10-31
 
 ### Fixed
