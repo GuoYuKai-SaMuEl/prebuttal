@@ -35,14 +35,13 @@ runs:
       # once per job, however many papers the job checks
       run: |
         venv="$RUNNER_TEMP/prebuttal-venv"
-        if [ ! -d "$venv" ]; then
-          "$PYTHON" -m venv "$venv"
-          bin="$venv/bin"
-          [ -d "$bin" ] || bin="$venv/Scripts"
-          "$bin/python" -m pip install --quiet --disable-pip-version-check "$GITHUB_ACTION_PATH"
-        fi
+        [ -d "$venv" ] || "$PYTHON" -m venv "$venv"
         bin="$venv/bin"
         [ -d "$bin" ] || bin="$venv/Scripts"
+        # the executable, not the folder: an earlier install may have failed halfway
+        if [ ! -e "$bin/prebuttal" ] && [ ! -e "$bin/prebuttal.exe" ]; then
+          "$bin/python" -m pip install --quiet --disable-pip-version-check "$GITHUB_ACTION_PATH"
+        fi
         echo "PREBUTTAL_BIN=$bin" >> "$GITHUB_ENV"
     - name: prebuttal check
       shell: bash
