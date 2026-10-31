@@ -56,7 +56,7 @@ LaTeX 项目无需编译即可检查（页数限制需要 PDF）。发现可能�
 | 角色 | 风格 |
 |---|---|
 | R1 `senior_kind` | 资深、建设性，关注核心贡献和主要问题 |
-| R2 `adversarial` | 传说中的 Reviewer 2：动机、baseline、创新性、过度声称 |
+| R2 `adversarial` | 传说中的 Reviewer 2：动机、baseline、创新性、夸大结论 |
 | R3 `detail_obsessive` | 逐格看表格：统计、消融实验、可复现性 |
 | AC `area_chair` | 汇总意见、裁决分歧、估计最终分数、写修改清单 |
 
@@ -86,6 +86,6 @@ LaTeX 项目无需编译即可检查（页数限制需要 PDF）。发现可能�
 
 ## 更多
 
-[完整英文文档](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.md)：配置文件、自定义会议、推理强度（effort）、让审稿人看图、运行记录与项目管理、在 coding agent 中使用、校准脚本。
+[完整英文文档](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.md)：配置文件、自定义会议、推理强度（effort）、让审稿人看图、运行记录与项目、在 coding agent 中使用、校准脚本。
 
 MIT 许可。Prebuttal 是独立项目，与 NeurIPS、ICLR、ICML、ACL/ARR、CVPR 或任何模型服务商均无关联。

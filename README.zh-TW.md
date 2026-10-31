@@ -87,6 +87,6 @@ LaTeX 專案不需編譯即可檢查（頁數上限需要 PDF）。找到可能�
 
 ## 更多
 
-[完整英文說明](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.md)：設定檔、自訂會議、推理強度（effort）、讓審稿人看圖、執行紀錄與專案管理、在 coding agent 裡使用、校準腳本。
+[完整英文說明](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.md)：設定檔、自訂會議、推理強度（effort）、讓審稿人看圖、執行紀錄與專案、在 coding agent 裡使用、校準腳本。
 
 MIT 授權。Prebuttal 是獨立專案，與 NeurIPS、ICLR、ICML、ACL/ARR、CVPR 或任何模型供應商均無關聯。

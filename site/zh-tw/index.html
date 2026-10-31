@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prebuttal — 在 Reviewer 2 出現之前先回答他</title>
 <meta name="description" content="機器學習論文的投稿前壓力測試：三位互相獨立的 AI 審稿人加上一位領域主席，使用 NeurIPS/ICLR/ICML/ARR/CVPR 的真實審稿表單；另有不需模型、免費的直接退稿（desk reject）檢查。">
+<link rel="alternate" hreflang="en" href="https://guoyukai-samuel.github.io/prebuttal/">
+<link rel="alternate" hreflang="zh-Hans" href="https://guoyukai-samuel.github.io/prebuttal/zh-cn/">
+<link rel="alternate" hreflang="zh-Hant" href="https://guoyukai-samuel.github.io/prebuttal/zh-tw/">
+<link rel="alternate" hreflang="x-default" href="https://guoyukai-samuel.github.io/prebuttal/">
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -37,7 +41,7 @@
   <div class="grid">
     <div class="card">
       <h3>三位審稿人，互不共享情境</h3>
-      <p>每位審稿人都是獨立的呼叫或行程，有自己的角色與模型，結論真的會不同；意見分歧（σ）一定會列在報告裡。</p>
+      <p>每位審稿人都是獨立的呼叫或處理程序，有自己的角色與模型，結論真的會不同；意見分歧（σ）一定會列在報告裡。</p>
     </div>
     <div class="card">
       <h3>真實的審稿表單</h3>
@@ -84,7 +88,7 @@ $ prebuttal check ./latex-src/ --venue iclr</pre>
     <tr><td><code>relay</code></td><td>免費</td><td>由你、你的 agent 的子代理或任何系統來回答</td></tr>
   </table>
   <div class="note">
-    隱私：論文內容會送到你選的後端供應商，之後怎麼處理由該供應商的政策決定，不是本工具。免費額度通常以你的資料作為代價；未發表的論文請確認條款、改用付費方案，或用 <code>ollama</code>、<code>relay</code> 留在本機。
+    隱私：論文內容會送到你選的後端供應商，之後怎麼處理由該供應商的條款決定，不是本工具。免費額度通常以你的資料作為代價；未發表的論文請確認條款、改用付費方案，或用 <code>ollama</code>、<code>relay</code> 留在本機。
   </div>
   <div class="note">
     這是壓力測試，不是預言：分數尚未經過校準（與 OpenReview 真實評分的校準結果還沒發表），單次執行的分數變動多半是雜訊。工具輸出與審稿表單都是英文。
