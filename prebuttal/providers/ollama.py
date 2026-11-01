@@ -34,7 +34,8 @@ def ollama_base_url() -> str:
     )
 
 
-def _tags(base: str) -> list[dict]:
+def ollama_tags(base: str) -> list[dict]:
+    """Installed models as /api/tags lists them; [] when Ollama isn't reachable."""
     try:
         r = httpx.get(f"{base}/api/tags", timeout=2.5)
         r.raise_for_status()
@@ -44,7 +45,7 @@ def _tags(base: str) -> list[dict]:
 
 
 def ollama_models(base_url: str | None = None) -> list[str]:
-    return [m["name"] for m in _tags(base_url or ollama_base_url())]
+    return [m["name"] for m in ollama_tags(base_url or ollama_base_url())]
 
 
 def _looks_like_embedding(tag: dict) -> bool:
@@ -65,11 +66,13 @@ def _can_chat(base: str, name: str) -> bool:
     return not isinstance(caps, list) or "completion" in caps
 
 
-def pick_ollama_model(base_url: str | None = None) -> str:
+def pick_ollama_model(base_url: str | None = None, tags: list[dict] | None = None) -> str:
     """The installed model a review runs on when none is configured: the first
-    in Ollama's list that can chat, "" when there is none."""
+    in Ollama's list that can chat, "" when there is none. Pass ``tags`` from
+    an earlier ollama_tags() to skip a second listing."""
     base = base_url or ollama_base_url()
-    candidates = [t["name"] for t in _tags(base) if not _looks_like_embedding(t)]
+    tags = ollama_tags(base) if tags is None else tags
+    candidates = [t["name"] for t in tags if not _looks_like_embedding(t)]
     return next((name for name in candidates[:6] if _can_chat(base, name)), "")
 
 

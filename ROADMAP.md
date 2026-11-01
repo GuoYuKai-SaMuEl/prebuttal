@@ -69,7 +69,7 @@ until 0.6. `check` got one option after all, `--venue`: most users have no
 `prebuttal.toml`, and checking a paper against the wrong venue's rules is
 worse than a flag.
 
-## 0.6 — a smaller CLI
+## 0.6 — a smaller CLI (implemented on main, not released yet)
 
 Every breaking simplification in one release, so users adjust once, and
 before 0.7 adds features — new settings then land on the smaller surface.
@@ -100,7 +100,8 @@ What 0.6 removes stays as a hidden alias with a notice until 0.7, as the
 
 Done when: `run` has at most 9 flags, there are 13 commands, every removed
 name points to its replacement, and the README (all three languages), the
-agent skill and the site use only the new forms.
+agent skill and the site use only the new forms. All met (a test pins the
+13 commands and 9 flags); what is left is the release itself.
 
 ## 0.7 — a revision loop you can trust
 

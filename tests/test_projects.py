@@ -73,6 +73,15 @@ def test_format_and_output_dir_choices(run, tmp_path, fake_config):
     assert [p.name for p in run_dir.iterdir()] == ["report.json"]
 
 
+def test_a_bad_format_is_refused_before_any_review(run, fake_config, tmp_path):
+    with fake_config.open("a", encoding="utf-8") as fh:
+        fh.write('\n[output]\nformats = ["pdf"]\n')
+    rc, _ = run()
+    assert rc == cli.EXIT_USAGE
+    # refused while loading the config: no review ran, nothing was written
+    assert load_history() == [] and not (tmp_path / "prebuttal-reports").exists()
+
+
 def test_no_save_leaves_the_store_untouched(run, tmp_path):
     rc, out = run("--no-save")
     assert rc == cli.EXIT_OK and "Saved:" not in out

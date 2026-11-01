@@ -78,7 +78,7 @@ def test_scan_without_keys_is_graceful(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr("prebuttal.providers.ollama.ollama_models", lambda base: [])
+    monkeypatch.setattr("prebuttal.providers.ollama.ollama_tags", lambda base: [])
     # scan() hits OpenRouter's public catalog — keep the test offline
     monkeypatch.setattr(
         "prebuttal.modelscan.openrouter_catalog",

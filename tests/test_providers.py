@@ -22,7 +22,7 @@ def test_scan_reports_all_candidates(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     import prebuttal.providers.detect as det
 
-    monkeypatch.setattr(det, "ollama_models", lambda base: [])
+    monkeypatch.setattr(det, "ollama_tags", lambda base: [])
 
     cfg = load_config(None)
     statuses = scan_backends(cfg)
@@ -881,7 +881,7 @@ def test_a_signed_out_cli_is_not_picked(monkeypatch):
 
     monkeypatch.setattr("shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(det, "signed_out", lambda cli: cli == "claude")
-    monkeypatch.setattr(det, "ollama_models", lambda base: [])
+    monkeypatch.setattr(det, "ollama_tags", lambda base: [])
     by_name = {s.backend: s for s in scan_backends(load_config(None))}
     assert by_name["agent-claude"].available is False
     assert "not signed in — run `claude auth login`" in by_name["agent-claude"].detail
@@ -901,7 +901,12 @@ def _ollama(monkeypatch, tags: list[dict], caps: dict[str, list[str]] | None = N
         def raise_for_status(self):
             pass
 
-    monkeypatch.setattr(ol.httpx, "get", lambda url, **k: R({"models": tags}))
+    def listing(url, **k):
+        ol.tag_calls = getattr(ol, "tag_calls", 0) + 1
+        return R({"models": tags})
+
+    monkeypatch.setattr(ol, "tag_calls", 0, raising=False)
+    monkeypatch.setattr(ol.httpx, "get", listing)
 
     def show(url, json, **k):
         if caps is None or json["model"] not in caps:
@@ -935,7 +940,19 @@ def test_only_embedding_models_means_no_ollama_backend(monkeypatch):
     import prebuttal.providers.detect as det
 
     tags = [{"name": "nomic-embed-text:latest", "details": {"family": "nomic-bert"}}]
-    _ollama(monkeypatch, tags)
+    ol = _ollama(monkeypatch, tags)
     monkeypatch.setattr("shutil.which", lambda name: None)
     ollama = next(s for s in det.scan_backends(load_config(None)) if s.backend == "ollama")
     assert ollama.available is False and "only embedding models" in ollama.detail
+    assert ol.tag_calls == 1  # one listing per scan
+
+
+def test_backends_ollama_shows_no_default_without_a_chat_model(monkeypatch):
+    from prebuttal.modelscan import scan
+
+    tags = [{"name": "nomic-embed-text:latest", "details": {"family": "nomic-bert"}}]
+    _ollama(monkeypatch, tags)
+    (listing,) = scan(only="ollama")
+    assert listing.models == ["nomic-embed-text:latest"]  # still listed, for `ollama rm`
+    assert listing.default == "none" and "only embedding models" in listing.note
+    assert "(default: none)" in listing.render() and " *" not in listing.render()

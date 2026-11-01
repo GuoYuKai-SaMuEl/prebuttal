@@ -204,16 +204,19 @@ def _openrouter() -> ModelListing:
 
 
 def _ollama() -> ModelListing:
-    from .providers.ollama import ollama_base_url, ollama_models, pick_ollama_model
+    from .providers.ollama import ollama_base_url, ollama_tags, pick_ollama_model
 
     base = ollama_base_url()
-    installed = ollama_models(base)
-    return ModelListing(
-        "ollama",
-        installed,
-        (pick_ollama_model(base) if installed else "") or "llama3.1",
-        "(ollama pull <model> to add more)" if installed else "(not running)",
-    )
+    tags = ollama_tags(base)
+    installed = [t["name"] for t in tags]
+    chat = pick_ollama_model(base, tags) if installed else ""
+    if chat:
+        note = "(ollama pull <model> to add more)"
+    elif installed:  # still listed: `ollama rm` needs the names
+        note = "(only embedding models, which can't review — ollama pull llama3.1)"
+    else:
+        note = "(not running)"
+    return ModelListing("ollama", installed, chat or "none", note)
 
 
 _LISTERS: dict[str, Callable[[], ModelListing]] = {

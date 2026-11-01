@@ -535,11 +535,12 @@ def test_project_wide_run_flags_still_work_with_a_notice(
     monkeypatch.chdir(tmp_path)
     cfg_path = tmp_path / "prebuttal.toml"
     cfg_path.write_text(FAKE_TOML, encoding="utf-8")
-    argv = ["run", str(latex_project), "--config", str(cfg_path), "--seed", "7", "--effort", "low"]
+    # --seed 0 too: 0 == False must not hide its notice
+    argv = ["run", str(latex_project), "--config", str(cfg_path), "--seed", "0", "--effort", "low"]
     argv += ["--figures", "--out-dir", "r", "--json", "o.json"]
     assert cli.main(argv) == cli.EXIT_OK
     err = capsys.readouterr().err
     for setting in ("`seed = N`", '`effort = "high"`', "`figures = true`", "[output] dir"):
         assert setting in err
     assert "`prebuttal show --json`" in err and err.count("goes in 0.7") == 5
-    assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["run"]["seed"] == 7
+    assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["run"]["seed"] == 0

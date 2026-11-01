@@ -926,7 +926,8 @@ def cmd_run(args) -> int:
     if venue.custom:
         _log(f"[prebuttal] venue: {venue.name} (custom, {venue.origin})")
     for flag, now in _MOVED_RUN_FLAGS.items():
-        if getattr(args, flag.lstrip("-").replace("-", "_")) not in (None, False):
+        value = getattr(args, flag.lstrip("-").replace("-", "_"))
+        if value is not None and value is not False:  # `--seed 0` == False
             _log(f"[prebuttal] `{flag}` is now {now}; this flag goes in 0.7")
     # validate output choices before any (possibly paid) review runs
     try:

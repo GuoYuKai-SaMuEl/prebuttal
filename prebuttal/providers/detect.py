@@ -17,7 +17,7 @@ from ..config import RunConfig
 from ..keys import KEY_MAP
 from .agent_cli import _run
 from .api import API_PROVIDERS
-from .ollama import ollama_base_url, ollama_models, pick_ollama_model
+from .ollama import ollama_base_url, ollama_tags, pick_ollama_model
 
 # How each agent CLI reports its sign-in without calling a model, and the
 # command that fixes it.  Exit 0 = signed in on both (checked on claude 2.1,
@@ -139,8 +139,9 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
         out.append(BackendStatus(cls.BACKEND, "api", has, note, cls.default_model() if has else ""))
 
     base = ollama_base_url()
-    models = ollama_models(base)
-    chat = pick_ollama_model(base) if models else ""
+    tags = ollama_tags(base)
+    models = [t["name"] for t in tags]
+    chat = pick_ollama_model(base, tags) if models else ""
     if chat:
         ollama_detail = f"running at {base}, models: {', '.join(models[:3])}"
     elif models:
