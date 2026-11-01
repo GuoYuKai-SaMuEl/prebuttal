@@ -18,7 +18,7 @@ releases (0.2, 0.3, …) are substantial new features.
   Bullets under a numbered point nest inside it, and numbering carries on
   after them or after a blank line. The site's sample reports are
   re-rendered. A run's archived `report.html` is not rewritten; delete it
-  and `prebuttal open` renders it again from `report.json`.
+  and `prebuttal show --open` renders it again from `report.json`.
 
 ## [0.5.3] — 2026-11-01
 
