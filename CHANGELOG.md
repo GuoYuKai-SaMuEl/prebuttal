@@ -22,6 +22,10 @@ run (9 flags, was 15).
   `[output] formats = ["md", "html", "json"]`. They still work until 0.7,
   each with a notice naming its replacement.
 - `prebuttal plan` is a hidden alias of `prebuttal show --plan` until 0.7.
+- `prebuttal venues <name>` prints a venue's scores and review form, like
+  `prebuttal backends <name>` lists a backend's models; `venues show
+  <name>` is a hidden alias until 0.7. A custom venue can't be called
+  `new` or `show`.
 - `prebuttal runs --paper` is hidden until 0.7: projects are named after
   the paper, so `prebuttal runs <project>` finds its runs. It was never
   documented.

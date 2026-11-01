@@ -99,6 +99,7 @@ def _fail(msg: str, code: int = EXIT_USAGE) -> int:
 
 
 RUN_REF = "a run: name#3, name~1 (one before the newest) or an id prefix"
+_VENUE_VIEW = "_view"  # internal subcommand behind `prebuttal venues <name>`
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -264,8 +265,14 @@ def build_parser() -> argparse.ArgumentParser:
     key_unset = key_sub.add_parser("unset", help="remove a stored key")
     key_unset.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
 
-    ven_p = sub.add_parser("venues", help="list review forms; add your own venue")
-    ven_sub = ven_p.add_subparsers(dest="venues_cmd", metavar="[new|show]")
+    ven_p = sub.add_parser(
+        "venues",
+        help="list review forms (venues <name>: one form); add your own venue",
+        usage="prebuttal venues [<name> | new <name> [--from VENUE] [--here]]",
+        description="prebuttal venues lists every review form; `prebuttal venues <name>` "
+        "prints that venue's scores and the form reviewers see (a name or a .toml path).",
+    )
+    ven_sub = ven_p.add_subparsers(dest="venues_cmd", metavar="[<name>|new]")
     ven_new = ven_sub.add_parser("new", help="write a venue template to edit")
     ven_new.add_argument("key", help="short name, e.g. aaai or lab-review")
     ven_new.add_argument(
@@ -276,8 +283,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write to ./.prebuttal/venues (shared with the project) instead of ~/.prebuttal",
     )
-    ven_show = ven_sub.add_parser("show", help="print a venue's scores and review form")
-    ven_show.add_argument("venue", help="venue name or .toml path")
+    # `venues <name>` arrives here (see main); `venues show` is a hidden 0.6 alias
+    for name in (_VENUE_VIEW, "show"):
+        ven_sub.add_parser(name).add_argument("venue")
 
     return parser
 
@@ -710,6 +718,8 @@ def cmd_venues(args) -> int:
         key = args.key.strip().lower()
         if not custom.KEY_RE.match(key):
             return _fail("use a short lowercase name like 'aaai' or 'lab-review'")
+        if key in ("new", "show"):
+            return _fail(f"'{key}' is a venues subcommand — pick another name")
         if key in VENUES:
             return _fail(
                 f"'{key}' is built in — pick another name "
@@ -726,12 +736,12 @@ def cmd_venues(args) -> int:
         print(f"Wrote {toml_path}")
         print(f"      {form_path}")
         print("Edit the scores in the .toml and paste the venue's reviewer guidelines into")
-        print(
-            f"the .md, then: prebuttal venues show {key}  ·  prebuttal run paper.pdf --venue {key}"
-        )
+        print(f"the .md, then: prebuttal venues {key}  ·  prebuttal run paper.pdf --venue {key}")
         return 0
 
-    if args.venues_cmd == "show":
+    if args.venues_cmd in (_VENUE_VIEW, "show"):
+        if args.venues_cmd == "show":
+            _renamed("prebuttal venues show <name>", "prebuttal venues <name>")
         try:
             venue = get_venue(args.venue)
         except VenueError as e:
@@ -754,6 +764,7 @@ def cmd_venues(args) -> int:
         else:
             print(f"  {cv.key:<12} {cv.name:<22} {_scale_summary(cv)}  ({path})")
     print("\nSearched: " + " · ".join(str(d) for d in custom.search_dirs()))
+    print("Show one: prebuttal venues cvpr   (its scores and the form reviewers see)")
     print("Add one:  prebuttal venues new aaai   (or --from icml to copy a built-in form)")
     return 0
 
@@ -1312,6 +1323,14 @@ def _removed_command(argv: list[str]) -> str | None:
 def main(argv=None) -> int:
     _utf8_stdio()
     argv = list(sys.argv[1:] if argv is None else argv)
+    # `venues <name>`: a name, not a subcommand or an option (`venues -h` stays help)
+    if (
+        argv[:1] == ["venues"]
+        and len(argv) > 1
+        and argv[1] not in ("new", "show", _VENUE_VIEW)
+        and not argv[1].startswith("-")
+    ):
+        argv = ["venues", _VENUE_VIEW, *argv[1:]]
     msg = _removed_command(argv) or (_removed_flag(argv) if argv[:1] == ["run"] else None)
     if msg:
         print(msg, file=sys.stderr)

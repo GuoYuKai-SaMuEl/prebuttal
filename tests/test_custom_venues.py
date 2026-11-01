@@ -153,8 +153,17 @@ def test_cli_new_list_show(tmp_path, monkeypatch, capsys, isolated_prebuttal_hom
     assert cli.main(["venues"]) == 0
     out = capsys.readouterr().out
     assert "icml-2027" in out and "aaai" in out and "broken" in out and "INVALID" in out
-    assert cli.main(["venues", "show", "icml-2027"]) == 0
+    assert cli.main(["venues", "icml-2027"]) == 0
     assert "Marginally above publication threshold" in capsys.readouterr().out
+    # hidden 0.6 alias, gone in 0.7
+    assert cli.main(["venues", "show", "icml-2027"]) == 0
+    out, err = capsys.readouterr()
+    assert "Marginally above publication threshold" in out
+    assert "is now `prebuttal venues <name>`; this alias goes in 0.7" in err
+    for name in ("new", "show"):  # `venues new` / `venues show` mean something else
+        assert cli.main(["venues", "new", name]) == cli.EXIT_USAGE
+    assert cli.main(["venues", "nope"]) == cli.EXIT_USAGE
+    assert "unknown venue 'nope'" in capsys.readouterr().err
 
 
 def test_run_with_custom_venue_and_render_after_file_is_gone(

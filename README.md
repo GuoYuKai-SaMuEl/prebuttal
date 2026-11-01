@@ -298,7 +298,7 @@ plus the form text:
 ```bash
 prebuttal venues new aaai                          # template in ~/.prebuttal/venues/
 prebuttal venues new icml-2027 --from icml --here  # copy a built-in, project-local
-prebuttal venues show aaai                         # what reviewers will see
+prebuttal venues aaai                              # what reviewers will see
 prebuttal run paper.pdf --venue aaai               # or --venue path/to/venue.toml
 ```
 
