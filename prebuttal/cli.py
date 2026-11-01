@@ -209,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     runs_p = sub.add_parser("runs", help="list archived review runs")
     runs_p.add_argument("project", nargs="?", default=None, help="only this project's runs")
-    runs_p.add_argument("--paper", default=None, help="filter by paper title or id substring")
+    runs_p.add_argument("--paper", default=None, help=argparse.SUPPRESS)  # gone in 0.7
     runs_p.add_argument("-n", "--limit", type=int, default=20, help="show the N most recent runs")
     runs_p.add_argument("--json", action="store_true", help="machine-readable history")
 
@@ -447,6 +447,10 @@ def cmd_runs(args) -> int:
         if not records:
             return _fail(f"no runs in project '{args.project}'")
     if args.paper:
+        _log(
+            "[prebuttal] `runs --paper` goes in 0.7: projects are named after the paper, "
+            "so `prebuttal runs <project>` (see `prebuttal projects`) finds its runs"
+        )
         q = args.paper.lower()
         records = [
             r

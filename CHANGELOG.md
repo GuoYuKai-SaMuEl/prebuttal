@@ -22,6 +22,9 @@ run (9 flags, was 15).
   `[output] formats = ["md", "html", "json"]`. They still work until 0.7,
   each with a notice naming its replacement.
 - `prebuttal plan` is a hidden alias of `prebuttal show --plan` until 0.7.
+- `prebuttal runs --paper` is hidden until 0.7: projects are named after
+  the paper, so `prebuttal runs <project>` finds its runs. It was never
+  documented.
 
 ### Removed
 - The 0.4 aliases, as their notices said: `prebuttal open`, `export`,

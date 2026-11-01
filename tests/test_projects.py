@@ -295,6 +295,17 @@ def test_projects_open_is_the_html_overview(run, capsys, monkeypatch):
         assert (opened[0].parent / link).is_file()
 
 
+def test_runs_paper_still_filters_with_a_notice_until_0_7(run, capsys):
+    run()
+    rc, out, err = _cli(capsys, "runs", "--paper", "nothing-like-this")
+    assert rc == cli.EXIT_OK and PROJECT not in out
+    rc, out, err = _cli(capsys, "runs", "--paper", PROJECT[:5])
+    assert rc == cli.EXIT_OK and PROJECT in out
+    assert "`runs --paper` goes in 0.7" in err and "prebuttal runs <project>" in err
+    runs_help = cli.build_parser()._subparsers._group_actions[0].choices["runs"].format_help()
+    assert "--paper" not in runs_help
+
+
 def test_plan_is_a_hidden_alias_until_0_7(run, capsys):
     run()
     rc, out, err = _cli(capsys, "plan")

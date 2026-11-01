@@ -91,6 +91,8 @@ mid-submission.
   archived (the path is printed; it is not a path you choose — that is
   the trade). That leaves `--venue`, `--backend`, `--model`, `--dry-run`, `-y`,
   `--project`, `--note`, `--no-save` and `-c`: 15 → 9 flags.
+- **`runs --paper` goes**: projects are named after the paper, so
+  `runs <project>` already finds its runs; the flag was never documented.
 - Staying apart: `runs`, `note`, `rm`, `retry` and `init` — merging them
   needs a new flag or an argument with two meanings.
 
