@@ -45,7 +45,7 @@ LaTeX 项目无需编译即可检查（页数限制需要 PDF）。发现可能�
 如果论文放在 GitHub 上，也可以每次 push 自动检查，不需要任何 secrets：
 
 ```yaml
-- uses: GuoYuKai-SaMuEl/prebuttal@v0.5.3
+- uses: GuoYuKai-SaMuEl/prebuttal@v0.5.4
   with:
     paper: paper/      # LaTeX 文件夹、主 .tex、.zip 或编译好的 PDF
     venue: cvpr

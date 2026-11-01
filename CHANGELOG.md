@@ -10,6 +10,8 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-11-01
+
 ### Added
 - `prebuttal show --plan` prints a run's revision plan (`--json` for the
   items), so `show` is the one way to look at a run. `prebuttal plan` still
@@ -674,7 +676,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.0...v0.5.1
