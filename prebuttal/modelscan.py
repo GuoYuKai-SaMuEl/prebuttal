@@ -204,13 +204,14 @@ def _openrouter() -> ModelListing:
 
 
 def _ollama() -> ModelListing:
-    from .providers.ollama import ollama_base_url, ollama_models
+    from .providers.ollama import ollama_base_url, ollama_models, pick_ollama_model
 
-    installed = ollama_models(ollama_base_url())
+    base = ollama_base_url()
+    installed = ollama_models(base)
     return ModelListing(
         "ollama",
         installed,
-        installed[0] if installed else "llama3.1",
+        (pick_ollama_model(base) if installed else "") or "llama3.1",
         "(ollama pull <model> to add more)" if installed else "(not running)",
     )
 

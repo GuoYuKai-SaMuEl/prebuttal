@@ -34,14 +34,43 @@ def ollama_base_url() -> str:
     )
 
 
-def ollama_models(base_url: str | None = None) -> list[str]:
-    base = base_url or ollama_base_url()
+def _tags(base: str) -> list[dict]:
     try:
         r = httpx.get(f"{base}/api/tags", timeout=2.5)
         r.raise_for_status()
-        return [m.get("name", "") for m in r.json().get("models", []) if m.get("name")]
+        return [m for m in r.json().get("models", []) if isinstance(m, dict) and m.get("name")]
     except Exception:
         return []
+
+
+def ollama_models(base_url: str | None = None) -> list[str]:
+    return [m["name"] for m in _tags(base_url or ollama_base_url())]
+
+
+def _looks_like_embedding(tag: dict) -> bool:
+    """An embedding model (nomic-embed-text, mxbai-embed-large, bge-m3,
+    all-minilm) can't write a review; /api/tags only gives name and family."""
+    details = tag.get("details") or {}
+    families = [details.get("family") or "", *(details.get("families") or [])]
+    return "embed" in tag["name"].lower() or any("bert" in str(f).lower() for f in families)
+
+
+def _can_chat(base: str, name: str) -> bool:
+    """What /api/show says, on Ollama versions that list capabilities."""
+    try:
+        r = httpx.post(f"{base}/api/show", json={"model": name}, timeout=2.5)
+        caps = r.json().get("capabilities") if r.status_code == 200 else None
+    except Exception:
+        return True
+    return not isinstance(caps, list) or "completion" in caps
+
+
+def pick_ollama_model(base_url: str | None = None) -> str:
+    """The installed model a review runs on when none is configured: the first
+    in Ollama's list that can chat, "" when there is none."""
+    base = base_url or ollama_base_url()
+    candidates = [t["name"] for t in _tags(base) if not _looks_like_embedding(t)]
+    return next((name for name in candidates[:6] if _can_chat(base, name)), "")
 
 
 class OllamaProvider(BaseProvider):
@@ -50,13 +79,12 @@ class OllamaProvider(BaseProvider):
     def __init__(self, backend: str = "ollama", model: str = "", **kw):
         base = ollama_base_url()
         if not model:
-            installed = ollama_models(base)
-            if not installed:
+            model = pick_ollama_model(base)
+            if not model:
                 raise ProviderError(
-                    f"Ollama not reachable at {base} — start it (`ollama serve`) "
-                    "and pull a model (`ollama pull llama3.1`)"
+                    f"no Ollama chat model at {base} — start it (`ollama serve`) "
+                    "and pull one (`ollama pull llama3.1`); embedding models can't review"
                 )
-            model = installed[0]
         super().__init__(backend, model, **kw)
         self.base_url = base
 

@@ -7,14 +7,26 @@ free tier, then OpenAI/Anthropic keys, then a local Ollama.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from ..config import RunConfig
 from ..keys import KEY_MAP
+from .agent_cli import _run
 from .api import API_PROVIDERS
-from .ollama import ollama_base_url, ollama_models
+from .ollama import ollama_base_url, ollama_models, pick_ollama_model
+
+# How each agent CLI reports its sign-in without calling a model, and the
+# command that fixes it.  Exit 0 = signed in on both (checked on claude 2.1,
+# codex 0.164); a CLI too old to have the command is given the benefit of
+# the doubt.
+_SIGN_IN = {
+    "claude": (["auth", "status"], "claude auth login"),
+    "codex": (["login", "status"], "codex login"),
+}
 
 _PREFERENCE = [
     "agent-claude",
@@ -78,18 +90,43 @@ class NoBackendError(Exception):
         self.statuses = statuses
 
 
+def signed_out(cli: str) -> bool:
+    """True only when the CLI's own status command says it is not signed in.
+
+    Installed is not enough: a signed-out (or expired) `claude` would be
+    picked first and fail every review. Anything unclear — no such command,
+    a timeout — counts as signed in, as before this check existed.
+    """
+    args, _ = _SIGN_IN[cli]
+    try:
+        proc = _run([cli, *args], "", stdin=False, timeout_s=20)
+    except Exception:
+        return False
+    if proc.returncode == 0:
+        return False
+    if cli == "claude":
+        try:
+            return json.loads(proc.stdout).get("loggedIn") is False
+        except (ValueError, AttributeError):
+            return False
+    return "not logged in" in f"{proc.stdout}\n{proc.stderr}".lower()
+
+
 def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
     out: list[BackendStatus] = []
 
+    paths = {cli: shutil.which(cli) for cli in _SIGN_IN}
+    found = [cli for cli, path in paths.items() if path]
+    with ThreadPoolExecutor(max_workers=2) as pool:  # each takes a second or so
+        out_of = dict(zip(found, pool.map(signed_out, found), strict=True))
     for backend, cli in (("agent-claude", "claude"), ("agent-codex", "codex")):
-        path = shutil.which(cli)
+        path = paths[cli]
+        if out_of.get(cli):
+            detail = f"{cli} CLI {path}, not signed in — run `{_SIGN_IN[cli][1]}`"
+        else:
+            detail = f"{cli} CLI {path or 'not found on PATH'}"
         out.append(
-            BackendStatus(
-                backend,
-                "agent",
-                path is not None,
-                f"{cli} CLI {path or 'not found on PATH'}",
-            )
+            BackendStatus(backend, "agent", path is not None and not out_of.get(cli), detail)
         )
 
     for cls in API_PROVIDERS:
@@ -103,19 +140,17 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
 
     base = ollama_base_url()
     models = ollama_models(base)
-    if models:
+    chat = pick_ollama_model(base) if models else ""
+    if chat:
         ollama_detail = f"running at {base}, models: {', '.join(models[:3])}"
+    elif models:
+        ollama_detail = (
+            f"running at {base}, but only embedding models ({', '.join(models[:3])}) — "
+            "pull one that chats: `ollama pull llama3.1`"
+        )
     else:
         ollama_detail = f"not reachable at {base}"
-    out.append(
-        BackendStatus(
-            "ollama",
-            "ollama",
-            bool(models),
-            ollama_detail,
-            models[0] if models else "",
-        )
-    )
+    out.append(BackendStatus("ollama", "ollama", bool(chat), ollama_detail, chat))
 
     out.append(
         BackendStatus(

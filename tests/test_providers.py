@@ -9,6 +9,7 @@ from prebuttal.providers.detect import (
     NoBackendError,
     resolve_backends,
 )
+from prebuttal.providers.detect import signed_out as real_signed_out
 
 
 def test_scan_reports_all_candidates(monkeypatch):
@@ -837,3 +838,104 @@ def test_ollama_host_as_ollama_documents_it(monkeypatch, value, url):
     else:
         monkeypatch.delenv("OLLAMA_HOST", raising=False)
     assert ollama_base_url() == url
+
+
+class _Proc:
+    def __init__(self, rc: int, stdout: str = "", stderr: str = ""):
+        self.returncode, self.stdout, self.stderr = rc, stdout, stderr
+
+
+@pytest.mark.parametrize(
+    ("cli", "proc", "out"),
+    [
+        ("claude", _Proc(0, '{"loggedIn": true, "authMethod": "claude.ai"}'), False),
+        ("claude", _Proc(1, '{"loggedIn": false, "authMethod": "none"}'), True),
+        ("claude", _Proc(1, "error: unknown command 'auth'"), False),  # an older CLI
+        ("codex", _Proc(0, "Logged in using ChatGPT"), False),
+        ("codex", _Proc(1, "", "Not logged in"), True),
+        ("codex", _Proc(2, "", "error: unrecognized subcommand 'status'"), False),
+    ],
+)
+def test_signed_out_reads_the_cli_status(monkeypatch, cli, proc, out):
+    import prebuttal.providers.detect as det
+
+    calls = []
+    monkeypatch.setattr(det, "_run", lambda cmd, *a, **k: calls.append(cmd) or proc)
+    assert real_signed_out(cli) is out
+    assert calls == [[cli, *det._SIGN_IN[cli][0]]]  # a status command, never a prompt
+
+
+def test_signed_out_gives_the_benefit_of_the_doubt(monkeypatch):
+    import prebuttal.providers.detect as det
+    from prebuttal.providers.base import ProviderError
+
+    def timeout(*a, **k):
+        raise ProviderError("claude timed out after 20s")
+
+    monkeypatch.setattr(det, "_run", timeout)
+    assert real_signed_out("claude") is False
+
+
+def test_a_signed_out_cli_is_not_picked(monkeypatch):
+    import prebuttal.providers.detect as det
+
+    monkeypatch.setattr("shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(det, "signed_out", lambda cli: cli == "claude")
+    monkeypatch.setattr(det, "ollama_models", lambda base: [])
+    by_name = {s.backend: s for s in scan_backends(load_config(None))}
+    assert by_name["agent-claude"].available is False
+    assert "not signed in — run `claude auth login`" in by_name["agent-claude"].detail
+    assert by_name["agent-codex"].available is True
+
+
+def _ollama(monkeypatch, tags: list[dict], caps: dict[str, list[str]] | None = None):
+    import prebuttal.providers.ollama as ol
+
+    class R:
+        def __init__(self, data, status=200):
+            self.status_code, self._data = status, data
+
+        def json(self):
+            return self._data
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(ol.httpx, "get", lambda url, **k: R({"models": tags}))
+
+    def show(url, json, **k):
+        if caps is None or json["model"] not in caps:
+            return R({}, 404)  # an Ollama too old to list capabilities
+        return R({"capabilities": caps[json["model"]]})
+
+    monkeypatch.setattr(ol.httpx, "post", show)
+    return ol
+
+
+def test_ollama_skips_embedding_models(monkeypatch):
+    tags = [
+        {"name": "nomic-embed-text:latest", "details": {"family": "nomic-bert"}},
+        {"name": "bge-m3:latest", "details": {"families": ["bert"]}},
+        {"name": "llama3.1:8b", "details": {"family": "llama"}},
+    ]
+    ol = _ollama(monkeypatch, tags)
+    assert ol.pick_ollama_model("http://127.0.0.1:11434") == "llama3.1:8b"
+
+
+def test_ollama_trusts_the_listed_capabilities(monkeypatch):
+    tags = [{"name": "qwen3-embedding:4b", "details": {"family": "qwen3"}}]
+    tags += [{"name": "my-encoder:1b", "details": {"family": "qwen3"}}]
+    tags += [{"name": "qwen3:8b", "details": {"family": "qwen3"}}]
+    caps = {"my-encoder:1b": ["embedding"], "qwen3:8b": ["completion", "tools"]}
+    ol = _ollama(monkeypatch, tags, caps)
+    assert ol.pick_ollama_model("http://127.0.0.1:11434") == "qwen3:8b"
+
+
+def test_only_embedding_models_means_no_ollama_backend(monkeypatch):
+    import prebuttal.providers.detect as det
+
+    tags = [{"name": "nomic-embed-text:latest", "details": {"family": "nomic-bert"}}]
+    _ollama(monkeypatch, tags)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    ollama = next(s for s in det.scan_backends(load_config(None)) if s.backend == "ollama")
+    assert ollama.available is False and "only embedding models" in ollama.detail

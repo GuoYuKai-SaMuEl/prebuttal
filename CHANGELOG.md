@@ -30,6 +30,20 @@ run (9 flags, was 15).
   `show -o FILE`, `projects --open`, `backends <name>`, `backends`,
   `[output] formats`, `show`).
 
+### Fixed
+- Auto mode picked an agent CLI because it was installed, signed in or
+  not: a signed-out or expired `claude` came first and failed every review.
+  Detection now asks `claude auth status` / `codex login status` (no model
+  call, run with the same environment as a review) and skips a CLI that
+  says it is signed out; `prebuttal backends` shows the command that signs
+  it in. A CLI too old to have the command, or one that doesn't answer,
+  counts as signed in, as before.
+- Ollama's default model was the first one it listed, which can be an
+  embedding model (`nomic-embed-text`, `bge-m3`) that can't write a
+  review. Embedding models are now skipped — by name and family, and by the
+  capabilities newer Ollama versions report — and Ollama with only
+  embedding models installed is not offered as a backend.
+
 ## [0.5.4] — 2026-11-01
 
 ### Added

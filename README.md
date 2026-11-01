@@ -138,7 +138,10 @@ calling anything (`--dry-run` previews plan and cost; `-y` skips the prompt):
 comes from (CLI login, env var or stored key — masked) and its default model.
 `prebuttal backends <name>` lists that backend's available models. Defaults
 are mid-tier models current at release time; providers retire ids quickly,
-so if one stops working, upgrade prebuttal or pin a model.
+so if one stops working, upgrade prebuttal or pin a model. An agent CLI
+counts only when it is signed in (asked through `claude auth status` /
+`codex login status`, no model call), and Ollama's default is the first
+installed model that can chat — embedding models are skipped.
 
 **Unpublished manuscript?** Its text goes to the backend's provider, and what
 happens there is that provider's policy, not ours. **Free tiers are usually

@@ -25,6 +25,8 @@ def neutral_host_env(monkeypatch):
     """Same results whether the suite runs in CI, a terminal or a coding agent."""
     for var in ("PREBUTTAL_BACKEND", "CLAUDECODE", "GEMINI_CLI", "GITHUB_ACTIONS"):
         monkeypatch.delenv(var, raising=False)
+    # an installed claude / codex would be asked for its sign-in on every scan
+    monkeypatch.setattr("prebuttal.providers.detect.signed_out", lambda cli: False)
 
 
 def make_report(latex_project, *, venue_key: str = "iclr", rating_shift: int = 0):
