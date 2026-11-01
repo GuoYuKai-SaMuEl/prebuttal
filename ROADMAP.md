@@ -85,7 +85,11 @@ mid-submission.
   `prebuttal.toml` already has (`seed`, `effort`, `figures`, the
   `[[reviewer]]` list, `[output] dir`) and usually hold for a whole
   project; `--json PATH` is `prebuttal show --json` (or `show -o FILE`)
-  after the run. That leaves `--venue`, `--backend`, `--model`, `--dry-run`, `-y`,
+  after the run. A `--no-save` run has no archive to show, so its JSON
+  comes from `[output] formats = ["md", "html", "json"]`, which already
+  writes `report.json` to the reports folder whether or not the run is
+  archived (the path is printed; it is not a path you choose — that is
+  the trade). That leaves `--venue`, `--backend`, `--model`, `--dry-run`, `-y`,
   `--project`, `--note`, `--no-save` and `-c`: 15 → 9 flags.
 - Staying apart: `runs`, `note`, `rm`, `retry` and `init` — merging them
   needs a new flag or an argument with two meanings.
