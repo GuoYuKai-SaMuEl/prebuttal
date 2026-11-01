@@ -179,3 +179,28 @@ def test_a_long_meta_review_is_cut_at_a_line_break():
     text = "## Assessment\n\n" + "\n".join(f"- **Point {i}.** " + "word " * 12 for i in range(40))
     html = _md_blocks(_clip_lines(text, 400))
     assert "**" not in html and html.endswith("<p>…</p>")
+
+
+def test_numbered_items_keep_their_numbers_around_sub_lists():
+    """The Mamba meta-review pattern: numbered points with bullets under them."""
+    from prebuttal.share import _md_blocks
+
+    text = (
+        "1. **Strength one.**\n   - detail a\n   - detail b\n"
+        "     wrapped\n2. **Strength two.**\n\n3. After a blank line."
+    )
+    html = _md_blocks(text)
+    assert html.count("<ol") == 2  # the blank line makes a loose list
+    assert (
+        "<ol><li><b>Strength one.</b><ul><li>detail a</li><li>detail b wrapped</li>"
+        "</ul></li><li><b>Strength two.</b></li></ol>"
+    ) in html
+    assert '<ol start="3"><li>After a blank line.</li></ol>' in html
+
+
+def test_a_cut_without_line_breaks_does_not_split_bold():
+    from prebuttal.share import _clip_lines, _md_blocks
+
+    text = "word " * 70 + "**a bold claim that runs past the limit** and more " * 3
+    html = _md_blocks(_clip_lines(text, 400))
+    assert "**" not in html and html.endswith("…</p>")

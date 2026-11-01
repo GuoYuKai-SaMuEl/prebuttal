@@ -32,7 +32,12 @@ def _clip_lines(s: str, n: int) -> str:
     if len(s) <= n:
         return s
     cut = s[: n - 1].rsplit("\n", 1)[0].rstrip()
-    return cut + "\n\n…" if len(cut) >= n // 2 else _clip(s, n)
+    if len(cut) >= n // 2:
+        return cut + "\n\n…"
+    cut = _clip(s, n)
+    if cut.count("**") % 2:  # cut inside **bold**: end before it
+        cut = cut[: cut.rfind("**")].rstrip() + "…"
+    return cut
 
 
 _MD_HEADING = re.compile(r"#{1,6}\s+(.*)")
@@ -54,8 +59,21 @@ def _md_blocks(text: str) -> str:
     images are left as plain text."""
     out: list[str] = []
     para: list[str] = []
-    items: list[str] = []
+    # each item: its text, then its indented sub-items (one level) and their tag
+    items: list[tuple[list[str], list[str], list[str]]] = []
     list_tag = ""
+    list_start = 1
+
+    def open_tag(tag: str, start: int = 1) -> str:
+        return f'<ol start="{start}">' if tag == "ol" and start != 1 else f"<{tag}>"
+
+    def render_item(head: list[str], subs: list[str], sub_tag: list[str]) -> str:
+        sub = ""
+        if subs:
+            t = sub_tag[0]
+            sub = open_tag(t) + "".join(f"<li>{_md_inline(s)}</li>" for s in subs)
+            sub += f"</{t}>"
+        return f"<li>{_md_inline(head[0])}{sub}</li>"
 
     def flush() -> None:
         nonlocal list_tag
@@ -64,8 +82,8 @@ def _md_blocks(text: str) -> str:
             para.clear()
         if items:
             out.append(
-                f"<{list_tag}>"
-                + "".join(f"<li>{_md_inline(i)}</li>" for i in items)
+                open_tag(list_tag, list_start)
+                + "".join(render_item(*i) for i in items)
                 + f"</{list_tag}>"
             )
             items.clear()
@@ -75,19 +93,32 @@ def _md_blocks(text: str) -> str:
         line = raw.strip()
         heading = _MD_HEADING.fullmatch(line)
         item = _MD_ITEM.fullmatch(line)
+        indented = raw[:1].isspace()
         if not line:
             flush()
         elif heading:
             flush()
             out.append(f"<h3>{_md_inline(heading[1])}</h3>")
+        elif item and items and indented:
+            _, subs, sub_tag = items[-1]
+            if not subs:
+                sub_tag.append("ol" if item[1] else "ul")
+            subs.append(item[2])
         elif item:
             tag = "ol" if item[1] else "ul"
             if para or (items and tag != list_tag):
                 flush()
+            if not items:
+                # "2." after a blank line or a heading keeps its number
+                list_start = int(item[1]) if item[1] else 1
             list_tag = tag
-            items.append(item[2])
-        elif items and raw[:1].isspace():
-            items[-1] += " " + line  # an item's continuation line
+            items.append(([item[2]], [], []))
+        elif items and indented:
+            head, subs, _ = items[-1]  # an item's continuation line
+            if subs:
+                subs[-1] += " " + line
+            else:
+                head[0] += " " + line
         else:
             if items:
                 flush()

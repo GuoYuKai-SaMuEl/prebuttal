@@ -15,7 +15,10 @@ releases (0.2, 0.3, …) are substantial new features.
   markdown (`## Summary`, `**...**`) in one run-on paragraph. Headings,
   lists, bold, italics and code now render (everything still escaped, no
   links), and a long meta-review is cut at a line break, not inside `**`.
-  The site's sample reports are re-rendered.
+  Bullets under a numbered point nest inside it, and numbering carries on
+  after them or after a blank line. The site's sample reports are
+  re-rendered. A run's archived `report.html` is not rewritten; delete it
+  and `prebuttal open` renders it again from `report.json`.
 
 ## [0.5.3] — 2026-11-01
 
