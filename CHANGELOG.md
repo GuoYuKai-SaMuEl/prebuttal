@@ -10,7 +10,28 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Added
+- `prebuttal show --plan` prints a run's revision plan (`--json` for the
+  items), so `show` is the one way to look at a run. `prebuttal plan` still
+  works; 0.6 turns it into a hidden alias.
+
 ### Fixed
+- Re-downloading Overleaf's source made a new project each time: the
+  browser saves the second copy as `paper (1).zip` (or `paper(2).pdf`), a
+  different path. A download-copy suffix is now ignored, so the run joins
+  the paper's project and `diff` compares it with the last version. A
+  project already registered under such a name keeps its runs.
+- A PDF's abstract was read for at most 24 lines, so a two-column abstract
+  was cut mid-sentence; it could also pick up the page-1 footnotes (author
+  contributions, the venue line). It now runs to the first heading or page
+  break, skipping footnotes (even one between two of its lines in a column)
+  and a figure's labels or the arXiv stamp before it. Checked on eight
+  arXiv papers, one and two columns.
+- White text in LaTeX was only caught on one line and without nested
+  commands: `\textcolor{white}{...}` spanning lines or holding `\textbf`
+  slipped through `check` and the hidden-text warning. Groups are now read
+  across lines, and white given as `[rgb]{1,1,1}`, `[RGB]{255,255,255}`,
+  `[gray]{1}` or `[HTML]{FFFFFF}` counts too.
 - HTML reports and share pages showed the area chair's meta-review as raw
   markdown (`## Summary`, `**...**`) in one run-on paragraph. Headings,
   lists, bold, italics and code now render (everything still escaped, no

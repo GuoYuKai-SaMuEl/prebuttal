@@ -47,13 +47,23 @@ def slugify(text: str, limit: int = 30) -> str:
     return s.strip("-") or "paper"
 
 
+# a browser's name for a second download: "paper (1).zip", "paper(2).pdf"
+_DOWNLOAD_COPY = re.compile(r"(?<=\S) ?\(\d{1,3}\)(?=\.[^.]+$|$)")
+
+
 def source_identity(source: str) -> str:
-    """Stable identity of a paper source: arXiv id (version dropped) or absolute path."""
+    """Stable identity of a paper source: arXiv id (version dropped) or absolute path.
+
+    The path ignores a browser's download-copy suffix, so re-downloading the
+    Overleaf source as ``paper (1).zip`` stays in the same project.
+    """
     s = source.strip()
     arxiv_id = parse_arxiv_id(s) if not Path(s).exists() else None  # local copy wins
     if arxiv_id:
         return "arxiv:" + re.sub(r"v\d+$", "", arxiv_id)
-    return "path:" + Path(s).expanduser().resolve().as_posix()
+    p = Path(s).expanduser().resolve()
+    name = _DOWNLOAD_COPY.sub("", p.name, count=1)
+    return "path:" + p.with_name(name).as_posix()
 
 
 @dataclass
@@ -167,7 +177,10 @@ def _assign(source: str, title: str, explicit: str | None, *, register: bool) ->
             if p.key != key and ident in p.sources:
                 p.sources.remove(ident)
     else:
+        # a project registered before download copies were folded keeps its runs
+        legacy = "path:" + Path(source.strip()).expanduser().resolve().as_posix()
         found = next((p.key for p in projects.values() if ident in p.sources), None)
+        found = found or next((p.key for p in projects.values() if legacy in p.sources), None)
         key = found or _unique_key(slugify(title), set(projects))
     proj = projects.get(key)
     if proj is None:

@@ -52,6 +52,7 @@ _SPECIAL_HEADINGS = {
     "conclusion": 1,
     "conclusions": 1,
 }
+_ABSTRACT_LINES = 80  # lines read after the "Abstract" marker, at most
 _NUMBERED = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+(\S.*)$")
 # A real caption has punctuation right after the number ("Table 3: ...", "Fig. 2.");
 # in-prose references like "Table 1 confirms that ..." must NOT match.
@@ -531,9 +532,25 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         if re.fullmatch(r"(?i)abstract\b.*", ln["text"]) or ln["text"].lower() == "abstract":
             first = ln["text"][8:] if ln["text"].lower().startswith("abstract") else ""
             buf = [first]
-            for nxt in lines_all[i + 1 : i + 25]:
-                if _NUMBERED.match(nxt["text"]) or nxt["size"] > body_size * 1.13:
+            size = 0.0  # the abstract's own font size, from its first line
+            for nxt in lines_all[i + 1 : i + 1 + _ABSTRACT_LINES]:
+                if len(nxt["text"].strip()) < 2:
+                    continue  # a stray glyph of the rotated arXiv stamp
+                if (
+                    _NUMBERED.match(nxt["text"])
+                    or nxt["size"] > body_size * 1.13
+                    or nxt["text"].strip().strip(".").lower() in _HEADING_WORDS
+                    or nxt["page"] != ln["page"]  # the next page's running header
+                ):
                     break
+                if not size:
+                    if nxt["size"] < body_size * 0.85:
+                        continue  # a figure's labels before the abstract starts
+                    size = nxt["size"]
+                elif nxt["size"] < size * 0.95:
+                    # footnotes and the venue line; in two columns a footnote
+                    # can sit between two lines of the abstract
+                    continue
                 buf.append(nxt["text"])
             abstract = _norm(" ".join(buf))[:3000]
             break

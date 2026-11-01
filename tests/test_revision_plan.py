@@ -63,16 +63,21 @@ def test_cli_run_prints_fix_first_and_plan_command(
     assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "Fix first: [must] Baseline set is thin" in out
-    assert "prebuttal plan" in out
+    assert "prebuttal show --plan" in out
 
-    assert cli.main(["plan"]) == cli.EXIT_OK
-    out = capsys.readouterr().out
-    assert out.startswith("# Revision plan — ")
-    assert "- [ ] **must** — Baseline set is thin" in out
+    for argv in (["show", "--plan"], ["plan"]):  # `plan` stays until 0.6
+        assert cli.main(argv) == cli.EXIT_OK
+        out = capsys.readouterr().out
+        assert out.startswith("# Revision plan — ")
+        assert "- [ ] **must** — Baseline set is thin" in out
 
-    assert cli.main(["plan", "--json"]) == cli.EXIT_OK
-    items = json.loads(capsys.readouterr().out)
-    assert items[0]["priority"] == "must" and items[1]["effort"] == "small"
+    for argv in (["show", "--plan", "--json"], ["plan", "--json"]):
+        assert cli.main(argv) == cli.EXIT_OK
+        items = json.loads(capsys.readouterr().out)
+        assert items[0]["priority"] == "must" and items[1]["effort"] == "small"
+
+    assert cli.main(["show", "--plan", "--open"]) == cli.EXIT_USAGE
+    assert "--plan prints the plan" in capsys.readouterr().err
 
     # a run archived before 0.3 has no plan
     rec = load_history()[0]
@@ -80,7 +85,7 @@ def test_cli_run_prints_fix_first_and_plan_command(
     data = json.loads(p.read_text(encoding="utf-8"))
     del data["meta"]["action_plan"]
     p.write_text(json.dumps(data), encoding="utf-8")
-    assert cli.main(["plan"]) == cli.EXIT_USAGE
+    assert cli.main(["show", "--plan"]) == cli.EXIT_USAGE
     assert "has no revision plan" in capsys.readouterr().err
 
 

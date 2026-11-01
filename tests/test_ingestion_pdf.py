@@ -171,3 +171,39 @@ def test_stray_big_glyph_is_not_the_title():
 
     paper = ingest_pdf_bytes(make_pdf_bytes(draw_extra=draw))
     assert paper.title == "Deep Widgets for Structured Prediction"
+
+
+def test_long_abstract_is_read_whole_without_footnotes():
+    """A two-column abstract runs past 24 lines, a footnote can sit between
+    its lines, and the rotated arXiv stamp leaves stray glyphs before it."""
+    import io
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    h = A4[1]
+
+    def text(y: float, s: str, size: float, x: float = 72) -> None:
+        c.setFont("Helvetica", size)
+        c.drawString(x, h - y, s)
+
+    text(60, "A Paper With a Long Abstract", 18)
+    text(90, "Abstract", 12)
+    text(100, "v", 14, x=20)  # a letter of the arXiv stamp
+    for i in range(30):
+        text(110 + i * 12, f"Abstract line {i} says something.", 10)
+        if i == 14:
+            text(116 + i * 12, "*Equal contribution. first@lab.org", 8)
+    text(500, "1 Introduction", 12)
+    for i in range(20):
+        text(515 + i * 12, f"Body line {i} of the introduction.", 10)
+    c.showPage()
+    c.save()
+
+    paper = ingest_pdf_bytes(buf.getvalue(), source_path="long.pdf")
+    assert paper.abstract.startswith("Abstract line 0 says")
+    assert paper.abstract.endswith("Abstract line 29 says something.")
+    assert "Equal contribution" not in paper.abstract
+    assert "Body line" not in paper.abstract

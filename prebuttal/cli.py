@@ -239,10 +239,11 @@ def build_parser() -> argparse.ArgumentParser:
     show_view.add_argument(
         "-o", "--output", default=None, help="save a copy; .md, .html or .json picks the format"
     )
-
-    plan_p = sub.add_parser(
-        "plan", help="print a run's revision plan as a checklist (default: latest)"
+    show_p.add_argument(
+        "--plan", action="store_true", help="only the revision plan, as a checklist (--json: items)"
     )
+
+    plan_p = sub.add_parser("plan", help="a run's revision plan (same as show --plan)")
     plan_p.add_argument("run", nargs="?", default=None, help=RUN_REF + " (default: latest)")
     plan_p.add_argument("--json", action="store_true", help="machine-readable action items")
 
@@ -509,6 +510,10 @@ def cmd_show(args) -> int:
     rec = _resolve_run_or_exit(args.run)
     if rec is None:
         return EXIT_USAGE
+    if args.plan:
+        if args.open or args.output:
+            return _fail("--plan prints the plan; use it alone or with --json")
+        return _print_plan(rec, as_json=args.json)
     if args.open:
         return _open_report(rec)
     if args.output:
@@ -526,14 +531,16 @@ def cmd_show(args) -> int:
 
 def cmd_plan(args) -> int:
     rec = _resolve_run_or_exit(args.run)
-    if rec is None:
-        return EXIT_USAGE
+    return EXIT_USAGE if rec is None else _print_plan(rec, as_json=args.json)
+
+
+def _print_plan(rec, *, as_json: bool) -> int:
     try:
         data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         return _fail(f"archived report.json for {rec.label} is unreadable ({e})")
     plan = report_from_dict(data).meta.action_plan
-    if args.json:
+    if as_json:
         print(json.dumps([dataclass_to_dict(it) for it in plan], indent=2, ensure_ascii=False))
         return EXIT_OK
     if not plan:
@@ -1220,7 +1227,7 @@ def _deliver(
     for i, path in enumerate(written):
         print(f"{'Report:' if i == 0 else '':<10}{path}")
     if rec is not None:
-        nxt = "prebuttal show --open · prebuttal plan · prebuttal projects --open"
+        nxt = "prebuttal show --open · prebuttal show --plan · prebuttal projects --open"
         if rec.run_no > 1:
             nxt = "prebuttal diff · " + nxt
         print(f"Next:     {nxt}")

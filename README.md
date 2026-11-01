@@ -248,7 +248,8 @@ be the model, not your revision.
 
 Each paper gets a **project**, found from its source: the same PDF or .zip
 path, LaTeX folder or arXiv id always lands in the same project, even when the title
-changes (`--project NAME` picks one; a local folder named like an arXiv id is
+changes, and so does a re-download the browser saved as `paper (1).zip`
+(`--project NAME` picks one; a local folder named like an arXiv id is
 read locally, never swapped for the public version). Every run gets a number
 — `mamba#3` — and its own report folder, so nothing is overwritten:
 
@@ -271,7 +272,7 @@ prebuttal runs [project]             # a paper's runs, newest first, with notes
 prebuttal show                       # print the newest report
 prebuttal show mamba#3 --open        # ... open it in the browser instead
 prebuttal show -o review.html        # ... or save a copy (.md, .html or .json)
-prebuttal plan                       # the newest revision plan as a checklist (--json too)
+prebuttal show --plan                # ... or only its revision plan, as a checklist (--json too)
 prebuttal retry                      # a reviewer failed? re-run only it (+ the AC), same text
 prebuttal note / rm                  # annotate or delete runs (a whole paper: projects rm)
 prebuttal projects rename|rm         # tidy up

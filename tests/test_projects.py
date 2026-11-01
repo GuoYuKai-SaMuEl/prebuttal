@@ -115,6 +115,29 @@ def test_project_follows_the_source_not_the_title(tmp_path):
     assert assign_project(str(other), "Mamba: Linear-Time Sequence Modeling") == key + "-2"
 
 
+def test_a_second_download_stays_in_the_project(tmp_path):
+    """Overleaf's source re-downloaded: the browser names it "paper (1).zip"."""
+    key = assign_project(str(tmp_path / "paper.zip"), "GlobalGate")
+    for copy in ("paper (1).zip", "paper(2).zip", "paper (12).zip"):
+        assert assign_project(str(tmp_path / copy), "GlobalGate v2") == key
+    assert source_identity(str(tmp_path / "paper (1)")) == source_identity(
+        str(tmp_path / "paper")
+    )  # the unpacked folder too
+    # only the suffix before the extension counts
+    assert source_identity(str(tmp_path / "ch (1) intro.pdf")) != source_identity(
+        str(tmp_path / "ch intro.pdf")
+    )
+    assert source_identity(str(tmp_path / "(1).pdf")).endswith("/(1).pdf")
+
+
+def test_a_copy_registered_before_the_fold_keeps_its_project(tmp_path):
+    from prebuttal.projects import Project, save_projects
+
+    copy = (tmp_path / "draft (1).zip").resolve().as_posix()
+    save_projects({"old": Project(key="old", sources=["path:" + copy])})
+    assert assign_project(str(tmp_path / "draft (1).zip"), "Draft") == "old"
+
+
 def test_arxiv_versions_share_a_project():
     assert source_identity("2312.00752v2") == source_identity("https://arxiv.org/abs/2312.00752")
 

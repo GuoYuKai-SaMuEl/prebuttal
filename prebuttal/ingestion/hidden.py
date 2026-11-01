@@ -114,22 +114,58 @@ def _hidden_runs(page: Any) -> list[tuple[str, str]]:
     return runs
 
 
-_LATEX_WHITE = re.compile(
-    r"\\textcolor\s*\{\s*white\s*\}\s*\{([^{}]*)\}|\{\s*\\color\s*\{\s*white\s*\}([^{}]*)\}"
+# white by name or by value: {white}, [rgb]{1,1,1}, [RGB]{255,255,255},
+# [gray]{1}, [HTML]{FFFFFF}
+_WHITE_SPEC = (
+    r"(?:\{\s*white\s*\}|\[\s*rgb\s*\]\s*\{\s*1(?:\.0*)?\s*,\s*1(?:\.0*)?\s*,\s*1(?:\.0*)?\s*\}"
+    r"|\[\s*RGB\s*\]\s*\{\s*255\s*,\s*255\s*,\s*255\s*\}|\[\s*gray\s*\]\s*\{\s*1(?:\.0*)?\s*\}"
+    r"|\[\s*HTML\s*\]\s*\{\s*(?i:ffffff)\s*\})"
 )
+_LATEX_WHITE = re.compile(r"\\(textcolor|color)\s*" + _WHITE_SPEC)
 _LATEX_BOXES = re.compile(r"\\(colorbox|fcolorbox|cellcolor|rowcolor|columncolor)\b|fill\s*=")
+_LATEX_CMD = re.compile(r"\\[a-zA-Z@]+\*?|[{}]")
+_GROUP_CAP = 2000  # a {\color{white} ...} group read at most this far
+
+
+def _group_end(tex: str, i: int, depth: int) -> int:
+    """Index where the brace group open at ``depth`` around ``i`` closes."""
+    stop = min(len(tex), i + _GROUP_CAP)
+    while i < stop:
+        c = tex[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth < 0:
+                return i
+        i += 1
+    return stop
 
 
 def find_hidden_latex_text(tex: str) -> list[str]:
-    """White text outside a coloured box (``\\textcolor{white}{...}``, ``{\\color{white} ...}``)."""
+    """White text outside a coloured box: ``\\textcolor{white}{...}`` and
+    ``{\\color{white} ...}``, also across lines and around nested commands."""
     out = []
-    for line in tex.splitlines():
-        if _LATEX_BOXES.search(line):
+    for m in _LATEX_WHITE.finditer(tex):
+        line_start = tex.rfind("\n", 0, m.start()) + 1
+        line_end = tex.find("\n", m.end())
+        if _LATEX_BOXES.search(tex[line_start : line_end if line_end >= 0 else len(tex)]):
             continue
-        for m in _LATEX_WHITE.finditer(line):
-            text = " ".join((m.group(1) or m.group(2) or "").split())
-            if sum(c.isalpha() for c in text) >= _MIN_RUN:
-                out.append(text)
+        rest = m.end()
+        if m.group(1) == "textcolor":  # the next {argument}
+            arg = re.match(r"\s*\{", tex[rest:])
+            if not arg:
+                continue
+            start = rest + arg.end()
+            body = tex[start : _group_end(tex, start, 0)]
+        else:  # \color: to the end of the enclosing group
+            body = tex[rest : _group_end(tex, rest, 0)]
+        text = " ".join(_LATEX_CMD.sub(" ", body).split())
+        if sum(c.isalpha() for c in text) >= _MIN_RUN:
+            out.append(text)
     return out
 
 
