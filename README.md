@@ -505,10 +505,13 @@ substantial features. In short (details in
 1. **0.5 (current) — nothing leaks before submission**: `prebuttal check`
    (also as a GitHub Action), agent CLIs with no tool that can read your
    keys, `backends` as the one setup view; CVPR and Overleaf .zip sources
-2. **0.6 — a revision loop you can trust**: repeated reviews, a diff that
+2. **0.6 — a smaller CLI**: the 0.4 aliases go, `plan` becomes
+   `show --plan`, and `run` keeps only per-run flags (project-wide ones
+   live in `prebuttal.toml`)
+3. **0.7 — a revision loop you can trust**: repeated reviews, a diff that
    says when a change is within noise, meaning-based matching by default
-3. **0.7 — reach**: more venues, community personas
-4. **Separate track** — calibration against real OpenReview outcomes
+4. **0.8 — reach**: more venues, community personas
+5. **Separate track** — calibration against real OpenReview outcomes
 
 ## Contributing
 

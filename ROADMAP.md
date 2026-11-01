@@ -69,7 +69,36 @@ until 0.6. `check` got one option after all, `--venue`: most users have no
 `prebuttal.toml`, and checking a paper against the wrong venue's rules is
 worse than a flag.
 
-## 0.6 — a revision loop you can trust
+## 0.6 — a smaller CLI
+
+Every breaking simplification in one release, so users adjust once, and
+before 0.7 adds features — new settings then land on the smaller surface.
+Released after the CVPR deadline (November 16), not while people are
+mid-submission.
+
+- **The 0.4 aliases go**, as their notices promised: `open`, `export`,
+  `dashboard`, `models`, `key status`, and `run --format` / `--stdout`.
+- **`plan` becomes `show --plan`** (`--json` still works with it): `show`
+  is the one way to look at a run. 14 → 13 commands.
+- **`run` keeps only what changes from run to run.** `--seed`, `--effort`,
+  `--figures`, `--reviewers` and `--out-dir` repeat settings
+  `prebuttal.toml` already has (`seed`, `effort`, `figures`, the
+  `[[reviewer]]` list, `[output] dir`) and usually hold for a whole
+  project; `--json PATH` is `prebuttal show --json` (or `show -o FILE`)
+  after the run. That leaves `--venue`, `--backend`, `--model`, `--dry-run`, `-y`,
+  `--project`, `--note`, `--no-save` and `-c`: 15 → 9 flags.
+- Staying apart: `runs`, `note`, `rm`, `retry` and `init` — merging them
+  needs a new flag or an argument with two meanings.
+
+What 0.6 removes stays as a hidden alias with a notice until 0.7, as the
+0.4 names did; the notice names the replacement (the setting, or the
+`show` command).
+
+Done when: `run` has at most 9 flags, there are 13 commands, every removed
+name points to its replacement, and the README (all three languages), the
+agent skill and the site use only the new forms.
+
+## 0.7 — a revision loop you can trust
 
 The Mamba demo showed that single-run score changes are mostly noise and
 that word-overlap matching misleads.
@@ -84,8 +113,9 @@ that word-overlap matching misleads.
   resolved / raised again across v1 → v2 → v3 of a project, on the dashboard.
 
 Done when: on Mamba v1 → v2 the tool itself reports "no measurable change".
+0.7 also drops the hidden aliases 0.6 left.
 
-## 0.7 — reach
+## 0.8 — reach
 
 - More venue forms (AAAI, TMLR, COLM, KDD), each linked to its official
   source; community personas. (CVPR shipped early, in 0.5.3, for its
@@ -98,7 +128,7 @@ Done when: on Mamba v1 → v2 the tool itself reports "no measurable change".
 ## Separate track: calibration
 
 How simulated scores relate to real OpenReview outcomes. Kept apart from
-the core and started after 0.6, because without repeated reviews there is
+the core and started after 0.7, because without repeated reviews there is
 no variance to compare against. Reads public OpenReview data only. Could
 grow into a public benchmark.
 
