@@ -10,6 +10,8 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-11-01
+
 ### Added
 - **CVPR** as a built-in venue (`--venue cvpr`), for the CVPR 2027 deadline
   (16 November 2026). The recommendation scale (Reject → Strong accept, 1–5)
@@ -641,7 +643,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.4.1...v0.5.0
