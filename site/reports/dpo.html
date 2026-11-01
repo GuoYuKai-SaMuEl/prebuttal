@@ -32,6 +32,8 @@
   .card-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
   .meta { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }
   .meta h2 { font-size:16px; margin:0 0 8px; }
+  .meta h3 { font-size:15px; margin:14px 0 4px; }
+  .meta p { margin:0 0 10px; } .meta ul, .meta ol { margin:0 0 10px; padding-left:20px; }
   .est { font-weight:700; margin-bottom:6px; }
   .alert { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px;
            padding:10px 14px; margin:14px 0; font-size:14px; font-weight:600; }
@@ -102,18 +104,12 @@
   <section class="meta">
     <h2>Meta-review</h2>
     <div class="est">AC estimate: 5/6</div>
-    <p>## Summary
-The submission proposes Direct Preference Optimization (DPO). The paper uses the closed-form optimum of the KL-constrained reward objective (Eq. 4) to write the reward as β log π/π_ref + β log Z(x) (Eq. 5). The partition function cancels in the Bradley-Terry likelihood (Eq. 6), so the policy can be trained with a binary cross-entropy loss (Eq. 7), with no explicit reward model and no RL sampling loop. Section 5.1 (Lemmas 1-2, Theorem 1, Proposition 1 in App. A.5-A.6) argues the reparameterization loses no generality over reward equivalence classes, given π_ref&gt;0 and β&gt;0. Experiments cover:
-- IMDb sentiment with a ground-truth classifier reward (reward-KL frontier, 22 runs, Fig. 2 left);
-- Reddit TL;DR with GPT-J (GPT-4 win rates, Fig. 2 right);
-- single-turn Anthropic-HH with Pythia-2.8B (Fig. 3);
-- a CNN/DailyMail transfer test (Table 1);
-- a human study validating GPT-4 as judge (Table 2).
-
-## Assessment of the contribution
-All three reviewers agree the core idea is elegant and correctly derived. I agree. The derivations in App. A.1-A.2 follow directly, and the gradient analysis in Section 4 gives a concrete mechanistic reading. The paper links the implicit-reward weighting to the degeneration of unweighted unlikelihood (Table 3). The theory answers the obvious expressivity question: every equivalence class has a unique representative of the DPO form (Proposition 1). The practical payoff is a few lines of loss code (App. B) replacing a multi-model PPO pipeline. That is a substantial contribution in its own right.
-
-The controlled sentiment experiment is well designed and is the cleanest evidence for the claim that DPO optimizes the same objective better. Ground-truth reward is available, and DPO&#x27;s frontier lies above PPO and even PPO-GT. R1 and R2 rightly…</p>
+    <h3>Summary</h3>
+    <p>The submission proposes Direct Preference Optimization (DPO). The paper uses the closed-form optimum of the KL-constrained reward objective (Eq. 4) to write the reward as β log π/π_ref + β log Z(x) (Eq. 5). The partition function cancels in the Bradley-Terry likelihood (Eq. 6), so the policy can be trained with a binary cross-entropy loss (Eq. 7), with no explicit reward model and no RL sampling loop. Section 5.1 (Lemmas 1-2, Theorem 1, Proposition 1 in App. A.5-A.6) argues the reparameterization loses no generality over reward equivalence classes, given π_ref&gt;0 and β&gt;0. Experiments cover:</p>
+    <ul><li>IMDb sentiment with a ground-truth classifier reward (reward-KL frontier, 22 runs, Fig. 2 left);</li><li>Reddit TL;DR with GPT-J (GPT-4 win rates, Fig. 2 right);</li><li>single-turn Anthropic-HH with Pythia-2.8B (Fig. 3);</li><li>a CNN/DailyMail transfer test (Table 1);</li><li>a human study validating GPT-4 as judge (Table 2).</li></ul>
+    <h3>Assessment of the contribution</h3>
+    <p>All three reviewers agree the core idea is elegant and correctly derived. I agree. The derivations in App. A.1-A.2 follow directly, and the gradient analysis in Section 4 gives a concrete mechanistic reading. The paper links the implicit-reward weighting to the degeneration of unweighted unlikelihood (Table 3). The theory answers the obvious expressivity question: every equivalence class has a unique representative of the DPO form (Proposition 1). The practical payoff is a few lines of loss code (App. B) replacing a multi-model PPO pipeline. That is a substantial contribution in its own right.</p>
+    <p>…</p>
   </section>
   
   <section class="meta plan">

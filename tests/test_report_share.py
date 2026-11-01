@@ -146,3 +146,36 @@ def test_share_html_drops_non_http_repo_link(latex_project):
     html = render_share_html(report, venue, "javascript:alert(1)")
     assert "javascript:" not in html
     assert "pip install prebuttal" in html
+
+
+def test_share_page_renders_the_meta_review_markdown():
+    """The AC may write markdown: headings, lists, bold, never raw HTML."""
+    from prebuttal.share import _md_blocks
+
+    text = (
+        "## Summary\n\nThe paper proposes **GlobalGate** and claims *universal* gains.\n"
+        "It uses `seed 0` only.\n\n## Consensus\n\n"
+        "1. **Confounded budget.** 1 vs 5 epochs.\n"
+        "2. No held-out set,\n   so Table 1 measures fit.\n"
+        "- a bullet <script>x</script>\n\nClosing words."
+    )
+    html = _md_blocks(text)
+    assert "##" not in html and "**" not in html
+    assert "<h3>Summary</h3>" in html and "<h3>Consensus</h3>" in html
+    assert "<b>GlobalGate</b>" in html and "<i>universal</i>" in html
+    assert "<code>seed 0</code>" in html
+    assert "<ol><li><b>Confounded budget.</b> 1 vs 5 epochs.</li>" in html
+    assert "<li>No held-out set, so Table 1 measures fit.</li></ol>" in html
+    assert "<ul><li>a bullet &lt;script&gt;x&lt;/script&gt;</li></ul>" in html
+    assert "<p>Closing words.</p>" in html
+    assert "<script>" not in html
+    # multiplication and lone asterisks are not emphasis
+    assert _md_blocks("2 * 3 * 4 and a*b") == "<p>2 * 3 * 4 and a*b</p>"
+
+
+def test_a_long_meta_review_is_cut_at_a_line_break():
+    from prebuttal.share import _clip_lines, _md_blocks
+
+    text = "## Assessment\n\n" + "\n".join(f"- **Point {i}.** " + "word " * 12 for i in range(40))
+    html = _md_blocks(_clip_lines(text, 400))
+    assert "**" not in html and html.endswith("<p>…</p>")

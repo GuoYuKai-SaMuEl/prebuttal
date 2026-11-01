@@ -32,6 +32,8 @@
   .card-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
   .meta { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }
   .meta h2 { font-size:16px; margin:0 0 8px; }
+  .meta h3 { font-size:15px; margin:14px 0 4px; }
+  .meta p { margin:0 0 10px; } .meta ul, .meta ol { margin:0 0 10px; padding-left:20px; }
   .est { font-weight:700; margin-bottom:6px; }
   .alert { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px;
            padding:10px 14px; margin:14px 0; font-size:14px; font-weight:600; }
@@ -102,27 +104,15 @@
   <section class="meta">
     <h2>Meta-review</h2>
     <div class="est">AC estimate: 8/10</div>
-    <p>## Summary
-
-The submission proposes **selective SSMs (S6)**: the SSM parameters ∆, B and C become functions of the input (Algorithm 2, Section 3.2). Because this breaks the convolutional form used by prior LTI SSMs, the authors add a **hardware-aware fused scan** that keeps the expanded (B,L,D,N) state in SRAM rather than HBM (Section 3.3.2). They also propose a homogeneous **Mamba block** that merges the H3 block and the gated MLP (Section 3.4, Figure 3).
-
-The evaluation covers:
-- synthetic tasks (Tables 1, 2/11);
-- Pile language modeling, with scaling laws to ~1.3B (Figure 4, Table 12) and zero-shot evaluation to 2.8B (Table 3);
-- DNA (Figure 5, Table 13);
-- audio (Figure 7, Tables 4–5);
-- efficiency (Figure 8, Table 15);
-- ablations (Tables 6–10).
-
-All three reviewers judge the paper above the bar: R1 rates it 8, R2 rates it 6 and R3 rates it 8. No reviewer identified a fatal technical flaw, and my own reading found none.
-
-## Strengths (consensus, evidence-backed)
-
-1. **The core idea is clearly isolated by controlled ablations.**
-   - Table 1: moving from S4 to S6 raises selective-copying accuracy from 18.3 to 97.0 (no gate) and from 57.0 to 99.7 (H3 architecture). The Mamba architecture with S4 reaches only 56.4, so the architecture alone does not solve the task.
-   - Table 6: every LTI variant sits between 10.24 and 10.75 perplexity, while S6 gives 8.95 (H3) and 8.69 (Mamba).
-   - Table 10: growing the state size N from 1 to 16 helps only when B and C are selective (9.73→8.71, versus 9.88→9.81 when they are not). This directly supports the compression/state-expansion argument of Sections 3.1 and 3.3.
-2. **The systems contribution is real and necessary.** Without the fused scan, the time-varying model would be impractical. Section 4.5 and Figure 8 report the scan…</p>
+    <h3>Summary</h3>
+    <p>The submission proposes <b>selective SSMs (S6)</b>: the SSM parameters ∆, B and C become functions of the input (Algorithm 2, Section 3.2). Because this breaks the convolutional form used by prior LTI SSMs, the authors add a <b>hardware-aware fused scan</b> that keeps the expanded (B,L,D,N) state in SRAM rather than HBM (Section 3.3.2). They also propose a homogeneous <b>Mamba block</b> that merges the H3 block and the gated MLP (Section 3.4, Figure 3).</p>
+    <p>The evaluation covers:</p>
+    <ul><li>synthetic tasks (Tables 1, 2/11);</li><li>Pile language modeling, with scaling laws to ~1.3B (Figure 4, Table 12) and zero-shot evaluation to 2.8B (Table 3);</li><li>DNA (Figure 5, Table 13);</li><li>audio (Figure 7, Tables 4–5);</li><li>efficiency (Figure 8, Table 15);</li><li>ablations (Tables 6–10).</li></ul>
+    <p>All three reviewers judge the paper above the bar: R1 rates it 8, R2 rates it 6 and R3 rates it 8. No reviewer identified a fatal technical flaw, and my own reading found none.</p>
+    <h3>Strengths (consensus, evidence-backed)</h3>
+    <ol><li><b>The core idea is clearly isolated by controlled ablations.</b></li></ol>
+    <ul><li>Table 1: moving from S4 to S6 raises selective-copying accuracy from 18.3 to 97.0 (no gate) and from 57.0 to 99.7 (H3 architecture). The Mamba architecture with S4 reaches only 56.4, so the architecture alone does not solve the task.</li><li>Table 6: every LTI variant sits between 10.24 and 10.75 perplexity, while S6 gives 8.95 (H3) and 8.69 (Mamba).</li><li>Table 10: growing the state size N from 1 to 16 helps only when B and C are selective (9.73→8.71, versus 9.88→9.81 when they are not). This directly supports the compression/state-expansion argument of Sections 3.1 and 3.3.</li></ul>
+    <p>…</p>
   </section>
   
   <section class="meta plan">

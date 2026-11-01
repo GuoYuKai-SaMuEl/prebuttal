@@ -25,6 +25,77 @@ def _clip(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1].rsplit(" ", 1)[0] + "…"
 
 
+def _clip_lines(s: str, n: int) -> str:
+    """Like _clip, but at a line break when one is near, so markdown such as
+    **bold** is not cut in half."""
+    s = (s or "").strip()
+    if len(s) <= n:
+        return s
+    cut = s[: n - 1].rsplit("\n", 1)[0].rstrip()
+    return cut + "\n\n…" if len(cut) >= n // 2 else _clip(s, n)
+
+
+_MD_HEADING = re.compile(r"#{1,6}\s+(.*)")
+_MD_ITEM = re.compile(r"(?:[-*+]|(\d+)[.)])\s+(.*)")
+
+
+def _md_inline(s: str) -> str:
+    """Escaped text with **bold**, *italic* and `code`, nothing else."""
+    s = _e(s)
+    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    s = re.sub(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", r"<b>\1</b>", s)
+    return re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"<i>\1</i>", s)
+
+
+def _md_blocks(text: str) -> str:
+    """The AC's meta-review ("markdown allowed"): headings, lists and paragraphs.
+
+    Everything is escaped first, so no HTML in the text survives; links and
+    images are left as plain text."""
+    out: list[str] = []
+    para: list[str] = []
+    items: list[str] = []
+    list_tag = ""
+
+    def flush() -> None:
+        nonlocal list_tag
+        if para:
+            out.append(f"<p>{_md_inline(' '.join(para))}</p>")
+            para.clear()
+        if items:
+            out.append(
+                f"<{list_tag}>"
+                + "".join(f"<li>{_md_inline(i)}</li>" for i in items)
+                + f"</{list_tag}>"
+            )
+            items.clear()
+            list_tag = ""
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        heading = _MD_HEADING.fullmatch(line)
+        item = _MD_ITEM.fullmatch(line)
+        if not line:
+            flush()
+        elif heading:
+            flush()
+            out.append(f"<h3>{_md_inline(heading[1])}</h3>")
+        elif item:
+            tag = "ol" if item[1] else "ul"
+            if para or (items and tag != list_tag):
+                flush()
+            list_tag = tag
+            items.append(item[2])
+        elif items and raw[:1].isspace():
+            items[-1] += " " + line  # an item's continuation line
+        else:
+            if items:
+                flush()
+            para.append(line)
+    flush()
+    return "\n    ".join(out)
+
+
 def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     r = report
     # repo_url can come from a discovered prebuttal.toml: no javascript: links
@@ -90,7 +161,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   <section class="meta">
     <h2>Meta-review</h2>
     {est}
-    <p>{_e(_clip(r.meta.meta_review, _META_CHARS))}</p>
+    {_md_blocks(_clip_lines(r.meta.meta_review, _META_CHARS))}
   </section>"""
 
     plan_html = ""
@@ -160,6 +231,8 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
   .card-label {{ font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }}
   .meta {{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }}
   .meta h2 {{ font-size:16px; margin:0 0 8px; }}
+  .meta h3 {{ font-size:15px; margin:14px 0 4px; }}
+  .meta p {{ margin:0 0 10px; }} .meta ul, .meta ol {{ margin:0 0 10px; padding-left:20px; }}
   .est {{ font-weight:700; margin-bottom:6px; }}
   .alert {{ background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px;
            padding:10px 14px; margin:14px 0; font-size:14px; font-weight:600; }}

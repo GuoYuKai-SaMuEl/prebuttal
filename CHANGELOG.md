@@ -10,6 +10,13 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- HTML reports and share pages showed the area chair's meta-review as raw
+  markdown (`## Summary`, `**...**`) in one run-on paragraph. Headings,
+  lists, bold, italics and code now render (everything still escaped, no
+  links), and a long meta-review is cut at a line break, not inside `**`.
+  The site's sample reports are re-rendered.
+
 ## [0.5.3] — 2026-11-01
 
 ### Added

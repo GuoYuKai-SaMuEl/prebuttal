@@ -32,6 +32,8 @@
   .card-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
   .meta { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-top:18px; }
   .meta h2 { font-size:16px; margin:0 0 8px; }
+  .meta h3 { font-size:15px; margin:14px 0 4px; }
+  .meta p { margin:0 0 10px; } .meta ul, .meta ol { margin:0 0 10px; padding-left:20px; }
   .est { font-weight:700; margin-bottom:6px; }
   .alert { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px;
            padding:10px 14px; margin:14px 0; font-size:14px; font-weight:600; }
@@ -102,25 +104,15 @@
   <section class="meta">
     <h2>Meta-review</h2>
     <div class="est">AC estimate: 1/10</div>
-    <p>## Summary of the submission
-
-GlobalGate multiplies each attention head&#x27;s output by a learned, input-independent scalar passed through a sigmoid (Eq. 1). The paper claims this &quot;solves long-context reasoning&quot;, outperforms &quot;all existing methods on every benchmark&quot;, and is &quot;universal&quot; across &quot;any architecture, task and modality&quot; (Abstract, Section 4).
-
-The sole evidence is Table 1:
-- a vanilla Transformer scores 61.0% and GlobalGate scores 74.0%;
-- both models have 125M parameters;
-- the dataset is LongQA-Mini, 200 author-written questions at 2k-token context;
-- each model is trained once (seed 0).
-
-## Assessment
-
-All three reviewers recommend rejection (R1: 1, R2: 2, R3: 1, all at confidence 5). Every central criticism can be checked directly against sentences the authors themselves wrote in Section 3.1 and Section 3.2. This is not a case of a harsh reviewer outvoting kinder ones. The flaws are self-reported in the manuscript, and they invalidate the paper&#x27;s only result.
-
-**1. Confounded comparison (fatal).** Section 3.1 states that the baseline is trained for 1 epoch and GlobalGate for 5 epochs. The 13-point gap in Table 1 (61.0 vs 74.0) therefore cannot be attributed to Eq. (1). A 5× training budget alone is a sufficient explanation. All three reviewers flag this. No claim about the gate&#x27;s effect survives without a budget-matched baseline.
-
-**2. Evaluation on the tuning set (fatal).** Section 3.1 says &quot;we use the same 200 questions to select hyperparameters and to report results.&quot; The 74.0% is thus not a held-out estimate. All three reviewers raise this.
-
-**3. Claims vastly exceed the evidence.** The Abstract and Section 4 claim universality across architectures, tasks and modalities, superiority on &quot;every benchmark&quot;, and that &quot;future work is unnecessary&quot;. The…</p>
+    <h3>Summary of the submission</h3>
+    <p>GlobalGate multiplies each attention head&#x27;s output by a learned, input-independent scalar passed through a sigmoid (Eq. 1). The paper claims this &quot;solves long-context reasoning&quot;, outperforms &quot;all existing methods on every benchmark&quot;, and is &quot;universal&quot; across &quot;any architecture, task and modality&quot; (Abstract, Section 4).</p>
+    <p>The sole evidence is Table 1:</p>
+    <ul><li>a vanilla Transformer scores 61.0% and GlobalGate scores 74.0%;</li><li>both models have 125M parameters;</li><li>the dataset is LongQA-Mini, 200 author-written questions at 2k-token context;</li><li>each model is trained once (seed 0).</li></ul>
+    <h3>Assessment</h3>
+    <p>All three reviewers recommend rejection (R1: 1, R2: 2, R3: 1, all at confidence 5). Every central criticism can be checked directly against sentences the authors themselves wrote in Section 3.1 and Section 3.2. This is not a case of a harsh reviewer outvoting kinder ones. The flaws are self-reported in the manuscript, and they invalidate the paper&#x27;s only result.</p>
+    <p><b>1. Confounded comparison (fatal).</b> Section 3.1 states that the baseline is trained for 1 epoch and GlobalGate for 5 epochs. The 13-point gap in Table 1 (61.0 vs 74.0) therefore cannot be attributed to Eq. (1). A 5× training budget alone is a sufficient explanation. All three reviewers flag this. No claim about the gate&#x27;s effect survives without a budget-matched baseline.</p>
+    <p><b>2. Evaluation on the tuning set (fatal).</b> Section 3.1 says &quot;we use the same 200 questions to select hyperparameters and to report results.&quot; The 74.0% is thus not a held-out estimate. All three reviewers raise this.</p>
+    <p>…</p>
   </section>
   
   <section class="meta plan">
