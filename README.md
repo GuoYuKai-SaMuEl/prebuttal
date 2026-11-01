@@ -231,7 +231,8 @@ first, merged from all reviews — no extra model call.
       → Report mean and std over 3 seeds (R3 · effort: small)
 ```
 
-Revise, re-run with the same `--seed` and a `--note "what changed"`, then:
+Revise, re-run with a `--note "what changed"` (the seed stays the same unless
+you change `seed` in `prebuttal.toml`), then:
 
 ```bash
 prebuttal diff          # newest run vs the one before: ratings, weaknesses, plan items
@@ -281,9 +282,9 @@ prebuttal projects rename|rm         # tidy up
 Runs are referenced as `latest` (the default), `mamba` (newest run of a
 project), `mamba#3`, `mamba~1` (one before the newest) or an id prefix; `rm`
 wants a specific run, so a project name alone is refused there. Reports go
-where you want them: `--out-dir`, an `[output]` section in `prebuttal.toml`
-(`formats = ["md", "html", "json"]`), `--json PATH` for a fixed file, or
-`prebuttal show -o PATH` afterwards.
+where you want them: an `[output]` section in `prebuttal.toml` (`dir`, and
+`formats = ["md", "html", "json"]`), or `prebuttal show -o PATH` afterwards
+(`prebuttal show --json` prints the JSON).
 
 ## Your own venue
 
@@ -363,17 +364,19 @@ model = "opus"
 
 For a single run, `--backend X` puts every role on one backend (each with
 that backend's default model — a model the file set for another backend is
-dropped) and `--model Y` sets the model; `--reviewers N` keeps the configured
-reviewers and adds or drops the rest. A `prebuttal.toml` found in the current
+dropped) and `--model Y` sets the model. Everything that holds for the whole
+paper — the number of reviewers (one `[[reviewer]]` block each, 1-5), `seed`,
+`effort`, `figures`, `[output]` — lives in the file, not in flags. A
+`prebuttal.toml` found in the current
 directory (say, inside a co-author's repo) can't run commands, pick a
 provider or write outside the folder without asking you first.
 
 ### Reasoning effort
 
 Leave it unset and every model thinks as much as its provider's default — the
-right choice for most papers. To trade cost and time for depth, use
-`--effort low|medium|high` for one run, `effort = "..."` under `[default]`,
-or per `[[reviewer]]` / `[ac]`:
+right choice for most papers. To trade cost and time for depth, set
+`effort = "low" | "medium" | "high"` under `[default]`, or per `[[reviewer]]` /
+`[ac]`:
 
 | Backend | Sent as |
 |---|---|
@@ -390,8 +393,8 @@ up front, and every report lists the effort each review actually ran with.
 
 ### Figures as images
 
-Reviewers see figure *captions* by default. With `--figures` (or
-`figures = true` under `[default]`), reviewers on the vision-capable API
+Reviewers see figure *captions* by default. With `figures = true` under
+`[default]`, reviewers on the vision-capable API
 backends also get the figures as images: for a PDF or arXiv paper, each page
 holding a figure caption; for a LaTeX project, the first `\includegraphics`
 of each figure (files inside the project only). At most `max_figures`

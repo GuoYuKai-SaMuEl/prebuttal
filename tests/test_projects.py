@@ -65,13 +65,12 @@ def test_second_run_never_overwrites_and_reports_the_change(run, tmp_path):
     assert load_history()[0].note == "added Perceiver baseline"
 
 
-def test_format_and_output_dir_choices(run, tmp_path):
-    run("--format", "json", "--out-dir", "out")
+def test_format_and_output_dir_choices(run, tmp_path, fake_config):
+    with fake_config.open("a", encoding="utf-8") as fh:
+        fh.write('\n[output]\ndir = "out"\nformats = ["json"]\n')
+    run()
     (run_dir,) = [d for d in (tmp_path / "out" / PROJECT).iterdir() if d.is_dir()]
     assert [p.name for p in run_dir.iterdir()] == ["report.json"]
-
-    rc, _ = run("--format", "pdf")
-    assert rc == cli.EXIT_USAGE  # rejected before any review runs
 
 
 def test_no_save_leaves_the_store_untouched(run, tmp_path):
@@ -287,29 +286,14 @@ def test_projects_open_is_the_html_overview(run, capsys, monkeypatch):
         assert (opened[0].parent / link).is_file()
 
 
-def test_old_history_commands_are_hidden_aliases(run, capsys, monkeypatch, tmp_path):
-    """open / export / dashboard and run --stdout / --format work until 0.6, with a notice."""
+def test_plan_is_a_hidden_alias_until_0_7(run, capsys):
     run()
-    opened: list[Path] = []
-    monkeypatch.setattr(cli, "_open_in_browser", opened.append)
-    for argv, new in (
-        (["open"], "show --open"),
-        (["export", "-o", "x.md"], "show -o FILE"),
-        (["dashboard", "--no-open"], "projects --open"),
-    ):
-        rc, _, err = _cli(capsys, *argv)
-        assert rc == cli.EXIT_OK and f"is now `prebuttal {new}`" in err
-    assert len(opened) == 1  # open; dashboard --no-open writes without opening
-    assert (tmp_path / "x.md").is_file()
-
-    rc, out = run("--stdout", "--format", "md")
-    assert rc == cli.EXIT_OK and "# Prebuttal" in out
-
+    rc, out, err = _cli(capsys, "plan")
+    assert rc == cli.EXIT_OK and out.startswith("# Revision plan")
+    assert "is now `prebuttal show --plan`; this alias goes in 0.7" in err
     help_text = cli.build_parser().format_help()
     listed = {ln.split()[0] for ln in help_text.splitlines() if ln[:5].strip() and ln[:4] == "    "}
-    assert not listed & {"open", "export", "dashboard"}
-    run_help = cli.build_parser()._subparsers._group_actions[0].choices["run"].format_help()
-    assert "--stdout" not in run_help and "--format" not in run_help
+    assert "plan" not in listed and "show" in listed
 
 
 def test_show_views_are_exclusive(capsys):

@@ -37,7 +37,8 @@ exactly what this tool exists to avoid.
 3. Run:
 
    ```bash
-   prebuttal run <paper> --venue <venue> --json prebuttal-report.json
+   prebuttal run <paper> --venue <venue>
+   prebuttal show --json        # the finished run's report.json
    ```
 
    The JSON output is the source of truth for interpreting results. The
@@ -47,8 +48,10 @@ exactly what this tool exists to avoid.
    (`claude -p`, `codex exec`) and local Ollama — zero-key paths. Check
    `prebuttal backends`. For unpublished work, suggest Ollama (nothing leaves
    the machine). Use `--dry-run` first if the user asks about cost.
-5. Leave `--effort` unset (each model's default) unless the user asks for a
-   deeper or a cheaper/faster review: `--effort high` or `--effort low`.
+5. Leave effort unset (each model's default) unless the user asks for a
+   deeper or a cheaper/faster review: then set `effort = "high"` or `"low"`
+   under `[default]` in `prebuttal.toml` (`prebuttal init` writes one). Like
+   the seed, the number of reviewers and figures, it is a setting, not a flag.
 
 ## Before submitting: `prebuttal check`
 
@@ -72,7 +75,8 @@ aggregation) but dispatches through a file protocol:
 
 1. Start the run in the background — it blocks until every answer exists, so
    a foreground run deadlocks you (you can't write answers while waiting):
-   `prebuttal run <paper> --venue <venue> --backend relay --json out.json`
+   `prebuttal run <paper> --venue <venue> --backend relay`, then
+   `prebuttal show --json` once it has finished
    If your environment should always work this way, set
    `PREBUTTAL_BACKEND=relay` once instead of passing `--backend relay` each
    time (an explicit `--backend` flag still overrides it). Relay is never
@@ -95,8 +99,9 @@ Human-in-the-loop works the same way: a human can fill the `.ans.md` files.
 Every run is archived automatically (`~/.prebuttal`; `--no-save` to skip).
 After the user revises the paper:
 
-1. Re-run with the same `--venue` and `--seed` so results are comparable, and
-   label the revision: `--note "what changed"`. The same paper source lands
+1. Re-run with the same `--venue` and settings (the seed stays the same
+   unless `prebuttal.toml` changes it) so results are comparable, and label
+   the revision: `--note "what changed"`. The same paper source lands
    in the same project automatically.
 2. `prebuttal diff` — the newest run vs the one before it in the same project:
    score deltas per reviewer plus weakness movement (gone / persists / new,
@@ -138,7 +143,7 @@ After the user revises the paper:
    `prebuttal retry`: it re-runs only the failed reviewers and the AC on the
    same text, so the finished reviews are not paid for twice.
 6. Offer next steps: fix specific weaknesses, re-run after revision with the
-   same `--seed` to compare, or open the HTML report (`prebuttal show --open`) /
+   same settings to compare, or open the HTML report (`prebuttal show --open`) /
    the overview of every run (`prebuttal projects --open`).
 
 ## Honesty rules

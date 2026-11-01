@@ -10,6 +10,26 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+A smaller CLI: 13 commands, and `run` keeps only what changes from run to
+run (9 flags, was 15).
+
+### Changed
+- `run --seed`, `--effort`, `--figures`, `--reviewers` and `--out-dir` are
+  hidden: they repeat `prebuttal.toml` settings (`seed`, `effort`,
+  `figures`, one `[[reviewer]]` block per reviewer, `[output] dir`) that
+  usually hold for a whole paper. `run --json PATH` is hidden too: use
+  `prebuttal show --json` after the run, or, with `--no-save`,
+  `[output] formats = ["md", "html", "json"]`. They still work until 0.7,
+  each with a notice naming its replacement.
+- `prebuttal plan` is a hidden alias of `prebuttal show --plan` until 0.7.
+
+### Removed
+- The 0.4 aliases, as their notices said: `prebuttal open`, `export`,
+  `dashboard`, `models`, `key status`, and `run --format` / `--stdout`.
+  Each now fails with the command to use instead (`show --open`,
+  `show -o FILE`, `projects --open`, `backends <name>`, `backends`,
+  `[output] formats`, `show`).
+
 ## [0.5.4] — 2026-11-01
 
 ### Added

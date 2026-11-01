@@ -1,10 +1,8 @@
-from prebuttal import cli
 from prebuttal.modelscan import (
     ModelListing,
     anthropic_models,
     gemini_models,
     openai_models,
-    render,
     scan,
 )
 
@@ -95,36 +93,13 @@ def test_scan_without_keys_is_graceful(monkeypatch):
     assert orl.models == ["some/model:free"] and orl.prices["some/model:free"] == "(free)"
 
 
-def test_render_marks_default_and_shows_toml_hint():
-    text = render(
-        [ModelListing("api-gemini", ["gemini-2.5-flash", "gemini-2.5-pro"], "gemini-2.5-flash")]
-    )
+def test_listing_marks_the_default():
+    text = ModelListing(
+        "api-gemini", ["gemini-2.5-flash", "gemini-2.5-pro"], "gemini-2.5-flash"
+    ).render()
     assert "api-gemini" in text
     assert "- gemini-2.5-flash *" in text
     assert "- gemini-2.5-pro" in text
-    assert "prebuttal.toml" in text and "--model" in text
-
-
-def test_cli_models_command(tmp_path, monkeypatch, capsys):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr("prebuttal.providers.ollama.ollama_models", lambda base: [])
-    monkeypatch.setattr("prebuttal.modelscan.openrouter_catalog", lambda max_rows=40: None)
-    rc = cli.main(["models"])
-    out = capsys.readouterr().out
-    assert rc == cli.EXIT_OK
-    for backend in (
-        "api-gemini",
-        "api-openai",
-        "api-anthropic",
-        "api-openrouter",
-        "ollama",
-        "agent-claude",
-        "relay",
-    ):
-        assert backend in out
 
 
 def test_openrouter_catalog_filters_and_prices(monkeypatch):

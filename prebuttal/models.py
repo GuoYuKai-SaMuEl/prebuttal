@@ -118,7 +118,7 @@ class StructuredPaper:
     warnings: list[str] = field(default_factory=list)
     # text a human reader cannot see (white / microscopic / off-page)
     hidden_text: list[str] = field(default_factory=list)
-    # rendered figures, only when figures are enabled (--figures)
+    # rendered figures, only when figures are enabled (figures = true)
     figure_images: list[FigureImage] = field(default_factory=list, repr=False)
     # counts from a stored report.json, whose summary has no section bodies
     stored_counts: dict[str, int] = field(default_factory=dict, repr=False)

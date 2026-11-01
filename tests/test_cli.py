@@ -1,3 +1,4 @@
+import argparse
 import json
 
 import pytest
@@ -111,9 +112,14 @@ def test_run_creates_missing_output_dirs(tmp_path, monkeypatch, latex_project, f
 
 def test_removed_flags_explain_the_replacement(capsys):
     assert cli.main(["run", "paper.pdf", "--out", "x.md"]) == cli.EXIT_USAGE
-    assert "--out-dir" in capsys.readouterr().err
+    assert "prebuttal show -o FILE" in capsys.readouterr().err
     assert cli.main(["run", "paper.pdf", "--share"]) == cli.EXIT_USAGE
     assert "by default" in capsys.readouterr().err
+    # the 0.4 aliases, gone in 0.6
+    assert cli.main(["run", "paper.pdf", "--format=md,json"]) == cli.EXIT_USAGE
+    assert "[output] formats" in capsys.readouterr().err
+    assert cli.main(["run", "paper.pdf", "--stdout"]) == cli.EXIT_USAGE
+    assert "prebuttal show" in capsys.readouterr().err
 
 
 def test_run_dry_run_prints_matrix_no_calls(
@@ -390,11 +396,6 @@ def test_cli_export_follows_output_extension(latex_project, tmp_path, monkeypatc
     assert cli.main(["show", "-o", str(tmp_path / "report.txt")]) == cli.EXIT_USAGE
     assert not (tmp_path / "report.txt").exists()
 
-    # hidden 0.4 alias: `export` with --format still works
-    forced = tmp_path / "forced.md"
-    assert cli.main(["export", "-o", str(forced), "--format", "html"]) == cli.EXIT_OK
-    assert forced.read_text(encoding="utf-8").lstrip().startswith("<!doctype html>")
-
 
 PINNED_TOML = """
 [[reviewer]]
@@ -491,14 +492,54 @@ def test_backends_name_lists_models(capsys):
     assert cli.main(["backends", "nope"]) == cli.EXIT_USAGE
 
 
-def test_old_commands_still_work_but_are_hidden(monkeypatch, capsys):
-    from prebuttal import modelscan
+def test_removed_commands_name_their_replacement(capsys):
+    for argv, new in (
+        (["open", "mamba#2"], "prebuttal show --open"),
+        (["export", "-o", "x.html"], "prebuttal show -o FILE"),
+        (["dashboard"], "prebuttal projects --open"),
+        (["models"], "prebuttal backends <name>"),
+        (["key", "status"], "prebuttal backends"),
+    ):
+        assert cli.main(argv) == cli.EXIT_USAGE
+        err = capsys.readouterr().err
+        assert "removed in 0.6" in err and f"`{new}`" in err
 
-    monkeypatch.setattr(modelscan, "scan", lambda only=None: [])
-    assert cli.main(["models"]) == cli.EXIT_OK
-    assert cli.main(["key", "status"]) == cli.EXIT_OK
+
+def test_the_cli_is_13_commands_and_run_has_9_flags():
+    parser = cli.build_parser()
+    listed = {
+        ln.split()[0]
+        for ln in parser.format_help().splitlines()
+        if ln[:5].strip() and ln[:4] == "    "
+    }
+    assert listed == {
+        "run", "retry", "check", "backends", "init", "projects", "runs",
+        "show", "diff", "note", "rm", "key", "venues",
+    }  # fmt: skip
+    run = parser._subparsers._group_actions[0].choices["run"]
+    flags = {
+        a.option_strings[-1]
+        for a in run._actions
+        if a.option_strings and a.help != argparse.SUPPRESS and a.dest != "help"
+    }
+    assert flags == {
+        "--venue", "--config", "--backend", "--model", "--dry-run", "--yes",
+        "--project", "--note", "--no-save",
+    }  # fmt: skip
+
+
+def test_project_wide_run_flags_still_work_with_a_notice(
+    tmp_path, monkeypatch, latex_project, fake_statuses, capsys
+):
+    """Hidden in 0.6, gone in 0.7: each notice names the setting that replaces it."""
+    monkeypatch.chdir(tmp_path)
+    cfg_path = tmp_path / "prebuttal.toml"
+    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
+    argv = ["run", str(latex_project), "--config", str(cfg_path), "--seed", "7", "--effort", "low"]
+    argv += ["--figures", "--out-dir", "r", "--json", "o.json"]
+    assert cli.main(argv) == cli.EXIT_OK
     err = capsys.readouterr().err
-    assert "prebuttal backends <name>" in err and "part of `prebuttal backends`" in err
-    help_text = cli.build_parser().format_help()
-    listed = {ln.split()[0] for ln in help_text.splitlines() if ln[:5].strip() and ln[:4] == "    "}
-    assert "models" not in listed and "check" in listed
+    for setting in ("`seed = N`", '`effort = "high"`', "`figures = true`", "[output] dir"):
+        assert setting in err
+    assert "`prebuttal show --json`" in err and err.count("goes in 0.7") == 5
+    assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["run"]["seed"] == 7

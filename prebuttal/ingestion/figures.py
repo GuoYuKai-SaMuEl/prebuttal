@@ -1,4 +1,4 @@
-"""Figures as images, for reviewers on vision-capable backends (``--figures``).
+"""Figures as images, for reviewers on vision-capable backends (``figures = true``).
 
 Captions alone hide what most "the results don't support the claim"
 criticism is about.  PDFs: every page holding a figure caption is rendered

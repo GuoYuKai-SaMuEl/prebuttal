@@ -67,17 +67,12 @@ def test_cli_key_flow(tmp_path, monkeypatch, capsys):
     # key material never echoed back
     assert "AIzaSyCli9876543210" not in out
 
-    rc = cli.main(["key", "status"])
-    out = capsys.readouterr().out
-    assert rc == cli.EXIT_OK
-    assert "gemini" in out and "AIz…10" in out
-    assert "openai" in out and "not set" in out
-
-    # stored key feeds backend detection on a fresh invocation
+    # stored key feeds backend detection on a fresh invocation, shown masked
     rc = cli.main(["backends"])
     out = capsys.readouterr().out
     assert rc in (cli.EXIT_OK, cli.EXIT_NO_BACKEND)
     assert "api-gemini" in out and "[x]" in out
+    assert "stored key GEMINI_API_KEY (AIz…10)" in out
 
     rc = cli.main(["key", "unset", "gemini"])
     out = capsys.readouterr().out

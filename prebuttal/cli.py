@@ -40,7 +40,7 @@ from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
 from .models import EFFORT_LEVELS, dataclass_to_dict
 from .orchestrator import RunInterrupted, run_report
-from .outputs import FORMATS, parse_formats, write_local
+from .outputs import FORMATS, write_local
 from .pack import render_pack
 from .projects import (
     ProjectError,
@@ -125,21 +125,8 @@ def build_parser() -> argparse.ArgumentParser:
         "or a venue .toml file (see `prebuttal venues`)",
     )
     run.add_argument("-c", "--config", default=None, help="prebuttal.toml path")
-    run.add_argument("--reviewers", type=int, default=None, help="number of reviewers (1-5)")
     run.add_argument("--backend", default=None, help="force a backend for all roles")
     run.add_argument("--model", default=None, help="force a model id for all roles")
-    run.add_argument("--seed", type=int, default=None, help="reproducibility seed")
-    run.add_argument(
-        "--effort",
-        choices=EFFORT_LEVELS,
-        default=None,
-        help="reasoning effort for thinking models (default: each model's own)",
-    )
-    run.add_argument(
-        "--figures",
-        action="store_true",
-        help="also show figures as images to reviewers on vision-capable API backends",
-    )
     run.add_argument("--dry-run", action="store_true", help="show cost + backends, call nothing")
     run.add_argument(
         "-y",
@@ -157,22 +144,19 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--note", default="", help='what changed in this revision, e.g. "added ablation"'
     )
-    # hidden 0.4 aliases: [output] formats in prebuttal.toml / `prebuttal show`
-    run.add_argument("--format", default=None, help=argparse.SUPPRESS)
-    run.add_argument(
-        "--out-dir",
-        default=None,
-        help="reports folder (default ./prebuttal-reports; one subfolder per run)",
-    )
-    run.add_argument(
-        "--json", metavar="PATH", default=None, help="also write machine-readable JSON here"
-    )
-    run.add_argument("--stdout", action="store_true", help=argparse.SUPPRESS)
     run.add_argument(
         "--no-save",
         action="store_true",
         help="do not archive this run to the run history (~/.prebuttal, or $PREBUTTAL_HOME)",
     )
+    # hidden 0.6 aliases, gone in 0.7: settings in prebuttal.toml / `prebuttal show`
+    hide = argparse.SUPPRESS
+    run.add_argument("--reviewers", type=int, default=None, help=hide)
+    run.add_argument("--seed", type=int, default=None, help=hide)
+    run.add_argument("--effort", choices=EFFORT_LEVELS, default=None, help=hide)
+    run.add_argument("--figures", action="store_true", help=hide)
+    run.add_argument("--out-dir", default=None, help=hide)
+    run.add_argument("--json", metavar="PATH", default=None, help=hide)
 
     retry_p = sub.add_parser(
         "retry",
@@ -243,13 +227,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--plan", action="store_true", help="only the revision plan, as a checklist (--json: items)"
     )
 
-    plan_p = sub.add_parser("plan", help="a run's revision plan (same as show --plan)")
-    plan_p.add_argument("run", nargs="?", default=None, help=RUN_REF + " (default: latest)")
-    plan_p.add_argument("--json", action="store_true", help="machine-readable action items")
-
-    open_p = sub.add_parser("open")  # hidden 0.4 alias of `show --open`
-    open_p.add_argument("run", nargs="?", default=None)
-    open_p.add_argument("--md", action="store_true")
+    plan_p = sub.add_parser("plan")  # hidden 0.6 alias of `show --plan`, gone in 0.7
+    plan_p.add_argument("run", nargs="?", default=None)
+    plan_p.add_argument("--json", action="store_true")
 
     diff_p = sub.add_parser(
         "diff",
@@ -276,24 +256,13 @@ def build_parser() -> argparse.ArgumentParser:
     rm_p.add_argument("runs", nargs="+", help="run references, e.g. mamba#3 or mamba~1")
     rm_p.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
 
-    exp_p = sub.add_parser("export")  # hidden 0.4 alias of `show -o`
-    exp_p.add_argument("run", nargs="?", default=None)
-    exp_p.add_argument("-f", "--format", default=None, choices=["md", "html", "json"])
-    exp_p.add_argument("-o", "--output", default=None)
-
-    dash_p = sub.add_parser("dashboard")  # hidden 0.4 alias of `projects --open`
-    dash_p.add_argument("--no-open", action="store_true")
-
     key_p = sub.add_parser("key", help="store or remove an API key (status: prebuttal backends)")
     key_sub = key_p.add_subparsers(dest="key_cmd", required=True, metavar="{set,unset}")
     key_set = key_sub.add_parser("set", help="store a key (prompted, hidden input)")
     key_set.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
     key_set.add_argument("--key", default=None, help="non-interactive: pass the key directly")
-    key_sub.add_parser("status")  # hidden 0.4 alias: `prebuttal backends` shows key status
     key_unset = key_sub.add_parser("unset", help="remove a stored key")
     key_unset.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
-
-    sub.add_parser("models")  # hidden 0.4 alias of `backends <name>`
 
     ven_p = sub.add_parser("venues", help="list review forms; add your own venue")
     ven_sub = ven_p.add_subparsers(dest="venues_cmd", metavar="[new|show]")
@@ -530,6 +499,8 @@ def cmd_show(args) -> int:
 
 
 def cmd_plan(args) -> int:
+    """Hidden 0.6 alias of `show --plan`."""
+    _renamed("prebuttal plan", "prebuttal show --plan")
     rec = _resolve_run_or_exit(args.run)
     return EXIT_USAGE if rec is None else _print_plan(rec, as_json=args.json)
 
@@ -590,14 +561,7 @@ def _save_report(rec, fmt: str, dest: Path) -> int:
 
 
 def _renamed(old: str, new: str) -> None:
-    _log(f"[prebuttal] `{old}` is now `{new}`; this alias goes in 0.6")
-
-
-def cmd_open(args) -> int:
-    """Hidden 0.4 alias of `show --open`."""
-    _renamed("prebuttal open", "prebuttal show --open")
-    rec = _resolve_run_or_exit(args.run)
-    return EXIT_USAGE if rec is None else _open_report(rec, md=args.md)
+    _log(f"[prebuttal] `{old}` is now `{new}`; this alias goes in 0.7")
 
 
 def cmd_diff(args) -> int:
@@ -710,26 +674,6 @@ def cmd_rm(args) -> int:
     return EXIT_OK
 
 
-def cmd_export(args) -> int:
-    """Hidden 0.4 alias of `show -o`."""
-    _renamed("prebuttal export", "prebuttal show -o FILE")
-    rec = _resolve_run_or_exit(args.run)
-    if rec is None:
-        return EXIT_USAGE
-    # --format wins; without it, the -o extension picks, and html is the fallback
-    fmt = args.format
-    if fmt is None:
-        ext = Path(args.output or "").suffix.lstrip(".").lower()
-        fmt = ext if ext in FORMATS else "html"
-    return _save_report(rec, fmt, Path(args.output or f"{rec.project}-{rec.run_no}.{fmt}"))
-
-
-def cmd_dashboard(args) -> int:
-    """Hidden 0.4 alias of `projects --open`."""
-    _renamed("prebuttal dashboard", "prebuttal projects --open")
-    return _overview(open_it=not args.no_open)
-
-
 def _overview(*, open_it: bool) -> int:
     """Write the HTML overview of every project and run; open it if asked."""
     projects = project_summaries()
@@ -824,15 +768,6 @@ def _backend_models(name: str) -> int:
     return EXIT_OK
 
 
-def cmd_models(args) -> int:
-    """Hidden 0.4 alias: every backend's models at once."""
-    from .modelscan import render, scan
-
-    _log("[prebuttal] `models` is now `prebuttal backends <name>`; this alias goes in 0.6")
-    print(render(scan()))
-    return EXIT_OK
-
-
 # ------------------------------------------------------- interactive plan flow
 
 
@@ -906,20 +841,6 @@ def _edit_reviewers(cfg, statuses) -> None:
 
 def cmd_key(args) -> int:
     import getpass
-
-    if args.key_cmd == "status":
-        _log("[prebuttal] `key status` is now part of `prebuttal backends`; this alias goes in 0.6")
-        print("API key status (env vars take precedence over stored keys):")
-        for name, var in key_store.KEY_MAP.items():
-            masked = key_store.mask(var)
-            src = key_store.source(var)
-            print(f"  {name:<10} {masked or 'not set':<14} {f'[{src}]' if src else ''}")
-        if all(key_store.mask(var) is None for var in key_store.KEY_MAP.values()):
-            print(
-                "\n  Quick start:  prebuttal key set gemini"
-                "   (free key: aistudio.google.com/apikey)"
-            )
-        return EXIT_OK
 
     try:
         var = key_store.resolve_name(args.backend)
@@ -1004,16 +925,12 @@ def cmd_run(args) -> int:
     venue = get_venue(cfg.venue)
     if venue.custom:
         _log(f"[prebuttal] venue: {venue.name} (custom, {venue.origin})")
-    if args.format:
-        _log(
-            "[prebuttal] `--format` is now `[output] formats = [...]` in prebuttal.toml; "
-            "this flag goes in 0.6"
-        )
-    if args.stdout:
-        _renamed("prebuttal run --stdout", "prebuttal show (after the run)")
+    for flag, now in _MOVED_RUN_FLAGS.items():
+        if getattr(args, flag.lstrip("-").replace("-", "_")) not in (None, False):
+            _log(f"[prebuttal] `{flag}` is now {now}; this flag goes in 0.7")
     # validate output choices before any (possibly paid) review runs
     try:
-        formats = parse_formats(args.format) if args.format else cfg.output_formats
+        formats = cfg.output_formats
         if args.project:
             normalize_key(args.project)
     except (ValueError, ProjectError) as e:
@@ -1147,7 +1064,6 @@ def cmd_run(args) -> int:
         formats=formats,
         out_dir=args.out_dir if args.out_dir is not None else cfg.output_dir,
         json_path=args.json,
-        stdout=args.stdout,
         save=not args.no_save,
     )
     return 130 if interrupted else rc
@@ -1163,7 +1079,6 @@ def _deliver(
     formats: tuple[str, ...],
     out_dir: str,
     json_path: str | None,
-    stdout: bool,
     save: bool,
 ) -> int:
     """Render, archive and write a finished report; print the summary; exit code."""
@@ -1231,9 +1146,6 @@ def _deliver(
         if rec.run_no > 1:
             nxt = "prebuttal diff · " + nxt
         print(f"Next:     {nxt}")
-    if stdout:
-        print()
-        print(md)
 
     failed = [r for r in report.reviews if not r.parse_ok]
     for r in failed:
@@ -1329,7 +1241,6 @@ def cmd_retry(args) -> int:
         formats=cfg.output_formats,
         out_dir=cfg.output_dir,
         json_path=None,
-        stdout=False,
         save=True,
     )
     return 130 if interrupted else rc
@@ -1345,14 +1256,33 @@ def _utf8_stdio() -> None:
                 stream.reconfigure(encoding="utf-8", errors="replace")
 
 
-# Flags removed in 0.2 — explain the replacement instead of a bare argparse error.
+_TOML = "in prebuttal.toml (`prebuttal init` writes one)"
+# run flags hidden in 0.6, gone in 0.7: what replaces each
+_MOVED_RUN_FLAGS = {
+    "--reviewers": f"one [[reviewer]] block per reviewer {_TOML}",
+    "--seed": f"`seed = N` {_TOML}",
+    "--effort": f'`effort = "high"` {_TOML}',
+    "--figures": f"`figures = true` {_TOML}",
+    "--out-dir": f'`[output] dir = "..."` {_TOML}',
+    "--json": "`prebuttal show --json` after the run (with --no-save: "
+    f'`[output] formats = ["md", "html", "json"]` {_TOML})',
+}
+
+# Removed flags and commands — explain the replacement instead of a bare argparse error.
 _REMOVED_FLAGS = {
     "--share": "HTML reports are written by default now; drop --share",
     "--out": (
-        "each run now gets its own folder under prebuttal-reports/<project>/ "
-        "(nothing is overwritten); use --out-dir DIR for another location, "
-        "--json PATH for a file at a fixed path, or `prebuttal show -o FILE` afterwards"
+        "each run gets its own folder under prebuttal-reports/<project>/ "
+        "(nothing is overwritten); `prebuttal show -o FILE` saves a copy anywhere"
     ),
+    "--format": f'use `[output] formats = ["md", "html", "json"]` {_TOML}',
+    "--stdout": "print the report with `prebuttal show` after the run",
+}
+_REMOVED_COMMANDS = {
+    "open": "prebuttal show --open",
+    "export": "prebuttal show -o FILE",
+    "dashboard": "prebuttal projects --open",
+    "models": "prebuttal backends <name>",
 }
 
 
@@ -1364,10 +1294,21 @@ def _removed_flag(argv: list[str]) -> str | None:
     return None
 
 
+def _removed_command(argv: list[str]) -> str | None:
+    if argv[:1] and argv[0] in _REMOVED_COMMANDS:
+        return (
+            f"error: `prebuttal {argv[0]}` was removed in 0.6 — use `{_REMOVED_COMMANDS[argv[0]]}`"
+        )
+    if argv[:2] == ["key", "status"]:
+        return "error: `prebuttal key status` was removed in 0.6 — use `prebuttal backends`"
+    return None
+
+
 def main(argv=None) -> int:
     _utf8_stdio()
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv[:1] == ["run"] and (msg := _removed_flag(argv)):
+    msg = _removed_command(argv) or (_removed_flag(argv) if argv[:1] == ["run"] else None)
+    if msg:
         print(msg, file=sys.stderr)
         return EXIT_USAGE
     parser = build_parser()
@@ -1376,7 +1317,7 @@ def main(argv=None) -> int:
         # stored keys → env, only for commands that reach a backend; the notice
         # only where a model is about to be called (backends/key show it anyway)
         calls_model = args.cmd in ("run", "retry") or (args.cmd == "diff" and args.llm)
-        if calls_model or args.cmd in ("backends", "models", "key"):
+        if calls_model or args.cmd in ("backends", "key"):
             applied = key_store.apply_stored_keys()
             if applied and calls_model:
                 _log("[prebuttal] using stored keys: " + ", ".join(applied))
@@ -1387,16 +1328,12 @@ def main(argv=None) -> int:
             "runs": cmd_runs,
             "show": cmd_show,
             "plan": cmd_plan,
-            "open": cmd_open,
             "diff": cmd_diff,
             "note": cmd_note,
             "rm": cmd_rm,
-            "export": cmd_export,
-            "dashboard": cmd_dashboard,
             "retry": cmd_retry,
             "check": cmd_check,
             "key": cmd_key,
-            "models": cmd_models,
             "venues": cmd_venues,
             "run": cmd_run,
         }

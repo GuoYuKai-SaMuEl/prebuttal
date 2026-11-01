@@ -55,7 +55,7 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 # effort = "high"       # reasoning effort: low | medium | high (unset = each
                         # model's default). Thinking models only: Claude, codex,
                         # OpenAI gpt-5+/o-series, Gemini, OpenRouter, Ollama gpt-oss.
-                        # Also per [[reviewer]] / [ac], or --effort for one run.
+                        # Also per [[reviewer]] / [ac].
 
 # backend = "auto" (default) picks the best available backends at startup:
 #   agent-claude / agent-codex  (subscription CLIs, zero API key)

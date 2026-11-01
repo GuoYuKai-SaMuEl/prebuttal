@@ -241,15 +241,3 @@ def scan(only: str | None = None) -> list[ModelListing]:
     if only is not None:
         return [_LISTERS[only]()]
     return [lister() for lister in _LISTERS.values()]
-
-
-def render(listings: list[ModelListing]) -> str:
-    lines = ["Available models per backend (* = current default)", ""]
-    lines += [x.render() for x in listings]
-    lines += [
-        "",
-        "Pick one and set it per reviewer in prebuttal.toml:",
-        '  [[reviewer]]  backend = "api-gemini"   model = "gemini-2.5-pro"',
-        "or force everywhere for one run:  prebuttal run ... --model <id>",
-    ]
-    return "\n".join(lines)
