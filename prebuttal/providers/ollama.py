@@ -44,10 +44,6 @@ def ollama_tags(base: str) -> list[dict]:
         return []
 
 
-def ollama_models(base_url: str | None = None) -> list[str]:
-    return [m["name"] for m in ollama_tags(base_url or ollama_base_url())]
-
-
 def _looks_like_embedding(tag: dict) -> bool:
     """An embedding model (nomic-embed-text, mxbai-embed-large, bge-m3,
     all-minilm) can't write a review; /api/tags only gives name and family."""

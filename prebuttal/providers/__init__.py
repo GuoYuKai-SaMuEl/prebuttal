@@ -24,7 +24,7 @@ from .detect import (
     resolve_backends,
     scan_backends,
 )
-from .ollama import OllamaProvider, ollama_models
+from .ollama import OllamaProvider, ollama_tags
 from .relay import RelayProvider
 
 Factory = Callable[[str, RunConfig, float], BaseProvider]
@@ -109,7 +109,7 @@ __all__ = [
     "build_provider",
     "default_model_for",
     "detect_host_agent",
-    "ollama_models",
+    "ollama_tags",
     "register_backend",
     "resolve_backends",
     "scan_backends",

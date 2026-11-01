@@ -1,4 +1,4 @@
-"""API key storage: `prebuttal key set/unset/status`.
+"""API key storage: `prebuttal key set/unset` (status: `prebuttal backends`).
 
 Keys live in ``~/.prebuttal/keys.env`` (KEY=VALUE lines, user-only permissions,
 same trust level as ~/.aws/credentials).  At CLI startup stored keys are applied
