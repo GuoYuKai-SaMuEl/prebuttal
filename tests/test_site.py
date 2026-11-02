@@ -1,6 +1,10 @@
-"""The published site carries the GoatCounter snippet exactly once per page.
+"""The published site, and what a release must keep in step with it.
 
-``site/`` and ``scripts/`` are not shipped in the sdist, so these skip there.
+Generated pages match their generator (heads, header, the guide's reference
+and settings table, venue checklists, sitemap); every page has its own head,
+one GoatCounter snippet and links that resolve; the README names the current
+release. ``site/`` and ``scripts/`` are not shipped in the sdist, so these
+skip there.
 """
 
 import importlib.util
@@ -184,3 +188,14 @@ def test_guide_pins_the_same_action_release_as_the_readme():
     readme = set(pin.findall((REPO / "README.md").read_text(encoding="utf-8")))
     guide = set(pin.findall((SITE / "guide" / "index.html").read_text(encoding="utf-8")))
     assert len(readme) == 1 and guide == readme
+
+
+def test_readme_roadmap_marks_the_released_minor_as_current():
+    """The README is the PyPI page: bumping to 0.6 must move "(current)" too."""
+    import re
+
+    from prebuttal import __version__
+
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+    current = re.findall(r"\*\*(\d+\.\d+) \(current\)", readme)
+    assert current == [".".join(__version__.split(".")[:2])]
