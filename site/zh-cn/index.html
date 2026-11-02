@@ -24,11 +24,12 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preload" href="../fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../style.css">
 <!-- head:end -->
 </head>
 <body>
-<main>
+<main class="home">
 <!-- nav:start -->
 <header class="site-header">
   <a class="wordmark" href="../"><picture>
@@ -51,81 +52,116 @@
 <!-- nav:end -->
 
   <section class="hero">
-    <h1>在 <em>Reviewer 2</em> 出现之前，先回应他。</h1>
-    <p class="lead">
-      Prebuttal 是机器学习论文的投稿前<strong>压力测试</strong>：三位风格不同、在完全独立的上下文中阅读论文的 AI 审稿人，加上一位领域主席（AC），在真正的审稿人看到稿件之前，先给你一份会议格式的审稿报告。
-    </p>
-    <div class="install">pip install prebuttal</div>
-    <div class="btns">
-      <a class="btn primary" href="../reports/sample.html">▶ 查看示例报告（英文）</a>
-      <a class="btn" href="#check">直接拒稿检查</a>
-      <a class="btn" href="https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.zh-CN.md">中文文档</a>
+    <div>
+      <h1>在 Reviewer 2 出现之前，先回应他。</h1>
+      <p class="lead">机器学习论文的投稿前压力测试。三位 AI 审稿人在相互独立的上下文中，用会议真实的审稿表阅读你的论文；领域主席（AC）汇总意见，告诉你最该先改什么。另有免费的检查，找出会被直接拒稿的问题。</p>
+      <div class="install"><span>pip install prebuttal</span></div>
+      <div class="btns">
+        <a class="btn primary" href="../reports/sample.html">查看示例报告（英文）</a>
+        <a class="btn" href="../guide/">使用指南（英文）</a>
+      </div>
     </div>
+    <figure>
+      <pre class="term"><span class="d">$</span> prebuttal run examples/weak-paper --venue neurips
+<span class="d">[prebuttal] parsed: “GlobalGate: A Universal Attention Mechanism…”</span>
+<span class="bad">[prebuttal] Pre-flight check (error): no "NeurIPS Paper
+            Checklist" section — the venue requires one</span>
+<span class="d">[R2] dispatching adversarial via agent-codex / gpt-6-luna</span>
+<span class="d">[R1] dispatching senior_kind via agent-claude / sonnet</span>
+<span class="d">[R3] dispatching detail_obsessive via api-gemini /
+     gemini-3.5-flash-lite</span>
+[R3] done in 9s  rating 1
+[R2] done in 11s rating 2
+[R1] done in 25s rating 1
+[AC] done in 27s
+
+Predicted: <span class="hl">1.33/6</span> (σ 0.47, range 1–2)
+Fix first: [must] Section 3.1 / Table 1: baseline Transformer trained
+                  for 1 epoch vs GlobalGate for 5 epoch…
+           [must] Section 3.1: the same 200 LongQA-Mini questions are
+                  used for hyperparameter selection and…</pre>
+      <figcaption>实际输出（节选），对象是<a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">一篇故意埋了缺陷的虚构论文</a>；三位审稿人分别是 Claude、Codex 和 Gemini。工具输出和审稿表都是英文。</figcaption>
+    </figure>
   </section>
 
-  <h2>为什么不直接把论文丢给聊天机器人？</h2>
-  <p class="sub">在同一个对话里扮演三位审稿人，意见最后会收敛成一个不痛不痒的折中。</p>
-  <div class="grid">
-    <div class="card">
-      <h3>三位审稿人，互不共享上下文</h3>
-      <p>每位审稿人都是独立的调用或进程，有自己的角色和模型，结论确实会不同；意见分歧（σ）一定会写进报告。</p>
-    </div>
-    <div class="card">
-      <h3>真实的审稿表</h3>
-      <p>NeurIPS 1–6、ICLR 1–10、ICML 1–10、CVPR 1–5，以及 ARR 的
-      Soundness / Excitement / Overall，附官方的评分说明。其他会议或期刊，一个 TOML 文件就能定义。</p>
-    </div>
-    <div class="card">
-      <h3>表格逐格读取</h3>
-      <p>解析 LaTeX，或按坐标从 PDF 提取表格，审稿人引用的是<em>你的</em>“Table 3 第 4 列”，而不是猜出来的数字。</p>
-    </div>
-    <div class="card">
-      <h3>修改清单，不只是分数</h3>
-      <p>AC 把所有意见整理成 must / should / could 的修改清单；改完重跑，<code>prebuttal diff</code> 会告诉你哪些问题还在、哪些已经解决。</p>
-    </div>
-  </div>
+  <section class="band" id="samples">
+    <h2>真实论文的示例</h2>
+    <p class="sub">用 arXiv 上公开的论文完整运行一次，再对照它们真实的结果。非官方示例，并非论文作者撰写或认可。</p>
+    <table class="results">
+      <tr><th>论文</th><th>会议</th><th class="num">Prebuttal</th><th>真实结果</th></tr>
+      <tr><td><a href="../reports/mamba-revision.html">Mamba，v1 → v2</a><small>一轮修改，各运行三个 seed</small></td><td>ICLR 2024</td><td class="num">7.22 → 7.33 /10</td><td>被拒 → 改投 COLM 2024 录用</td></tr>
+      <tr><td><a href="../reports/dpo.html">Direct Preference Optimization</a><small>AC 估计 5</small></td><td>NeurIPS 2023</td><td class="num">4.33 /6</td><td>录用（oral）</td></tr>
+      <tr><td><a href="../reports/weak.html">GlobalGate</a><small>虚构，故意埋了缺陷</small></td><td>ICLR</td><td class="num">1.33 /10</td><td>—</td></tr>
+    </table>
+    <p class="sub" style="margin-top:20px">Mamba 被拒的版本和修改后的版本分数几乎没变，v1 修改清单里的每一项在 v2 中都再次被提出，包括真正的 ICLR 审稿人反复追问的误差范围。看不出变化时，工具会直接说“没有变化”。这些论文很可能在模型的训练数据里，分数会偏高，请当作流程示例，而不是准确度的证据。</p>
+  </section>
 
-  <h2 id="check">投稿前：直接拒稿检查</h2>
-  <p class="sub">无需模型、不花钱、几秒钟：匿名信息泄露、会议的页数限制和必需章节，以及残留的 <code>??</code>、TODO 或隐藏文字。</p>
-  <pre class="term"><span># Overleaf 的 Menu → Download → Source 下载的 .zip 也可以直接检查</span>
-$ prebuttal check paper.pdf --venue cvpr
-$ prebuttal check paper.zip --venue cvpr
-$ prebuttal check ./latex-src/ --venue iclr</pre>
-  <div class="grid two">
-    <div class="card">
-      <h3>匿名</h3>
-      <p>PDF 元数据里的作者姓名、第一页的邮箱、camera-ready 或 <code>[preprint]</code> 版本、致谢部分、自己的 GitHub 链接、“our previous work [12]”这类暴露身份的引用。</p>
-    </div>
-    <div class="card">
-      <h3>格式与残留</h3>
-      <p>正文超过页数限制（包括双栏排版）、缺少 NeurIPS checklist / ICML impact
-      statement / CVPR LLM usage statement / ARR limitations，<code>??</code>、<code>[?]</code>、TODO。LaTeX 项目无需编译；也提供 GitHub Action，每次 push 都检查。</p>
-    </div>
-  </div>
-  <p class="more">各会议的投稿检查清单（英文）：<a href="../venues/neurips/">NeurIPS</a> · <a href="../venues/iclr/">ICLR</a> · <a href="../venues/icml/">ICML</a> · <a href="../venues/acl/">ARR</a> · <a href="../venues/cvpr/">CVPR</a> ·
-  <a href="../guide/#check">完整说明见使用指南（英文）→</a></p>
+  <section class="band" id="why">
+    <h2>为什么不直接把论文丢给聊天机器人？</h2>
+    <p class="sub">在同一个对话里扮演三位审稿人，意见最后会收敛成一个折中。</p>
+    <table class="compare">
+      <tr><th>丢给聊天机器人</th><th>Prebuttal</th></tr>
+      <tr><td>同一个对话扮演所有审稿人</td><td>三位审稿人在独立的上下文中阅读，可以各自使用不同模型；意见分歧（σ）一定会列出来</td></tr>
+      <tr><td>没有格式的意见</td><td>会议自己的审稿表和分数：NeurIPS 1–6、ICLR 1–10、ICML 1–10、CVPR 1–5、ARR 的 Soundness / Excitement / Overall。其他会议一个 TOML 文件就能定义</td></tr>
+      <tr><td>长论文被略读，表格变成叙述</td><td>LaTeX 和 PDF 的表格逐格读取，审稿意见会引用“Table 3 第 4 列”</td></tr>
+      <tr><td>不知道哪句话出自哪个模型</td><td>每份审稿意见都标明后端和模型；每篇论文的运行记录都会保留，版本之间可以对比</td></tr>
+    </table>
+  </section>
 
-  <h2>用你已有的模型</h2>
-  <p class="sub">启动时自动检测；每份报告都记录了哪个模型写了哪份审稿意见。</p>
-  <table>
-    <tr><th>后端</th><th>费用</th><th>说明</th></tr>
-    <tr><td><code>agent-claude</code> / <code>agent-codex</code></td><td>订阅制，无需 API key</td><td>两者都有时就是跨模型审稿</td></tr>
-    <tr><td><code>api-gemini</code></td><td>免费额度</td><td>最省事的第一个 key</td></tr>
-    <tr><td><code>api-openrouter</code></td><td><code>:free</code> 模型免费</td><td>一个 key，数百个模型</td></tr>
-    <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td>自带 key</td><td>默认使用中档模型</td></tr>
-    <tr><td><code>ollama</code></td><td>免费、本地</td><td>未发表的论文不会离开你的电脑</td></tr>
-    <tr><td><code>relay</code></td><td>免费</td><td>由你、你的 agent 的子代理或任何系统来回答</td></tr>
-  </table>
-  <div class="note">
-    隐私：论文内容会发送给你选择的后端服务商，之后如何处理由该服务商的条款决定，而不是本工具。免费额度通常以你的数据为代价；未发表的论文请先确认条款、改用付费方案，或用 <code>ollama</code>、<code>relay</code> 留在本地。
-  </div>
-  <div class="note">
-    这是压力测试，不是预测：分数尚未校准（与 OpenReview 真实评分的校准结果还没有发布），单次运行的分数波动多半是噪声。工具输出和审稿表都是英文。
-  </div>
+  <section class="band" id="check">
+    <h2>投稿前：直接拒稿检查</h2>
+    <p class="sub">无需模型、不花钱、几秒钟。PDF、LaTeX 文件夹或 Overleaf 下载的源码 <code>.zip</code> 都可以。</p>
+    <div class="split">
+      <pre class="term"><span class="d"># 随附示例论文的实际输出</span>
+<span class="d">$</span> prebuttal check paper.pdf --venue icml
+<span class="d">ICML rules (8 pages, double-blind, requires Impact Statement)</span>
+
+<span class="bad">[x]</span> format     no "Impact Statement" section
+                — the venue requires one
+<span class="bad">[x]</span> leftovers  unresolved references (??) on page 2
+<span class="ok">[ok]</span> PDF metadata has no author
+<span class="ok">[ok]</span> no self-revealing links or citations
+<span class="ok">[ok]</span> main text 2 of 8 pages
+<span class="ok">[ok]</span> no hidden text
+
+2 problems that can get the paper desk-rejected.</pre>
+      <dl class="facts">
+        <div><dt>匿名</dt><dd>PDF 元数据里的作者姓名、第一页的邮箱、camera-ready 或 <code>[preprint]</code> 版本、致谢部分、自己的 GitHub 链接、“our previous work [12]”这类暴露身份的引用。</dd></div>
+        <div><dt>格式</dt><dd>正文超过页数限制（包括双栏排版）；缺少 NeurIPS checklist、ICML impact statement、CVPR LLM usage statement 或 ARR limitations。</dd></div>
+        <div><dt>残留</dt><dd><code>??</code>、<code>[?]</code>、TODO，以及读者看不到的隐藏文字。</dd></div>
+        <div><dt>放进 CI</dt><dd>发现拒稿风险时退出码为 6；也提供 GitHub Action，每次 push 都检查。</dd></div>
+      </dl>
+    </div>
+    <ul class="chips" aria-label="各会议的投稿检查清单">
+      <li><a href="../venues/neurips/">NeurIPS 检查清单</a></li>
+      <li><a href="../venues/iclr/">ICLR 检查清单</a></li>
+      <li><a href="../venues/icml/">ICML 检查清单</a></li>
+      <li><a href="../venues/acl/">ARR 检查清单</a></li>
+      <li><a href="../venues/cvpr/">CVPR 检查清单</a></li>
+    </ul>
+    <p class="next">检查清单和<a href="../guide/#check">使用指南</a>目前只有英文。</p>
+  </section>
+
+  <section class="band" id="backends">
+    <h2>用你已有的模型</h2>
+    <p class="sub">启动时自动检测；每份报告都记录了哪个模型写了哪份审稿意见。</p>
+    <table>
+      <tr><th>后端</th><th>费用</th><th>说明</th></tr>
+      <tr><td><code>agent-claude</code> / <code>agent-codex</code></td><td>订阅制，无需 API key</td><td>两者都登录时就是跨模型审稿</td></tr>
+      <tr><td><code>api-gemini</code></td><td>免费额度</td><td>最省事的第一个 key</td></tr>
+      <tr><td><code>api-openrouter</code></td><td><code>:free</code> 模型免费</td><td>一个 key，数百个模型</td></tr>
+      <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td>自带 key</td><td>默认使用中档模型</td></tr>
+      <tr><td><code>ollama</code></td><td>免费、本地</td><td>论文不会离开你的电脑</td></tr>
+      <tr><td><code>relay</code></td><td>免费</td><td>由你、你的 agent 的子代理或任何系统来回答</td></tr>
+    </table>
+    <div class="note"><strong>隐私。</strong>论文内容会发送给你选择的后端服务商，之后如何处理由该服务商的条款决定，而不是本工具。免费额度通常以你的数据为代价；未发表的论文请先确认条款、改用付费方案，或用 <code>ollama</code>、<code>relay</code> 留在本地。</div>
+    <div class="note"><strong>这是压力测试，不是预测。</strong>分数尚未校准（与 OpenReview 真实评分的校准结果还没有发布），单次运行的分数波动多半是噪声。</div>
+  </section>
 
   <footer>
     MIT 许可 · Prebuttal 与 NeurIPS、ICLR、ICML、ARR、CVPR 均无关联 ·
-    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">源代码</a><br>
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">源代码</a> ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.zh-CN.md">中文文档</a><br>
     本网站使用 <a href="https://www.goatcounter.com/">GoatCounter</a> 统计匿名访问量（不使用 cookie、不收集个人数据）。<code>prebuttal</code> 工具本身不发送任何统计数据。
   </footer>
 </main>

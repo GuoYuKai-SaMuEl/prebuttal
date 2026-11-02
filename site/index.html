@@ -25,6 +25,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preload" href="fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 <script type="application/ld+json">
 {
@@ -49,7 +50,7 @@
 <!-- head:end -->
 </head>
 <body>
-<main>
+<main class="home">
 <!-- nav:start -->
 <header class="site-header">
   <a class="wordmark" href="./"><picture>
@@ -72,222 +73,186 @@
 <!-- nav:end -->
 
   <section class="hero">
-    <h1>Answer <em>Reviewer 2</em> before Reviewer 2 exists.</h1>
-    <p class="lead">
-      Prebuttal is a pre-submission <strong>stress test</strong> for ML papers:
-      three AI reviewers with different temperaments — running in fully
-      independent contexts — plus an area chair, delivering a conference-format
-      review report before the real Reviewers 1–3 see your manuscript.
-    </p>
-    <div class="install">pip install prebuttal</div>
-    <div class="btns">
-      <a class="btn primary" href="reports/sample.html">▶ See a sample report</a>
-      <a class="btn" href="guide/">Read the guide</a>
-      <a class="btn" href="#check">Desk-reject pre-flight</a>
-      <a class="btn" href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub</a>
+    <div>
+      <h1>Answer Reviewer 2 before Reviewer 2 exists.</h1>
+      <p class="lead">A pre-submission stress test for ML papers. Three AI reviewers read
+      your paper in separate contexts, on the venue's real review form; an area chair
+      weighs them and writes what to fix first. A free check catches what gets papers
+      desk-rejected.</p>
+      <div class="install"><span>pip install prebuttal</span></div>
+      <div class="btns">
+        <a class="btn primary" href="reports/sample.html">See a sample report</a>
+        <a class="btn" href="guide/">Read the guide</a>
+      </div>
     </div>
+    <figure>
+      <pre class="term"><span class="d">$</span> prebuttal run examples/weak-paper --venue neurips
+<span class="d">[prebuttal] parsed: “GlobalGate: A Universal Attention Mechanism…”</span>
+<span class="bad">[prebuttal] Pre-flight check (error): no "NeurIPS Paper
+            Checklist" section — the venue requires one</span>
+<span class="d">[R2] dispatching adversarial via agent-codex / gpt-6-luna</span>
+<span class="d">[R1] dispatching senior_kind via agent-claude / sonnet</span>
+<span class="d">[R3] dispatching detail_obsessive via api-gemini /
+     gemini-3.5-flash-lite</span>
+[R3] done in 9s  rating 1
+[R2] done in 11s rating 2
+[R1] done in 25s rating 1
+[AC] done in 27s
+
+Predicted: <span class="hl">1.33/6</span> (σ 0.47, range 1–2)
+Fix first: [must] Section 3.1 / Table 1: baseline Transformer trained
+                  for 1 epoch vs GlobalGate for 5 epoch…
+           [must] Section 3.1: the same 200 LongQA-Mini questions are
+                  used for hyperparameter selection and…
+           [must] Section 3.2: no comparison with any existing
+                  long-context or gated-attention method…</pre>
+      <figcaption>Real output, abridged, on <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">a fictional
+      paper with planted flaws</a>: Claude, Codex and Gemini as the three reviewers.</figcaption>
+    </figure>
   </section>
 
-  <h2>Why not just paste the paper into a chatbot?</h2>
-  <p class="sub">One conversation role-playing three reviewers collapses into one bland compromise opinion.</p>
-  <div class="grid">
-    <div class="card">
-      <h3>Three reviewers, zero shared context</h3>
-      <p>Each reviewer is a separate call or process with its own persona and model
-      — verdicts genuinely differ, and the disagreement (σ) is reported, always.</p>
-    </div>
-    <div class="card">
-      <h3>Real review forms</h3>
-      <p>NeurIPS 1–6, ICLR 1–10, ICML 1–10, CVPR 1–5 and ARR
-      Soundness/Excitement/Overall — with the official scale anchors, not invented
-      ones. Another venue? Any form and scale is one TOML file:
-      <code>prebuttal venues new aaai</code>.</p>
-    </div>
-    <div class="card">
-      <h3>Cell-accurate ingestion</h3>
-      <p>LaTeX parsing, PDF table extraction with per-cell geometry, caption
-      fallback — reviewers cite <em>your</em> “Table 3, column 4”, not a guess.</p>
-    </div>
-    <div class="card">
-      <h3>Honest by construction</h3>
-      <p>Every review is labeled with its backend and model; a calibration script
-      measures scores against real OpenReview ratings (results not yet published); run history diffs weaknesses
-      across revisions.</p>
-    </div>
-  </div>
-  <p class="more"><a href="guide/#review">Guide: running a mock review and reading the report →</a></p>
+  <section class="band" id="samples">
+    <h2>Sample runs</h2>
+    <p class="sub">Full runs on public arXiv papers, next to what really happened to them.
+    Unofficial demos, not written or endorsed by the papers' authors.</p>
+    <table class="results">
+      <tr><th>Paper</th><th>Venue</th><th class="num">Prebuttal</th><th>Real outcome</th></tr>
+      <tr><td><a href="reports/mamba-revision.html">Mamba, v1 → v2</a><small>a revision round,
+        three seeds each</small></td><td>ICLR 2024</td><td class="num">7.22 → 7.33 /10</td>
+        <td>rejected → accepted at COLM 2024</td></tr>
+      <tr><td><a href="reports/dpo.html">Direct Preference Optimization</a><small>AC estimate
+        5</small></td><td>NeurIPS 2023</td><td class="num">4.33 /6</td><td>accepted (oral)</td></tr>
+      <tr><td><a href="reports/weak.html">GlobalGate</a><small>fictional, planted
+        flaws</small></td><td>ICLR</td><td class="num">1.33 /10</td><td>—</td></tr>
+    </table>
+    <p class="sub" style="margin-top:20px">On Mamba the score did not move between the
+    rejected and the revised version, and every concern in the v1 revision plan was raised
+    again against v2 — including the missing error bars the real ICLR reviewers hammered
+    on. The tool says “no change” when it sees none. Frontier models have likely seen
+    these papers in training, which pushes scores up: read them as the workflow, not as
+    evidence of accuracy.</p>
+  </section>
 
-  <h2>Sample runs</h2>
-  <p class="sub">Full runs on public arXiv papers, compared with their real OpenReview outcomes.
-  Unofficial demos — not written or endorsed by the papers' authors.</p>
-  <div class="card paper">
-    <div class="left">
-      <h3>Mamba — one paper, two rounds: the rejected v1 vs the revised v2</h3>
-      <div class="venue">ICLR 2024 → COLM 2024 · <a href="reports/mamba-revision.html">full comparison →</a></div>
-      <p>The same cross-model panel (claude sonnet · codex gpt-6-luna ·
-      gemini-3.8-flash, AC opus) reviewed both arXiv versions of Mamba, three seeds
-      each. The score did not move (mean 7.22 → 7.33, inside the noise) and, matched
-      by meaning, every concern in the v1 revision plan was raised again against v2 —
-      including the missing error bars the real ICLR reviewers hammered on. The tool
-      says “no change” when it sees none.</p>
-    </div>
-    <div class="score">
-      <div class="num">7.33 → 7.33<span style="font-size:18px;color:var(--muted)">/10</span></div>
-      <div class="cap">v1 → v2 · seed 42 · 3-seed means 7.22 → 7.33</div>
-      <div class="real">real: rejected → accepted elsewhere</div>
-    </div>
-  </div>
-  <div class="card paper">
-    <div class="left">
-      <h3>Direct Preference Optimization: Your Language Model is Secretly a Reward Model</h3>
-      <div class="venue">NeurIPS 2023 · <a href="reports/dpo.html">full report →</a></div>
-      <p>Two reviewers at borderline accept, the detail reviewer at accept (4 / 4 / 5),
-      and an AC estimate of 5. The revision plan goes after what a skeptic would:
-      no matched PPO baseline for dialogue, no uncertainty on any win rate, an
-      unmeasured efficiency claim. Positive, as the real outcome was.</p>
-    </div>
-    <div class="score">
-      <div class="num">4.33<span style="font-size:18px;color:var(--muted)">/6</span></div>
-      <div class="cap">σ 0.47, range 4–5 · AC 5</div>
-      <div class="real">real: accepted (oral)</div>
-    </div>
-  </div>
-  <div class="card paper">
-    <div class="left">
-      <h3>GlobalGate: A Universal Attention Mechanism That Solves Long-Context Reasoning</h3>
-      <div class="venue">Synthetic paper · <a href="reports/weak.html">full report →</a></div>
-      <p>What a weak submission gets. A fictional paper written for this demo with
-      deliberate flaws — baseline trained 1 epoch vs. 5, hyperparameters tuned on the
-      test set, one seed, no competing methods, "universal" claims from one 2k-token
-      task. All three reviewers caught every flaw and cited the paper's own lines.</p>
-    </div>
-    <div class="score">
-      <div class="num">1.33<span style="font-size:18px;color:var(--muted)">/10</span></div>
-      <div class="cap">3 reviewers, range 1–2</div>
-      <div class="real">fictional · no real authors</div>
-    </div>
-  </div>
-  <div class="note">
-    Calibration caveats, stated plainly: frontier models have almost certainly seen
-    these papers in training (contamination), which pushes scores toward the lenient
-    side — an earlier single-model panel rated Mamba 8/8/8 with no dissenter at all.
-    The revision-round demo above shows no measurable response to the revision; an
-    earlier version of this page read a single-run 7.0 → 7.3 as progress, which
-    re-running with three seeds showed to be noise.
-    These comparisons illustrate the workflow, not a validated predictor.
-    A stress test, not a prophecy.
-  </div>
+  <section class="band" id="why">
+    <h2>Why not paste the paper into a chatbot?</h2>
+    <p class="sub">One conversation playing three reviewers drifts into one compromise
+    opinion.</p>
+    <table class="compare">
+      <tr><th>Pasting into a chatbot</th><th>Prebuttal</th></tr>
+      <tr><td>One conversation plays every reviewer</td><td>Three reviewers in separate
+        contexts, optionally on different models; their disagreement (σ) is reported</td></tr>
+      <tr><td>Free-form opinions</td><td>The venue's own form and scale: NeurIPS 1–6, ICLR
+        1–10, ICML 1–10, CVPR 1–5, ARR Soundness / Excitement / Overall. Any other venue is
+        one TOML file</td></tr>
+      <tr><td>Long papers skimmed, tables turned into prose</td><td>LaTeX and PDF tables
+        read cell by cell, so a review cites “Table 3, column 4”</td></tr>
+      <tr><td>No record of which model said what</td><td>Every review labelled with its
+        backend and model; runs kept per paper and diffed across revisions</td></tr>
+    </table>
+    <p class="next"><a href="guide/#review">How a review runs and how to read the report</a></p>
+  </section>
 
-  <h2 id="check">Before you submit: the desk-reject pre-flight</h2>
-  <p class="sub">No model, no cost, a few seconds: anonymity leaks, the venue's page
-  limit and required sections, and leftovers like <code>??</code> or hidden text.</p>
-  <pre class="term"># real output on the bundled demo paper
-$ prebuttal check paper.pdf --venue icml
-prebuttal check — paper.pdf · ICML rules (8 pages, double-blind, requires Impact Statement)
+  <section class="band" id="check">
+    <h2>Before you submit: the desk-reject pre-flight</h2>
+    <p class="sub">No model, no cost, a few seconds. A PDF, a LaTeX folder or Overleaf's
+    source <code>.zip</code>.</p>
+    <div class="split">
+      <pre class="term"><span class="d"># real output on the bundled demo paper</span>
+<span class="d">$</span> prebuttal check paper.pdf --venue icml
+<span class="d">ICML rules (8 pages, double-blind, requires Impact Statement)</span>
 
-  [x] format     no "Impact Statement" section — the venue requires one
-  [x] leftovers  unresolved references (??) on page 2
-  [ok] PDF metadata has no author
-  [ok] no self-revealing links or citations
-  [ok] main text 2 of 8 pages
-  [ok] no hidden text
+<span class="bad">[x]</span> format     no "Impact Statement" section
+                — the venue requires one
+<span class="bad">[x]</span> leftovers  unresolved references (??) on page 2
+<span class="ok">[ok]</span> PDF metadata has no author
+<span class="ok">[ok]</span> no self-revealing links or citations
+<span class="ok">[ok]</span> main text 2 of 8 pages
+<span class="ok">[ok]</span> no hidden text
 
 2 problems that can get the paper desk-rejected.</pre>
-  <div class="grid two">
-    <div class="card">
-      <h3>Anonymity</h3>
-      <p>Author names in the PDF metadata, e-mails on page 1, a camera-ready or
-      <code>[preprint]</code> build, a visible acknowledgements section, links to
-      your own repository, “our previous work [12]”.</p>
+      <dl class="facts">
+        <div><dt>Anonymity</dt><dd>Author names in the PDF metadata, e-mails on page 1, a
+          camera-ready or <code>[preprint]</code> build, an acknowledgements section, links
+          to your own repository, “our previous work [12]”.</dd></div>
+        <div><dt>Format</dt><dd>Main text over the page limit, two-column layouts included;
+          a missing NeurIPS checklist, ICML impact statement, CVPR LLM usage statement or
+          ARR limitations section.</dd></div>
+        <div><dt>Leftovers</dt><dd><code>??</code>, <code>[?]</code>, TODOs, and text
+          hidden from human readers.</dd></div>
+        <div><dt>In CI</dt><dd>Exit code 6 on a desk-reject risk; a GitHub Action runs it
+          on every push.</dd></div>
+      </dl>
     </div>
-    <div class="card">
-      <h3>Format and leftovers</h3>
-      <p>Main-text pages over the limit (two-column layouts too), a missing NeurIPS
-      checklist / ICML impact statement / CVPR LLM usage statement / ARR
-      limitations section, <code>??</code>, <code>[?]</code>, TODOs. LaTeX
-      projects — a folder or Overleaf's source <code>.zip</code> — are checked
-      without compiling. A GitHub Action runs it on every push.</p>
-    </div>
-  </div>
-  <p class="more">Submission checklists, rule by rule: <a href="venues/neurips/">NeurIPS</a> · <a href="venues/iclr/">ICLR</a> · <a href="venues/icml/">ICML</a> · <a href="venues/acl/">ARR</a> · <a href="venues/cvpr/">CVPR</a> ·
-  <a href="guide/#check">Guide: the check and the GitHub Action →</a></p>
+    <ul class="chips" aria-label="Submission checklists">
+      <li><a href="venues/neurips/">NeurIPS checklist</a></li>
+      <li><a href="venues/iclr/">ICLR checklist</a></li>
+      <li><a href="venues/icml/">ICML checklist</a></li>
+      <li><a href="venues/acl/">ARR checklist</a></li>
+      <li><a href="venues/cvpr/">CVPR checklist</a></li>
+    </ul>
+  </section>
 
-  <h2 id="revision-loop">The revision loop</h2>
-  <p class="sub">Every run ends with a prioritised revision plan; every paper is a
-  project whose runs line up as revision history — and two runs can be diffed.</p>
-  <pre class="term"># abridged output of the real runs
-$ prebuttal run 2312.00752v1 --project mamba-revision --note "v1 — rejected at ICLR 2024"
-  R1 claude/sonnet 8 · R2 codex/gpt-6-luna 6 · R3 gemini-3.8-flash FAILED (HTTP 429)
-  the report uses the 2 reviews that finished — `prebuttal retry mamba-revision#11`
+  <section class="band" id="revision-loop">
+    <h2>The revision loop</h2>
+    <p class="sub">Every run ends with a revision plan, and every paper is a project whose
+    runs line up as revision history. Two runs can be diffed.</p>
+    <div class="split wide-left">
+      <pre class="term"><span class="d"># abridged output of the real runs</span>
+<span class="d">$</span> prebuttal run 2312.00752v1 --project mamba-revision \
+    --note "v1 — rejected at ICLR 2024"
+  R1 claude/sonnet 8 · R2 codex/gpt-6-luna 6
+  R3 gemini-3.8-flash <span class="bad">FAILED (HTTP 429)</span>
 
-$ prebuttal retry mamba-revision#11     # only R3 and the AC run again
+<span class="d">$</span> prebuttal retry mamba-revision#11
   R3 gemini-3.8-flash 8
-  Predicted: 7.33/10 (σ 0.94)       → saved as mamba-revision#17
+  Predicted: 7.33/10 (σ 0.94)  → saved as mamba-revision#17
 
-$ prebuttal run 2312.00752v2 --note "v2 — revised, accepted at COLM 2024"
-$ prebuttal retry mamba-revision#12     # R3 hit the same quota; completed the same way
-  Predicted: 7.33/10 (σ 0.94)       → saved as mamba-revision#18
+<span class="d">$</span> prebuttal run 2312.00752v2 \
+    --note "v2 — revised, accepted at COLM 2024"
+<span class="d">$</span> prebuttal retry mamba-revision#12   <span class="d"># same quota, same fix</span>
+  Predicted: 7.33/10 (σ 0.94)  → saved as mamba-revision#18
 
-$ prebuttal diff --llm mamba-revision#17 mamba-revision#18
+<span class="d">$</span> prebuttal diff --llm mamba-revision#17 mamba-revision#18
   panel          7.33/10 → 7.33/10 (Δ +0)
   still raised:  [must] Headline claims exceed the tested regime …
-  still raised:  [should] No seeds, standard deviations or confidence intervals …
+  still raised:  [should] No seeds, standard deviations …
   new in B:      the custom fused CUDA kernel's portability
   0 of 8 plan items were not re-detected in B.</pre>
-  <div class="grid two">
-    <div class="card">
-      <h3>A revision plan, not just a verdict</h3>
-      <p>The area chair merges what the reviewers raised into a short checklist —
-      <em>must / should / could</em>, the issue with its table or section, the
-      concrete fix, who raised it. <code>prebuttal show --plan</code> prints it; the next
-      <code>prebuttal diff</code> checks it against the re-run — by meaning with
-      <code>--llm</code>.</p>
+      <dl class="facts">
+        <div><dt>A plan, not just a verdict</dt><dd>The area chair merges the reviews into
+          <em>must / should / could</em> items: the issue with its table or section, the fix,
+          who raised it. <code>prebuttal show --plan</code> prints it.</dd></div>
+        <div><dt>Diff the next round</dt><dd><code>prebuttal diff</code> lists what is no
+          longer raised, what still is and what is new; <code>--llm</code> matches by
+          meaning.</dd></div>
+        <div><dt>History per paper</dt><dd>The same PDF, LaTeX folder or arXiv id always
+          lands in the same project. Runs are numbered (<code>mamba#3</code>) and carry
+          your <code>--note</code>; <code>prebuttal projects --open</code> shows the
+          trends offline.</dd></div>
+      </dl>
     </div>
-    <div class="card">
-      <h3>Projects &amp; run history</h3>
-      <p>Each paper gets a project found from its source — the same PDF, LaTeX
-      folder or arXiv id always lands in the same project, even after a title
-      change. Runs are numbered (<code>mamba#3</code>) and carry your
-      <code>--note "what changed"</code>.</p>
-    </div>
-    <div class="card">
-      <h3>A local overview</h3>
-      <p><code>prebuttal projects --open</code> writes one offline HTML page with every
-      project, score trends and links to each report — no server, no network,
-      nothing leaves your machine. The archive itself is user-only
-      (<code>0700</code>).</p>
-    </div>
-    <div class="card">
-      <h3>Reports that never overwrite</h3>
-      <p>Every run writes its own folder —
-      <code>prebuttal-reports/&lt;project&gt;/&lt;date&gt;_&lt;venue&gt;/</code> —
-      plus <code>latest.md</code> / <code>latest.html</code>, with a built-in
-      <code>.gitignore</code> so reviews of unpublished work stay out of version
-      control.</p>
-    </div>
-  </div>
-  <p class="more"><a href="guide/#revision-loop">Guide: the revision loop →</a> ·
-  <a href="guide/#projects">projects &amp; history →</a></p>
+    <p class="next"><a href="guide/#revision-loop">The revision loop in the guide</a></p>
+  </section>
 
-  <h2>Bring your own backend</h2>
-  <p class="sub">Auto-detected at startup; every run records who reviewed what.</p>
-  <table>
-    <tr><th>Backend</th><th>Cost</th><th>Notes</th></tr>
-    <tr><td><code>agent-claude</code> / <code>agent-codex</code></td><td>subscription, zero API key</td><td>cross-model reviews when both exist</td></tr>
-    <tr><td><code>api-gemini</code></td><td>free tier</td><td>the cheapest “first key” path</td></tr>
-    <tr><td><code>api-openrouter</code></td><td><code>:free</code> ids cost nothing</td><td>one key, hundreds of models; live prices in <code>prebuttal backends api-openrouter</code></td></tr>
-    <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td>BYO key</td><td>mid-tier models by default</td></tr>
-    <tr><td><code>ollama</code></td><td>free, local</td><td>unpublished papers never leave your machine</td></tr>
-    <tr><td><code>relay</code></td><td>free</td><td>you, your agent’s subagents, or any system answers by hand</td></tr>
-  </table>
-  <div class="note">
-    Privacy: your paper’s text goes to the backend’s provider — what happens there is
-    that provider’s privacy policy, not this tool’s. Prebuttal is an integration
-    layer, not a data custodian. For unpublished work use <code>ollama</code> or
-    <code>relay</code>.
-  </div>
-  <p class="more"><a href="guide/#backends">Guide: backends, keys &amp; privacy →</a> ·
-  <a href="guide/#configuration">every setting →</a></p>
+  <section class="band" id="backends">
+    <h2>Bring your own backend</h2>
+    <p class="sub">Detected at startup; every report records which model wrote what.</p>
+    <table>
+      <tr><th>Backend</th><th>Cost</th><th>Notes</th></tr>
+      <tr><td><code>agent-claude</code> / <code>agent-codex</code></td><td>your subscription, no API key</td><td>a cross-model panel when both are signed in</td></tr>
+      <tr><td><code>api-gemini</code></td><td>free tier</td><td>the cheapest first key</td></tr>
+      <tr><td><code>api-openrouter</code></td><td><code>:free</code> ids cost nothing</td><td>one key, hundreds of models</td></tr>
+      <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td>your key</td><td>mid-tier models by default</td></tr>
+      <tr><td><code>ollama</code></td><td>free, local</td><td>the paper never leaves your machine</td></tr>
+      <tr><td><code>relay</code></td><td>free</td><td>you, your agent's subagents or any system answer</td></tr>
+    </table>
+    <div class="note"><strong>Privacy.</strong> Your paper's text goes to the backend's
+    provider, and what happens there is that provider's policy. Prebuttal runs no
+    servers and is not a data custodian. For unpublished work, use <code>ollama</code> or
+    <code>relay</code>, or check the provider's terms.</div>
+    <p class="next"><a href="guide/#backends">Backends, keys and privacy</a> ·
+    <a href="guide/#configuration">every setting</a></p>
+  </section>
 
   <footer>
     MIT License · Prebuttal is not affiliated with NeurIPS, ICLR, ICML, ARR or CVPR ·

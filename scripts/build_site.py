@@ -254,6 +254,8 @@ def head(page: Page) -> str:
         '<meta name="twitter:card" content="summary_large_image">',
         f'<link rel="icon" href="{r}favicon.svg" type="image/svg+xml">',
         f'<link rel="apple-touch-icon" href="{r}apple-touch-icon.png">',
+        f'<link rel="preload" href="{r}fonts/plex-sans-400.woff2" as="font" '
+        'type="font/woff2" crossorigin>',
         f'<link rel="stylesheet" href="{r}style.css">',
     ]
     if page.app_schema:
