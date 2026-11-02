@@ -152,6 +152,9 @@ def with_analytics(html: str) -> str:
 SITE = REPO / "site"
 SITE_URL = "https://guoyukai-samuel.github.io/prebuttal/"
 PYPI_URL = "https://pypi.org/project/prebuttal/"
+# Google Search Console ownership of the SITE_URL prefix (public by design;
+# removing it un-verifies the property)
+GOOGLE_SITE_VERIFICATION = "_dz5nc1Xt4vZ0SRrtckQnUa8tSjt9Fuwz2iLbPMLSdE"
 
 
 @dataclass(frozen=True)
@@ -230,6 +233,8 @@ def head(page: Page) -> str:
         f'<meta name="description" content="{_attr(page.description)}">',
         f'<link rel="canonical" href="{page.url}">',
     ]
+    if page.path == "index.html":
+        lines.append(f'<meta name="google-site-verification" content="{GOOGLE_SITE_VERIFICATION}">')
     if page.translated:
         for lang, path in TRANSLATIONS:
             lines.append(f'<link rel="alternate" hreflang="{lang}" href="{SITE_URL}{path}">')
