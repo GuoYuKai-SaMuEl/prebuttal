@@ -88,6 +88,7 @@ commands. Everything else is in the [guide](https://guoyukai-samuel.github.io/pr
 | Paper | Venue | Prebuttal | Real outcome |
 |---|---|---|---|
 | [Direct Preference Optimization](https://guoyukai-samuel.github.io/prebuttal/reports/dpo.html) | NeurIPS 2023 | 4.33/6 · AC 5 | accepted (oral) |
+| [LLaVA-1.5](https://guoyukai-samuel.github.io/prebuttal/reports/llava.html) | CVPR 2024 | 3.33/5 · AC 4 | accepted (highlight) |
 | [Mamba v1 → v2, a revision round](https://guoyukai-samuel.github.io/prebuttal/reports/mamba-revision.html) | ICLR 2024 | 7.33 → 7.33/10 — "no change", and it says so | rejected → accepted at COLM |
 | [GlobalGate (fictional, planted flaws)](https://guoyukai-samuel.github.io/prebuttal/reports/weak.html) | ICLR | 1.33/10 | — |
 

@@ -71,14 +71,17 @@ SYNTHETIC_BANNER = (
     "No real authors, methods or results."
 )
 
-# All four samples come from one panel (claude sonnet · codex gpt-6-luna ·
+# Every sample comes from one panel (claude sonnet · codex gpt-6-luna ·
 # gemini-3.8-flash, AC claude opus), seed 42, run on 2026-10-27 with the 0.4
 # pre-release. The Mamba pair is a revision round over both arXiv versions —
 # v1 is the ICLR 2024-rejected submission, v2 the revision accepted at
 # COLM 2024 (the v1 run's R3 was completed with `prebuttal retry` after a
 # Gemini quota error). Seeds 43 and 44 stay in the local archive as the
-# variance check quoted on mamba-revision.html. The id prefixes pin the runs
-# so a glob can't silently drift to a newer one.
+# variance check quoted on mamba-revision.html. LLaVA-1.5 (CVPR 2024) was
+# run on 2026-11-03 with the 0.6 development version, on the CVPR form: R3
+# hit Gemini 503 overloads twice and was completed with `prebuttal retry`,
+# then the AC by one more retry. The id prefixes pin the runs so a glob
+# can't silently drift to a newer one.
 CURATED: list[tuple[str, str, str]] = [
     (
         "mamba-v1.html",
@@ -102,6 +105,15 @@ CURATED: list[tuple[str, str, str]] = [
         "dpo.html",
         "20261027-153028-2d91*",
         _real_paper_banner("2305.18290", "Rafael Rafailov, Archit Sharma, Eric Mitchell, et al."),
+    ),
+    (
+        "llava.html",
+        "20261103-013742-a9d7*",
+        _real_paper_banner(
+            "2310.03744v2",
+            "Haotian Liu, Chunyuan Li, Yuheng Li and Yong Jae Lee",
+            "This is arXiv v2 — the CVPR 2024 camera-ready version (a highlight paper).",
+        ),
     ),
     ("weak.html", "20261027-153345-0861*", SYNTHETIC_BANNER),
 ]
@@ -692,6 +704,13 @@ def config_table_html() -> str:
 
 # What the code does not know: the year of the call the rules were taken
 # from (update with the rules), and a sentence a reader of that venue needs.
+# A curated real run on the venue's own form, where there is one.
+VENUE_SAMPLES = {
+    "neurips": ("dpo.html", "Direct Preference Optimization (NeurIPS 2023)"),
+    "iclr": ("mamba-revision.html", "Mamba, a revision round (ICLR 2024)"),
+    "cvpr": ("llava.html", "LLaVA-1.5 (CVPR 2024)"),
+}
+
 VENUE_NOTES: dict[str, tuple[str, str]] = {
     "neurips": (
         "2026",
@@ -771,6 +790,11 @@ def _venue_page(key: str) -> tuple[Page, str]:
             f'<table class="ref scale">{anchors}</table>'
         )
     asks = "".join(f"<li>{html.escape(f.label)}</li>" for f in forms)
+    if key in VENUE_SAMPLES:
+        file, label = VENUE_SAMPLES[key]
+        sample = f'A real run on this form: <a href="../../reports/{file}">{html.escape(label)}</a>'
+    else:
+        sample = 'See a <a href="../../reports/sample.html">sample report</a>'
     others = " · ".join(
         f'<a href="../{k}/">{html.escape(VENUES[k].name)}</a>' for k in VENUE_KEYS if k != key
     )
@@ -803,8 +827,8 @@ prebuttal check paper.zip --venue {key}       # Overleaf: Menu → Download → 
   <p>The checklist catches what gets a paper rejected unread. To see what reviewers will say
   about the paper itself, run three independent AI reviewers and an area chair on this form:</p>
   <pre class="term">prebuttal run paper.pdf --venue {key}</pre>
-  <p>See a <a href="../../reports/sample.html">sample report</a>, or read the
-  <a href="../../guide/#review">guide</a>. Other venues: {others}.</p>
+  <p>{sample}, or read the <a href="../../guide/#review">guide</a>.
+  Other venues: {others}.</p>
 
   <footer>
     MIT License · Prebuttal is not affiliated with {html.escape(v.name)} ·
