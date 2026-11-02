@@ -164,6 +164,9 @@ def test_cli_new_list_show(tmp_path, monkeypatch, capsys, isolated_prebuttal_hom
         assert cli.main(["venues", "new", name]) == cli.EXIT_USAGE
     assert cli.main(["venues", "nope"]) == cli.EXIT_USAGE
     assert "unknown venue 'nope'" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        cli.main(["venues", "cvpr", "--extra"])
+    assert "_view" not in capsys.readouterr().err
 
 
 def test_run_with_custom_venue_and_render_after_file_is_gone(

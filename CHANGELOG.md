@@ -21,7 +21,7 @@ run (9 flags, was 15).
   they fall behind. The README is shorter and links to it.
 - **A submission checklist page per built-in venue** (NeurIPS, ICLR, ICML, ARR,
   CVPR), generated from the rules `prebuttal check` applies and the venue's
-  review form.
+  review form, and a CVPR sample report (LLaVA-1.5 on the CVPR form).
 - The site has canonical links, Open Graph previews, a favicon, structured data
   and a sitemap.
 - **`run` puts the desk-reject check into the revision plan.** On your own
@@ -68,6 +68,10 @@ run (9 flags, was 15).
   review. Embedding models are now skipped — by name and family, and by the
   capabilities newer Ollama versions report — and Ollama with only
   embedding models installed is not offered as a backend.
+- On Windows, an agent CLI (or a process it left running) can still hold
+  its empty temp folder when the call returns; failing to delete it threw
+  away the finished review (`PermissionError: [WinError 32]`). Cleanup now
+  ignores a locked folder once the answer is in hand.
 
 ## [0.5.4] — 2026-11-01
 

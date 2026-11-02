@@ -285,7 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # `venues <name>` arrives here (see main); `venues show` is a hidden 0.6 alias
     for name in (_VENUE_VIEW, "show"):
-        ven_sub.add_parser(name).add_argument("venue")
+        ven_sub.add_parser(name, prog="prebuttal venues").add_argument("venue")
 
     return parser
 

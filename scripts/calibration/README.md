@@ -39,7 +39,7 @@ Outputs:
 
 Calibration is a separate track on the
 [roadmap](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md#separate-track-calibration),
-planned after 0.6 adds repeated reviews (without run-to-run variance there is
+planned after 0.7 adds repeated reviews (without run-to-run variance there is
 nothing to compare an error against). It could grow into a public benchmark.
-Keep `--seed` and the config file with any results; that's what makes the
-numbers defensible.
+Keep the `prebuttal.toml` (with its `seed`) alongside any results; that's what
+makes the numbers defensible.

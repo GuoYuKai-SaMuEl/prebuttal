@@ -688,7 +688,7 @@ def config_table_html() -> str:
     for section, about, rows in config_docs():
         out.append(
             f'<tr class="group"><th colspan="3"><code>{html.escape(section)}</code> '
-            f"— {html.escape(about)}</th></tr>"
+            f"— {_inline(about)}</th></tr>"
         )
         for key, default, desc in rows:
             text = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", _inline(desc))
