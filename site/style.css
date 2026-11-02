@@ -91,3 +91,51 @@ footer {
 }
 nav .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 14px; font-size: 14px; }
 nav .links .here { color: var(--muted); }
+
+/* Guide and venue pages. */
+main.wide { max-width: 1120px; }
+a.wordmark:hover { text-decoration: none; }
+h1 { font-size: 34px; line-height: 1.2; margin: 40px 0 12px; }
+p.lead { font-size: 18px; color: var(--muted); margin: 0 0 24px; }
+h3 { font-size: 17px; margin: 28px 0 8px; }
+.muted { color: var(--muted); font-weight: 400; font-size: 14px; }
+li code, h2 code, h3 code, .toc code {
+  background: var(--code-bg); border-radius: 5px; padding: 1px 6px;
+  font: 13px ui-monospace, Consolas, monospace;
+}
+h2 code, h3 code { font-size: 0.9em; }
+table.ref { margin: 8px 0 20px; }
+table.ref td:first-child { white-space: nowrap; }
+table.ref td { vertical-align: top; }
+table.ref tr.group th { color: var(--fg); padding-top: 18px; }
+table.scale { width: auto; }
+ul.rules li { margin-bottom: 10px; }
+.note a { overflow-wrap: anywhere; }
+.guide { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+.toc {
+  position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto;
+  padding: 40px 0 24px; font-size: 14px; border: 0;
+  display: block;
+}
+.toc ol { margin: 8px 0 0; padding-left: 20px; }
+.toc li { margin: 4px 0; }
+.guide article { min-width: 0; }
+.guide h2 { scroll-margin-top: 12px; }
+@media (max-width: 860px) {
+  .guide { display: block; }
+  .toc {
+    position: static; max-height: none; padding: 16px 18px; margin-top: 24px;
+    background: var(--bg2); border-radius: 10px;
+  }
+  .toc ol { columns: 2; column-gap: 24px; }
+  h1 { font-size: 28px; }
+  table.ref td:first-child { white-space: normal; }
+}
+@media (max-width: 480px) {
+  main { padding: 0 16px 64px; }
+  .toc ol { columns: 1; }
+  table.ref:not(.scale), table.ref:not(.scale) tbody, table.ref:not(.scale) tr, table.ref:not(.scale) td, table.ref:not(.scale) th { display: block; }
+  table.ref:not(.scale) tr { border-bottom: 1px solid var(--border); padding: 6px 0; }
+  table.ref:not(.scale) td, table.ref:not(.scale) th { border: 0; padding: 2px 0; }
+}
+p.more { font-size: 14px; margin: 16px 0 0; color: var(--muted); }

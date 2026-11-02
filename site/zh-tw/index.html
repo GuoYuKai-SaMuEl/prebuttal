@@ -1,21 +1,38 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
+<!-- head:start -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prebuttal — 在 Reviewer 2 出現之前先回答他</title>
 <meta name="description" content="機器學習論文的投稿前壓力測試：三位互相獨立的 AI 審稿人加上一位領域主席，使用 NeurIPS/ICLR/ICML/ARR/CVPR 的真實審稿表單；另有不需模型、免費的直接退稿（desk reject）檢查。">
+<link rel="canonical" href="https://guoyukai-samuel.github.io/prebuttal/zh-tw/">
 <link rel="alternate" hreflang="en" href="https://guoyukai-samuel.github.io/prebuttal/">
 <link rel="alternate" hreflang="zh-Hans" href="https://guoyukai-samuel.github.io/prebuttal/zh-cn/">
 <link rel="alternate" hreflang="zh-Hant" href="https://guoyukai-samuel.github.io/prebuttal/zh-tw/">
 <link rel="alternate" hreflang="x-default" href="https://guoyukai-samuel.github.io/prebuttal/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Prebuttal">
+<meta property="og:title" content="Prebuttal — 在 Reviewer 2 出現之前先回答他">
+<meta property="og:description" content="機器學習論文的投稿前壓力測試：三位互相獨立的 AI 審稿人加上一位領域主席，使用 NeurIPS/ICLR/ICML/ARR/CVPR 的真實審稿表單；另有不需模型、免費的直接退稿（desk reject）檢查。">
+<meta property="og:url" content="https://guoyukai-samuel.github.io/prebuttal/zh-tw/">
+<meta property="og:image" content="https://guoyukai-samuel.github.io/prebuttal/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Prebuttal: three AI reviewers and an area chair, plus a desk-reject pre-flight">
+<meta property="og:locale" content="zh_TW">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css">
+<!-- head:end -->
 </head>
 <body>
 <main>
   <nav>
     <div class="wordmark">pre<span>buttal</span></div>
     <div class="links">
+      <a href="../guide/">使用指南（英文）</a>
       <a href="../">English</a>
       <a href="../zh-cn/" lang="zh-Hans">简体中文</a>
       <span class="here">繁體中文</span>
@@ -75,6 +92,8 @@ $ prebuttal check ./latex-src/ --venue iclr</pre>
       statement / CVPR LLM usage statement / ARR limitations，<code>??</code>、<code>[?]</code>、TODO。LaTeX 專案不需編譯；也提供 GitHub Action，每次 push 都檢查。</p>
     </div>
   </div>
+  <p class="more">各會議的投稿檢查清單（英文）：<a href="../venues/neurips/">NeurIPS</a> · <a href="../venues/iclr/">ICLR</a> · <a href="../venues/icml/">ICML</a> · <a href="../venues/acl/">ARR</a> · <a href="../venues/cvpr/">CVPR</a> ·
+  <a href="../guide/#check">完整說明見使用指南（英文）→</a></p>
 
   <h2>用你已經有的模型</h2>
   <p class="sub">啟動時自動偵測；每份報告都記錄是哪個模型寫了哪份審稿。</p>

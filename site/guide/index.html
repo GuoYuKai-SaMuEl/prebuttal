@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guide: AI mock peer review and desk-reject checks for ML papers | Prebuttal</title>
+<meta name="description" content="How to use Prebuttal: check a paper for desk-reject problems, run three independent AI reviewers on a real review form, and track what each revision fixed.">
+<link rel="canonical" href="https://guoyukai-samuel.github.io/prebuttal/guide/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Prebuttal">
+<meta property="og:title" content="Guide: AI mock peer review and desk-reject checks for ML papers | Prebuttal">
+<meta property="og:description" content="How to use Prebuttal: check a paper for desk-reject problems, run three independent AI reviewers on a real review form, and track what each revision fixed.">
+<meta property="og:url" content="https://guoyukai-samuel.github.io/prebuttal/guide/">
+<meta property="og:image" content="https://guoyukai-samuel.github.io/prebuttal/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Prebuttal: three AI reviewers and an area chair, plus a desk-reject pre-flight">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="../style.css">
+<!-- head:end -->
+</head>
+<body>
+<main class="wide">
+  <nav>
+    <a class="wordmark" href="../">pre<span>buttal</span></a>
+    <div class="links">
+      <span class="here">Guide</span>
+      <a href="../reports/sample.html">Sample report</a>
+      <a href="../zh-tw/" lang="zh-Hant">繁體中文</a>
+      <a href="../zh-cn/" lang="zh-Hans">简体中文</a>
+      <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <div class="guide">
+  <nav class="toc" aria-label="Contents">
+    <strong>Contents</strong>
+    <ol>
+      <li><a href="#install">Install &amp; first run</a></li>
+      <li><a href="#check">Before you submit</a></li>
+      <li><a href="#review">A mock review</a></li>
+      <li><a href="#revision-loop">The revision loop</a></li>
+      <li><a href="#projects">Projects &amp; history</a></li>
+      <li><a href="#backends">Backends &amp; privacy</a></li>
+      <li><a href="#configuration">Configuration</a></li>
+      <li><a href="#venues">Your own venue</a></li>
+      <li><a href="#agents">Inside a coding agent</a></li>
+      <li><a href="#reference">Command reference</a></li>
+      <li><a href="#honesty">What the scores mean</a></li>
+    </ol>
+  </nav>
+
+  <article>
+  <h1>The Prebuttal guide</h1>
+  <p class="lead">Prebuttal stress-tests an ML paper before you submit it: a free
+  desk-reject check, then three independent AI reviewers and an area chair on the
+  venue's real review form. This page covers every command and setting, task by task.</p>
+
+  <h2 id="install">1. Install &amp; first run</h2>
+  <pre class="term">pip install prebuttal          # or: pipx install prebuttal · uv tool install prebuttal
+prebuttal backends             # what you can review with</pre>
+  <p>Python 3.11 or newer. <code>prebuttal backends</code> lists every way to reach a
+  model — agent CLIs you are signed into, API keys, a local Ollama — with the default
+  model of each. If nothing is ready it says the quickest fix, usually a free Gemini
+  key: <code>prebuttal key set gemini</code>.</p>
+  <pre class="term">prebuttal check paper.pdf --venue iclr     # seconds, free, no model
+prebuttal run paper.pdf --venue iclr       # the full mock review</pre>
+  <p>A paper can be a PDF, a LaTeX project (a folder, its main <code>.tex</code>, or
+  Overleaf's source <code>.zip</code> from <em>Menu → Download → Source</em>), or an
+  arXiv link or id. LaTeX is read without compiling. Built-in venues:
+  <code>neurips</code>, <code>iclr</code>, <code>icml</code>, <code>acl</code> (ARR)
+  and <code>cvpr</code> — each has a <a href="../venues/neurips/">submission
+  checklist page</a>. For anything else, <a href="#venues">write your own</a>.</p>
+
+  <h2 id="check">2. Before you submit: the desk-reject pre-flight</h2>
+  <pre class="term">prebuttal check paper.pdf --venue cvpr      # the PDF you will upload
+prebuttal check ./latex-src/ --venue cvpr   # the LaTeX project, without compiling
+prebuttal check paper.zip --venue cvpr      # the same, as Overleaf's source .zip</pre>
+  <p>A deterministic check against what gets papers rejected unread — no model, no
+  cost, a few seconds:</p>
+  <ul>
+    <li><strong>Anonymity</strong> — author names in the PDF metadata, e-mail
+    addresses on page 1, a camera-ready or preprint build of the template, a visible
+    acknowledgements section, links to your own repository, “our previous work
+    [12]”.</li>
+    <li><strong>Format</strong> — main-text pages over the venue's limit (two-column
+    layouts included) and missing required sections: the NeurIPS checklist, ICML's
+    impact statement, CVPR's LLM usage statement, ARR's limitations.</li>
+    <li><strong>Leftovers</strong> — <code>??</code> references, <code>[?]</code>
+    citations, TODOs, and text hidden from human readers.</li>
+  </ul>
+  <p>In a LaTeX project every <code>\ref</code> needs a <code>\label</code> and every
+  <code>\cite</code> a bibliography entry; the page limit needs the compiled PDF. The
+  venue comes from <code>--venue</code>, else <code>prebuttal.toml</code>, else
+  <code>neurips</code>. Limits change every year, so the output names the call each
+  rule came from. Exit code 6 means something can get the paper desk-rejected.
+  Each venue's rules are listed on its page:
+  <a href="../venues/neurips/">NeurIPS</a> ·
+  <a href="../venues/iclr/">ICLR</a> ·
+  <a href="../venues/icml/">ICML</a> ·
+  <a href="../venues/acl/">ARR</a> ·
+  <a href="../venues/cvpr/">CVPR</a>.</p>
+  <h3 id="github-action">On every push: the GitHub Action</h3>
+  <p>For a paper kept in a GitHub repository, the check runs on every push and pull
+  request. It needs no secrets: nothing is sent anywhere.</p>
+  <pre class="term"># .github/workflows/paper.yml
+name: Paper
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: GuoYuKai-SaMuEl/prebuttal@v0.5.4
+        with:
+          paper: paper/          # a LaTeX folder, main .tex or .zip, or a built PDF
+          venue: cvpr            # optional: else prebuttal.toml, else neurips</pre>
+  <p>The job fails on anything that can get the paper desk-rejected; every finding is
+  also an annotation on the run and the pull request.</p>
+
+  <h2 id="review">3. A mock review</h2>
+  <pre class="term">prebuttal run paper.pdf --venue iclr
+prebuttal run https://arxiv.org/abs/2305.18290 --venue neurips
+prebuttal run paper.pdf --dry-run          # the plan and the cost, nothing called</pre>
+  <p>Before calling anything, <code>run</code> prints its plan — which backend and model
+  each reviewer gets and what it may cost — and asks once; <code>-y</code> skips the
+  question, <code>--dry-run</code> stops after it. Then three reviewers read the paper
+  in separate contexts, in parallel, each on the venue's own form, and the area chair
+  writes the meta-review:</p>
+  <table class="ref">
+    <tr><th>Role</th><th>Persona</th><th>Reads for</th></tr>
+    <tr><td>R1</td><td><code>senior_kind</code></td><td>the core contribution and the main concerns, constructively</td></tr>
+    <tr><td>R2</td><td><code>adversarial</code></td><td>Reviewer 2: motivation, baselines, novelty, overclaiming</td></tr>
+    <tr><td>R3</td><td><code>detail_obsessive</code></td><td>every table cell: statistics, ablations, reproducibility</td></tr>
+    <tr><td>AC</td><td><code>area_chair</code></td><td>weighs the disagreement, estimates the rating, writes the revision plan</td></tr>
+  </table>
+  <p>Every reviewer has to cite evidence — a section, a table, a number — and reports
+  text that tries to instruct reviewers as a weakness instead of obeying it. On your
+  own draft, <code>run</code> also runs the desk-reject check first and puts its
+  findings at the top of the report.</p>
+  <p><strong>Reading the report</strong> (<a href="../reports/sample.html">sample</a>):
+  the predicted score is the mean of the reviewers, with σ, their spread; a high σ
+  means they disagree, which is worth knowing. The AC's estimate follows, then the
+  <strong>revision plan</strong> — what to fix first, as <em>must / should / could</em>
+  items with the table or section, the concrete fix and who raised it — and then each
+  full review, labelled with the backend and model that wrote it. Reports land in
+  <code>prebuttal-reports/&lt;project&gt;/&lt;date&gt;_&lt;venue&gt;/</code> as Markdown
+  and HTML, with <code>latest.md</code> / <code>latest.html</code> beside them and a
+  <code>.gitignore</code> so reviews of unpublished work stay out of version control.</p>
+  <p>Per-run flags: <code>--venue</code>, <code>--backend</code> and <code>--model</code>
+  (one backend or model for every role), <code>--project</code>, <code>--note</code>,
+  <code>--no-save</code>, <code>-c</code> (a config file), <code>--dry-run</code> and
+  <code>-y</code>. Everything that holds for the whole paper lives in
+  <a href="#configuration"><code>prebuttal.toml</code></a>.</p>
+
+  <h2 id="revision-loop">4. The revision loop</h2>
+  <p>Revise, then run again with a note on what changed:</p>
+  <pre class="term">prebuttal run paper.pdf --note "added the Perceiver baseline"
+prebuttal diff          # newest run vs the one before: ratings, weaknesses, plan items
+prebuttal diff --llm    # match plan items by meaning (one model call) instead of wording</pre>
+  <p><code>diff</code> lists the plan items that are no longer raised, the ones still
+  raised, and what is new. Plain <code>diff</code> matches by wording, so a reworded
+  issue can show up as both “not re-detected” and “new” — read both lists before
+  ticking anything off, or use <code>--llm</code>. The seed stays the same between
+  runs unless you change <code>seed</code> in <code>prebuttal.toml</code>.</p>
+  <p>Single runs are noisy: a score that moves by a point may be the model, not your
+  revision. The <a href="../reports/mamba-revision.html">Mamba revision demo</a> shows
+  what that looks like on a real paper.</p>
+  <p><strong>A reviewer failed</strong> (a quota, a timeout)? The report uses the
+  reviews that finished, and <code>prebuttal retry</code> re-runs only the failed
+  reviewers and the AC, on the same text. Ctrl+C keeps what finished, too.</p>
+
+  <h2 id="projects">5. Projects &amp; history</h2>
+  <p>Each paper is a <strong>project</strong>, found from its source: the same PDF or
+  .zip path, LaTeX folder or arXiv id always lands in the same project, even after a
+  title change — and so does a re-download saved as <code>paper (1).zip</code>.
+  <code>--project NAME</code> picks one yourself. Every run is archived under
+  <code>~/.prebuttal/</code> (user-only; <code>--no-save</code> opts out) and numbered,
+  so these work from any folder:</p>
+  <pre class="term">prebuttal projects                   # one line per paper: runs, latest score, trend
+prebuttal projects --open            # the same as an offline HTML overview
+prebuttal runs mamba                 # a paper's runs, newest first, with notes
+prebuttal show                       # print the newest report
+prebuttal show mamba#3 --open        # open one in the browser
+prebuttal show -o review.html        # save a copy (.md, .html or .json)
+prebuttal show --plan                # only the revision plan, as a checklist
+prebuttal show --json                # the stored report.json
+prebuttal note mamba#3 "after the ablation"
+prebuttal rm mamba#2                 # delete a run (a whole paper: projects rm)
+prebuttal projects rename mamba mamba-v2</pre>
+  <p>A run is <code>latest</code> (the default), <code>mamba</code> (a project's newest
+  run), <code>mamba#3</code>, <code>mamba~1</code> (one before the newest) or an id
+  prefix. <code>rm</code> wants a specific run, so a project name alone is refused
+  there.</p>
+
+  <h2 id="backends">6. Backends &amp; privacy</h2>
+  <p>With <code>backend = "auto"</code> (the default) the reviewers get different ready
+  backends in this order of preference — cycling when fewer are ready — and the AC gets
+  the first. With both agent CLIs signed in, that is a cross-model panel at no API
+  cost:</p>
+  <table class="ref">
+    <tr><th>Backend</th><th>Access</th><th>Notes</th></tr>
+    <tr><td><code>agent-claude</code></td><td>your Claude subscription, no API key</td><td>runs <code>claude -p</code> with no tools at all</td></tr>
+    <tr><td><code>agent-codex</code></td><td>your Codex subscription, no API key</td><td>runs <code>codex exec</code> with no shell or file access</td></tr>
+    <tr><td><code>api-gemini</code></td><td><code>GEMINI_API_KEY</code></td><td>free tier — the cheapest first key</td></tr>
+    <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td><code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code></td><td>mid-tier models by default</td></tr>
+    <tr><td><code>api-openrouter</code></td><td><code>OPENROUTER_API_KEY</code></td><td>hundreds of models; <code>:free</code> ids cost nothing</td></tr>
+    <tr><td><code>ollama</code></td><td>none</td><td>local: the paper never leaves your machine</td></tr>
+    <tr><td><code>relay</code></td><td>none</td><td>prompts go to files and you or your agent answer; never chosen automatically</td></tr>
+  </table>
+  <p>An agent CLI counts only when it is signed in (asked through <code>claude auth
+  status</code> / <code>codex login status</code>, no model call). Ollama's default is
+  the first installed model that can chat; embedding models are skipped.
+  <code>prebuttal backends &lt;name&gt;</code> lists one backend's models.</p>
+  <p><strong>Keys.</strong> <code>prebuttal key set gemini</code> asks for the key with
+  hidden input and stores it in <code>~/.prebuttal/keys.env</code> (user-only); real
+  environment variables win. <code>prebuttal backends</code> shows which keys are set,
+  masked; <code>prebuttal key unset gemini</code> removes one. Keys never appear in
+  reports, are never passed to agent CLIs, and the agent CLIs get no tool that could
+  read the file.</p>
+  <div class="note"><strong>Unpublished paper?</strong> Its text goes to the backend's
+  provider (OpenRouter passes it on to an upstream one), and what happens there is
+  that provider's policy. Free tiers are usually
+  paid for with your data (logging, training): fine for published papers and for
+  trying the tool; for unpublished work check the terms, use a paid tier, or stay
+  local with <code>ollama</code> or <code>relay</code>. Prebuttal runs no servers and
+  sends no telemetry. Reports quote your paper, so sharing a report publishes those
+  excerpts.</div>
+  <table class="ref">
+    <tr><th>Environment variable</th><th>Purpose</th></tr>
+    <tr><td><code>GEMINI_API_KEY</code> (or <code>GOOGLE_API_KEY</code>), <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>OPENROUTER_API_KEY</code></td><td>enable the matching API backend</td></tr>
+    <tr><td><code>OPENAI_BASE_URL</code></td><td>point <code>api-openai</code> at an OpenAI-compatible proxy</td></tr>
+    <tr><td><code>PREBUTTAL_OPENAI_MODEL</code>, <code>…_ANTHROPIC_MODEL</code>, <code>…_GEMINI_MODEL</code>, <code>…_OPENROUTER_MODEL</code></td><td>override a backend's default model</td></tr>
+    <tr><td><code>PREBUTTAL_OLLAMA_HOST</code> (or <code>OLLAMA_HOST</code>)</td><td>the Ollama address, default <code>http://localhost:11434</code></td></tr>
+    <tr><td><code>PREBUTTAL_BACKEND</code></td><td>one backend for every role, e.g. <code>relay</code>; <code>--backend</code> still wins</td></tr>
+    <tr><td><code>PREBUTTAL_HOME</code></td><td>where runs and keys are stored, default <code>~/.prebuttal</code></td></tr>
+  </table>
+
+  <h2 id="configuration">7. Configuration: <code>prebuttal.toml</code></h2>
+  <p><code>prebuttal init</code> writes a commented <code>prebuttal.toml</code> in the
+  current folder; <code>run</code> and <code>check</code> pick it up from there, or
+  from <code>-c PATH</code>. A typical setup pins one model per reviewer:</p>
+  <pre class="term">[default]
+venue = "iclr"
+seed = 42
+
+[[reviewer]]
+id = "R1"
+persona = "senior_kind"
+backend = "agent-claude"      # claude -p, subscription
+model = "sonnet"
+
+[[reviewer]]
+id = "R2"
+persona = "adversarial"
+backend = "agent-codex"       # codex exec, subscription
+
+[[reviewer]]
+id = "R3"
+persona = "detail_obsessive"
+backend = "api-gemini"        # free tier
+
+[ac]
+backend = "agent-claude"
+model = "opus"</pre>
+  <p>Every setting:</p>
+<!-- config:start -->
+<table class="ref">
+<tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+<tr class="group"><th colspan="3"><code>[default]</code> — settings for every run</th></tr>
+<tr><td><code>venue</code></td><td><code>&quot;neurips&quot;</code></td><td>The review form for <code>run</code> and the rules for <code>check</code>: <code>neurips</code>, <code>iclr</code>, <code>icml</code>, <code>acl</code>, <code>cvpr</code>, a custom venue's name, or a venue <code>.toml</code> path (relative to this file).</td></tr>
+<tr><td><code>seed</code></td><td><code>42</code></td><td>Recorded in every report; reviewer <em>n</em> gets seed + <em>n</em> unless it sets its own. It stays the same across runs, so change it for a fresh draw.</td></tr>
+<tr><td><code>budget_chars</code></td><td><code>120000</code></td><td>The most paper text one reviewer reads, in characters. Tables are always kept.</td></tr>
+<tr><td><code>effort</code></td><td><code>unset</code></td><td>Reasoning effort, <code>low</code> | <code>medium</code> | <code>high</code>. Unset leaves each model at its provider's default; models without the control skip it.</td></tr>
+<tr><td><code>figures</code></td><td><code>false</code></td><td>Also show figures as images to reviewers on the vision-capable API backends (about 1.5k tokens each). Other backends keep the captions.</td></tr>
+<tr><td><code>max_figures</code></td><td><code>6</code></td><td>Images per reviewer, 1–20.</td></tr>
+<tr><td><code>compress</code></td><td><code>false</code></td><td>When the paper is over <code>budget_chars</code>, summarize the cut sections with the AC's model instead of truncating them (extra model calls).</td></tr>
+<tr><td><code>max_tokens</code></td><td><code>6000</code></td><td>Output-token cap for each review.</td></tr>
+<tr><td><code>timeout_s</code></td><td><code>900</code></td><td>Seconds before a model call is given up.</td></tr>
+<tr><td><code>retries</code></td><td><code>2</code></td><td>Retries of a failed model call.</td></tr>
+<tr><td><code>est_completion_tokens</code></td><td><code>2500</code></td><td>Output tokens per review assumed by the <code>--dry-run</code> cost estimate.</td></tr>
+<tr class="group"><th colspan="3"><code>[[reviewer]]</code> — one block per reviewer, 1–5 blocks</th></tr>
+<tr><td><code>id</code></td><td><code>&quot;R1&quot;, &quot;R2&quot;, …</code></td><td>The reviewer's label in the report.</td></tr>
+<tr><td><code>persona</code></td><td><code>&quot;senior_kind&quot;</code></td><td>Who reviews: <code>adversarial</code>, <code>detail_obsessive</code>, <code>paper_roast</code>, <code>senior_kind</code>. <code>paper_roast</code> is the blunt one.</td></tr>
+<tr><td><code>backend</code></td><td><code>&quot;auto&quot;</code></td><td><code>auto</code> or a backend name from <code>prebuttal backends</code>; a custom agent is <code>agent-NAME</code>.</td></tr>
+<tr><td><code>model</code></td><td><code>unset</code></td><td>A model id; unset uses the backend's default.</td></tr>
+<tr><td><code>temperature</code></td><td><code>0.4</code></td><td>Sampling temperature where the backend takes one.</td></tr>
+<tr><td><code>seed</code></td><td><code>seed + n</code></td><td>This reviewer's seed.</td></tr>
+<tr><td><code>effort</code></td><td><code>[default] effort</code></td><td>This reviewer's reasoning effort, <code>low</code> | <code>medium</code> | <code>high</code>.</td></tr>
+<tr class="group"><th colspan="3"><code>[ac]</code> — the area chair</th></tr>
+<tr><td><code>persona</code></td><td><code>&quot;area_chair&quot;</code></td><td>The meta-reviewer's persona.</td></tr>
+<tr><td><code>backend</code></td><td><code>&quot;auto&quot;</code></td><td>As for a reviewer.</td></tr>
+<tr><td><code>model</code></td><td><code>unset</code></td><td>As for a reviewer.</td></tr>
+<tr><td><code>temperature</code></td><td><code>0.3</code></td><td>As for a reviewer.</td></tr>
+<tr><td><code>effort</code></td><td><code>[default] effort</code></td><td>As for a reviewer.</td></tr>
+<tr class="group"><th colspan="3"><code>[output]</code> — where reports go</th></tr>
+<tr><td><code>dir</code></td><td><code>&quot;prebuttal-reports&quot;</code></td><td>Report folder; every run gets its own subfolder. <code>""</code> keeps reports only in the run archive.</td></tr>
+<tr><td><code>formats</code></td><td><code>[&quot;md&quot;, &quot;html&quot;]</code></td><td>Any of <code>md</code>, <code>html</code>, <code>json</code>.</td></tr>
+<tr class="group"><th colspan="3"><code>[relay]</code> — the zero-key backend: you or your agent answer</th></tr>
+<tr><td><code>dir</code></td><td><code>&quot;relay&quot;</code></td><td>Where prompts are spooled and answers are read.</td></tr>
+<tr><td><code>timeout_s</code></td><td><code>1800</code></td><td>Seconds to wait for the answers.</td></tr>
+<tr class="group"><th colspan="3"><code>[share]</code> — HTML reports</th></tr>
+<tr><td><code>repo_url</code></td><td><code>&quot;https://github.com/GuoYuKai-SaMuEl/prebuttal&quot;</code></td><td>The link in the footer of HTML reports.</td></tr>
+<tr class="group"><th colspan="3"><code>[agents.NAME]</code> — a custom agent CLI, used as backend `agent-NAME`</th></tr>
+<tr><td><code>command</code></td><td><code>—</code></td><td>The command, as a list or one string.</td></tr>
+<tr><td><code>stdin</code></td><td><code>true</code></td><td>Send the prompt on stdin; <code>false</code> passes it as the last argument (short papers only).</td></tr>
+<tr class="group"><th colspan="3"><code>[pricing.&quot;MODEL&quot;]</code> — cost-estimate overrides, USD per 1M tokens</th></tr>
+<tr><td><code>in</code></td><td><code>—</code></td><td>Input price.</td></tr>
+<tr><td><code>out</code></td><td><code>—</code></td><td>Output price.</td></tr>
+</table>
+<!-- config:end -->
+  <p><code>--backend</code> and <code>--model</code> override the file for one run;
+  every role then uses that backend's default model unless <code>--model</code> is
+  given. A <code>prebuttal.toml</code> found in the current folder — say, inside a
+  co-author's repository — can't run commands, pick a provider or write outside the
+  folder without asking you first; pass it with <code>-c</code> to trust it.</p>
+  <h3 id="effort">Reasoning effort</h3>
+  <p>Leave <code>effort</code> unset and every model thinks as much as its provider's
+  default — right for most papers. Set it to trade cost and time for depth; each
+  backend gets its own control:</p>
+  <table class="ref">
+    <tr><th>Backend</th><th>Sent as</th></tr>
+    <tr><td><code>agent-claude</code></td><td><code>claude --effort</code></td></tr>
+    <tr><td><code>agent-codex</code></td><td><code>-c model_reasoning_effort=...</code></td></tr>
+    <tr><td><code>api-anthropic</code></td><td><code>output_config.effort</code></td></tr>
+    <tr><td><code>api-openai</code></td><td><code>reasoning_effort</code> (gpt-5 and later, o-series)</td></tr>
+    <tr><td><code>api-gemini</code></td><td><code>thinkingLevel</code> (Gemini 3+) / <code>thinkingBudget</code> (2.x)</td></tr>
+    <tr><td><code>api-openrouter</code></td><td><code>reasoning.effort</code></td></tr>
+    <tr><td><code>ollama</code></td><td><code>think</code> (gpt-oss models)</td></tr>
+  </table>
+  <p>Where a model has no such control the setting is skipped; <code>--dry-run</code>
+  says so up front, and every report lists the effort each review actually ran
+  with.</p>
+  <h3 id="figures">Figures as images</h3>
+  <p>Reviewers read figure captions. With <code>figures = true</code>, reviewers on the
+  vision-capable API backends also see the figures: for a PDF or arXiv paper, each
+  page holding a figure caption; for a LaTeX project, the first
+  <code>\includegraphics</code> of each figure (files inside the project only). A
+  text-only model is retried without images; agent CLIs, Ollama and relay keep the
+  captions.</p>
+
+  <h2 id="venues">8. Your own venue</h2>
+  <p>AAAI, KDD, a journal, this year's revised form, your lab's mock review — any
+  venue is one TOML file plus the form text reviewers read:</p>
+  <pre class="term">prebuttal venues                                   # every form, built-in and yours
+prebuttal venues cvpr                              # one venue: its scores and form
+prebuttal venues new aaai                          # a template in ~/.prebuttal/venues/
+prebuttal venues new icml-2027 --from icml --here  # copy a built-in, project-local
+prebuttal run paper.pdf --venue aaai               # or --venue path/to/venue.toml</pre>
+  <pre class="term"># aaai.toml
+name = "AAAI 2027"
+form = "aaai.md"          # the reviewer guidelines, shown to reviewers verbatim
+rating = "rating"         # which score is the overall recommendation
+
+[[fields]]
+key = "weaknesses"
+label = "Weaknesses"
+kind = "list"             # text | list | score
+
+[[fields]]
+key = "rating"
+label = "Overall recommendation"
+kind = "score"
+max = 6                   # scores run 1..max; half_steps = true allows 3.5
+anchors = { "1" = "Reject", "3" = "Borderline", "6" = "Strong accept" }
+
+[checks]                  # optional: what `prebuttal check` holds it to
+double_blind = true
+page_limit = 8
+required_sections = ["Limitations"]   # these don't count toward the limit</pre>
+  <p>Venues are looked up in <code>./.prebuttal/venues/</code> (commit it for
+  co-authors), then <code>~/.prebuttal/venues/</code>; built-in names can't be
+  shadowed. Files are validated before any model is called, and reports keep the
+  venue's definition, so archived runs still render after the file changes. A form is
+  instructions to your reviewers: only use venue files you trust.</p>
+
+  <h2 id="agents">9. Inside a coding agent</h2>
+  <p>The <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/skills/prebuttal/SKILL.md">agent
+  skill</a> teaches Claude Code, Codex or any other agent to drive the CLI and read its
+  JSON. Its one hard rule: the agent runs the CLI, and never role-plays the reviewers
+  itself.</p>
+  <pre class="term">mkdir -p ~/.claude/skills/prebuttal && curl -fsSL -o ~/.claude/skills/prebuttal/SKILL.md \
+  https://raw.githubusercontent.com/GuoYuKai-SaMuEl/prebuttal/main/skills/prebuttal/SKILL.md</pre>
+  <p>Other agents: copy <code>skills/prebuttal/</code> wherever yours discovers skills,
+  or reference the file from <code>AGENTS.md</code>.</p>
+  <p><strong>Relay</strong> needs no key and no CLI login: <code>prebuttal run
+  --backend relay</code> writes each reviewer's prompt to a file and waits; the
+  agent's subagents — or you, or any other system — write the answers next to them,
+  and the run continues. The CLI must run in the background while the agent answers,
+  which is why relay is never picked automatically; <code>PREBUTTAL_BACKEND=relay</code>
+  pins it for a whole environment. Inside Claude Code or Gemini CLI,
+  <code>prebuttal run</code> and <code>prebuttal backends</code> print a one-line
+  relay hint.</p>
+
+  <h2 id="reference">10. Command reference</h2>
+  <p>Generated from the CLI itself; <code>prebuttal &lt;command&gt; -h</code> prints the
+  same. Exit codes: 0 success · 2 bad usage, config or paper · 3 no backend available ·
+  4 some reviewers or the AC failed (report written; <code>prebuttal retry</code>) ·
+  5 every reviewer failed · 6 <code>check</code> found a desk-reject problem ·
+  130 interrupted (finished reviews are kept).</p>
+<!-- reference:start -->
+<h3 id="cmd-run"><code>prebuttal run</code></h3>
+<p>review a paper (PDF / LaTeX dir or .zip / arXiv link)</p>
+<pre class="term">prebuttal run [--venue VENUE] [-c CONFIG] [--backend BACKEND] [--model MODEL] [--dry-run] [-y] [--project PROJECT] [--note NOTE] [--no-save] paper</pre>
+<table class="ref">
+<tr><td><code>paper</code></td><td>path to .pdf, LaTeX project (dir, .tex or .zip), or arXiv link/id</td></tr>
+<tr><td><code>--venue VENUE</code></td><td>review form: neurips, iclr, icml, acl, cvpr, a custom venue name, or a venue .toml file (see <code>prebuttal venues</code>)</td></tr>
+<tr><td><code>-c, --config CONFIG</code></td><td>prebuttal.toml path</td></tr>
+<tr><td><code>--backend BACKEND</code></td><td>force a backend for all roles</td></tr>
+<tr><td><code>--model MODEL</code></td><td>force a model id for all roles</td></tr>
+<tr><td><code>--dry-run</code></td><td>show cost + backends, call nothing</td></tr>
+<tr><td><code>-y, --yes</code></td><td>skip the plan confirmation prompt (auto mode; non-interactive never prompts). A prebuttal.toml found in this folder still asks once — pass it with -c to skip</td></tr>
+<tr><td><code>--project PROJECT</code></td><td>project name (default: one per paper — the same path / arXiv id lands in the same project, named after the title)</td></tr>
+<tr><td><code>--note NOTE</code></td><td>what changed in this revision, e.g. "added ablation"</td></tr>
+<tr><td><code>--no-save</code></td><td>do not archive this run to the run history (~/.prebuttal, or $PREBUTTAL_HOME)</td></tr>
+</table>
+<h3 id="cmd-retry"><code>prebuttal retry</code></h3>
+<p>re-run only the failed reviewers of a run, then the AC (default: latest)</p>
+<pre class="term">prebuttal retry [run]</pre>
+<table class="ref">
+<tr><td><code>run</code></td><td>a run: name#3, name~1 (one before the newest) or an id prefix (default: latest)</td></tr>
+</table>
+<h3 id="cmd-check"><code>prebuttal check</code></h3>
+<p>desk-reject pre-flight: anonymity, page limit, required sections, ?? — no model</p>
+<pre class="term">prebuttal check [--venue VENUE] paper</pre>
+<table class="ref">
+<tr><td><code>paper</code></td><td>path to .pdf, LaTeX project (dir, .tex or .zip), or arXiv link/id</td></tr>
+<tr><td><code>--venue VENUE</code></td><td>whose rules to check against (as for <code>run</code>; default: prebuttal.toml, else neurips)</td></tr>
+</table>
+<h3 id="cmd-backends"><code>prebuttal backends</code></h3>
+<p>what you can review with: backends, their auth and default models</p>
+<pre class="term">prebuttal backends [backend]</pre>
+<table class="ref">
+<tr><td><code>backend</code></td><td>list this backend's models instead</td></tr>
+</table>
+<h3 id="cmd-init"><code>prebuttal init</code></h3>
+<p>write a sample prebuttal.toml</p>
+<pre class="term">prebuttal init [--force]</pre>
+<table class="ref">
+<tr><td><code>--force</code></td><td>overwrite existing file</td></tr>
+</table>
+<h3 id="cmd-projects"><code>prebuttal projects</code></h3>
+<p>papers (one project each): list them, --open the overview, rename|rm</p>
+<pre class="term">prebuttal projects [--json] [--open] [list | rename | rm]</pre>
+<table class="ref">
+<tr><td><code>--json</code></td><td>machine-readable list</td></tr>
+<tr><td><code>--open</code></td><td>open the HTML overview of every project and run (score trends, links)</td></tr>
+<tr><td><code>prebuttal projects list</code></td><td>list projects (default)</td></tr>
+<tr><td><code>prebuttal projects rename old new</code></td><td>rename a project</td></tr>
+<tr><td><code>prebuttal projects rm [-y] name</code></td><td>delete a project and all its archived runs</td></tr>
+<tr><td><code>rm -y, --yes</code></td><td>do not ask for confirmation</td></tr>
+</table>
+<h3 id="cmd-runs"><code>prebuttal runs</code></h3>
+<p>list archived review runs</p>
+<pre class="term">prebuttal runs [-n LIMIT] [--json] [project]</pre>
+<table class="ref">
+<tr><td><code>project</code></td><td>only this project's runs</td></tr>
+<tr><td><code>-n, --limit LIMIT</code></td><td>show the N most recent runs</td></tr>
+<tr><td><code>--json</code></td><td>machine-readable history</td></tr>
+</table>
+<h3 id="cmd-show"><code>prebuttal show</code></h3>
+<p>a run's report: print it, open it in the browser, or save a copy</p>
+<pre class="term">prebuttal show [--json] [--open] [-o OUTPUT] [--plan] [run]</pre>
+<table class="ref">
+<tr><td><code>run</code></td><td>a run: name#3, name~1 (one before the newest) or an id prefix (default: latest)</td></tr>
+<tr><td><code>--json</code></td><td>print the stored report.json</td></tr>
+<tr><td><code>--open</code></td><td>open the HTML report in a browser</td></tr>
+<tr><td><code>-o, --output OUTPUT</code></td><td>save a copy; .md, .html or .json picks the format</td></tr>
+<tr><td><code>--plan</code></td><td>only the revision plan, as a checklist (--json: items)</td></tr>
+</table>
+<h3 id="cmd-diff"><code>prebuttal diff</code></h3>
+<p>compare two runs (default: latest vs the run before it, same project)</p>
+<pre class="term">prebuttal diff [--llm] [run_a] [run_b]</pre>
+<table class="ref">
+<tr><td><code>run_a</code></td><td>older run (default: the one before run_b, same project)</td></tr>
+<tr><td><code>run_b</code></td><td>a run: name#3, name~1 (one before the newest) or an id prefix (default: latest)</td></tr>
+<tr><td><code>--llm</code></td><td>match revision-plan items by meaning with one call to the AC's backend</td></tr>
+</table>
+<h3 id="cmd-note"><code>prebuttal note</code></h3>
+<p>attach a note to a run (shown in lists and overviews)</p>
+<pre class="term">prebuttal note run text</pre>
+<table class="ref">
+<tr><td><code>run</code></td><td>a run: name#3, name~1 (one before the newest) or an id prefix</td></tr>
+<tr><td><code>text</code></td><td>e.g. "after adding the Perceiver baseline"</td></tr>
+</table>
+<h3 id="cmd-rm"><code>prebuttal rm</code></h3>
+<p>delete archived runs (a whole paper: projects rm)</p>
+<pre class="term">prebuttal rm [-y] runs [runs ...]</pre>
+<table class="ref">
+<tr><td><code>runs</code></td><td>run references, e.g. mamba#3 or mamba~1</td></tr>
+<tr><td><code>-y, --yes</code></td><td>do not ask for confirmation</td></tr>
+</table>
+<h3 id="cmd-key"><code>prebuttal key</code></h3>
+<p>store or remove an API key (status: prebuttal backends)</p>
+<pre class="term">prebuttal key {set | unset}</pre>
+<table class="ref">
+<tr><td><code>prebuttal key set [--key KEY] backend</code></td><td>store a key (prompted, hidden input)</td></tr>
+<tr><td><code>set --key KEY</code></td><td>non-interactive: pass the key directly</td></tr>
+<tr><td><code>prebuttal key unset backend</code></td><td>remove a stored key</td></tr>
+</table>
+<h3 id="cmd-venues"><code>prebuttal venues</code></h3>
+<p>list review forms (venues &lt;name&gt;: one form); add your own venue</p>
+<pre class="term">prebuttal venues [&lt;name&gt; | new &lt;name&gt; [--from VENUE] [--here]]</pre>
+<table class="ref">
+<tr><td><code>prebuttal venues new [--from BASE] [--here] key</code></td><td>write a venue template to edit</td></tr>
+<tr><td><code>new --from BASE</code></td><td>start from a built-in venue</td></tr>
+<tr><td><code>new --here</code></td><td>write to ./.prebuttal/venues (shared with the project) instead of ~/.prebuttal</td></tr>
+</table>
+<!-- reference:end -->
+
+  <h2 id="honesty">11. What the scores mean</h2>
+  <p>Prebuttal is a stress test, not a prediction. It shows what a skeptical, careful
+  reader is likely to raise, so you can fix it before real reviewers see it. It does
+  not tell you whether the paper will be accepted:</p>
+  <ul>
+    <li><strong>Single runs are noisy.</strong> On the Mamba demo the score did not
+    move between the rejected and the revised version once three seeds were averaged;
+    a single-run 7.0 → 7.3 had looked like progress.</li>
+    <li><strong>Models know famous papers.</strong> Published papers are in the
+    models' training data, which pushes their scores up.</li>
+    <li><strong>Scores are not calibrated yet.</strong> A calibration script against
+    real OpenReview ratings exists; no results are published.</li>
+    <li><strong>Disagreement is information.</strong> Every aggregate comes with σ, and
+    every review with the backend and model that wrote it.</li>
+  </ul>
+  <p>Mind each venue's policy: using AI to prepare your own paper is yours to decide;
+  using it to review someone else's must follow that venue's rules.</p>
+  </article>
+  </div>
+
+  <footer>
+    MIT License · Prebuttal is not affiliated with NeurIPS, ICLR, ICML, ARR or CVPR ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">Source</a> ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CHANGELOG.md">Changelog</a><br>
+    This site counts anonymous page views with <a href="https://www.goatcounter.com/">GoatCounter</a>
+    (no cookies, no personal data). The <code>prebuttal</code> tool itself sends no analytics.
+  </footer>
+</main>
+<!-- site-analytics -->
+<script data-goatcounter="https://prebuttal.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+<!-- /site-analytics -->
+</body>
+</html>

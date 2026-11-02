@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICML 2026 submission checklist — desk-reject pre-flight | Prebuttal</title>
+<meta name="description" content="Check a ICML submission before the deadline: page limit, required sections, anonymity leaks and leftover ?? — free, no model, in seconds.">
+<link rel="canonical" href="https://guoyukai-samuel.github.io/prebuttal/venues/icml/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Prebuttal">
+<meta property="og:title" content="ICML 2026 submission checklist — desk-reject pre-flight | Prebuttal">
+<meta property="og:description" content="Check a ICML submission before the deadline: page limit, required sections, anonymity leaks and leftover ?? — free, no model, in seconds.">
+<meta property="og:url" content="https://guoyukai-samuel.github.io/prebuttal/venues/icml/">
+<meta property="og:image" content="https://guoyukai-samuel.github.io/prebuttal/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Prebuttal: three AI reviewers and an area chair, plus a desk-reject pre-flight">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<link rel="stylesheet" href="../../style.css">
+<!-- head:end -->
+</head>
+<body>
+<main>
+  <nav>
+    <a class="wordmark" href="../../">pre<span>buttal</span></a>
+    <div class="links">
+      <a href="../../guide/">Guide</a>
+      <a href="../../reports/sample.html">Sample report</a>
+      <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <h1>ICML 2026 submission checklist</h1>
+  <p class="lead">A desk-reject pre-flight for ICML: the page limit, required
+  sections, anonymity and leftovers — checked in seconds, with no model and no cost.</p>
+  <pre class="term">pip install prebuttal
+prebuttal check paper.pdf --venue icml       # the PDF you will upload
+prebuttal check paper.zip --venue icml       # Overleaf: Menu → Download → Source</pre>
+
+  <h2>What the check holds a ICML paper to</h2>
+  <ul class="rules">
+    <li><strong>Main text within 8 pages.</strong> The count stops at the first of <em>References</em>, <em>Impact Statement</em>, <em>Acknowledgements</em>, <em>Acknowledgments</em>; two-column layouts are read column by column. Over the limit is a desk reject. Checked on the PDF (a LaTeX project needs compiling first).</li>
+    <li><strong>A “Impact Statement” section.</strong> The call requires it; the check looks for a heading with that name.</li>
+    <li><strong>Anonymity</strong> (double-blind): no author name in the PDF metadata, no e-mail address on page 1, not the template's camera-ready or preprint build, no acknowledgements section, no links to your own repository, no “our previous work [12]”.</li>
+    <li><strong>Leftovers</strong>: unresolved <code>??</code> references, <code>[?]</code> citations, TODO / FIXME, and text hidden from human readers (white or tiny text — venues have desk-rejected papers for hidden instructions to reviewers).</li>
+  </ul>
+  <p>ICML asks for an Impact Statement after the main text; it does not count toward the page limit.</p>
+  <div class="note">Rules taken from <a href="https://icml.cc/Conferences/2026/CallForPapers">https://icml.cc/Conferences/2026/CallForPapers</a>. They
+  change every year — confirm against this year's call. Anything the check flags as an error
+  makes <code>prebuttal check</code> exit with code 6, so it can fail a CI job (see the
+  <a href="../../guide/#check">GitHub Action</a>).</div>
+
+  <h2>The ICML review form</h2>
+  <p>Besides the scores, every review answers:</p>
+  <ul><li>Summary</li><li>Strengths</li><li>Weaknesses</li><li>Questions to the Authors</li><li>Suggestions and Typos</li></ul>
+  <h3>Rating <span class="muted">1–10</span></h3>
+<table class="ref scale"><tr><td>1</td><td>Trivial or wrong</td></tr><tr><td>2</td><td>Trivial or wrong</td></tr><tr><td>3</td><td>Clear reject</td></tr><tr><td>4</td><td>Reject — not good enough</td></tr><tr><td>5</td><td>Marginally below publication threshold</td></tr><tr><td>6</td><td>Marginally above publication threshold</td></tr><tr><td>7</td><td>Accept — good paper</td></tr><tr><td>8</td><td>Accept — top 50% of accepted papers</td></tr><tr><td>9</td><td>Strong accept — top 15%</td></tr><tr><td>10</td><td>Award quality</td></tr></table>
+<h3>Confidence <span class="muted">1–5</span></h3>
+<table class="ref scale"><tr><td>1</td><td>My best guess</td></tr><tr><td>2</td><td>Willing to defend, but not sure</td></tr><tr><td>3</td><td>Fairly confident</td></tr><tr><td>4</td><td>Confident but not absolutely certain</td></tr><tr><td>5</td><td>Absolutely certain</td></tr></table>
+
+  <h2>What will reviewers raise?</h2>
+  <p>The checklist catches what gets a paper rejected unread. To see what reviewers will say
+  about the paper itself, run three independent AI reviewers and an area chair on this form:</p>
+  <pre class="term">prebuttal run paper.pdf --venue icml</pre>
+  <p>See a <a href="../../reports/sample.html">sample report</a>, or read the
+  <a href="../../guide/#review">guide</a>. Other venues: <a href="../neurips/">NeurIPS</a> · <a href="../iclr/">ICLR</a> · <a href="../acl/">ACL Rolling Review</a> · <a href="../cvpr/">CVPR</a>.</p>
+
+  <footer>
+    MIT License · Prebuttal is not affiliated with ICML ·
+    <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal">Source</a><br>
+    This site counts anonymous page views with <a href="https://www.goatcounter.com/">GoatCounter</a>
+    (no cookies, no personal data). The <code>prebuttal</code> tool itself sends no analytics.
+  </footer>
+</main>
+<!-- site-analytics -->
+<script data-goatcounter="https://prebuttal.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+<!-- /site-analytics -->
+</body>
+</html>

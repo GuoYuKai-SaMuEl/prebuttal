@@ -1,23 +1,34 @@
-"""Regenerate the GitHub Pages report pages under ``site/reports/``.
+"""Regenerate the GitHub Pages site under ``site/``.
 
-The landing page (``site/index.html``) is hand-written; this script only
-re-renders the share pages for curated sample runs from their stored
-``report.json`` and copies the synthetic sample report in, so the site
-matches whatever the tool actually produced. Site pages get the GoatCounter
-snippet; the tool's own share output never does.
+Two parts:
+
+* the report pages under ``site/reports/``: the share pages of curated sample
+  runs, re-rendered from their stored ``report.json``, plus the synthetic
+  sample report, so the site matches whatever the tool actually produced;
+* the generated pages: every page's ``<head>``, the guide's command reference
+  and settings table (from the real parser and config), one submission
+  checklist per built-in venue, and ``sitemap.xml``. The landing pages and the
+  guide's prose are hand-written; only the marked blocks are replaced.
+
+Site pages get the GoatCounter snippet; the tool's own share output never does.
 
 Usage::
 
-    python scripts/build_site.py [runs_dir]
+    python scripts/build_site.py [runs_dir]   # both
+    python scripts/build_site.py --pages      # the generated pages only
 
 ``runs_dir`` defaults to ``~/.prebuttal/runs`` (respect PREBUTTAL_HOME).
 """
 
 from __future__ import annotations
 
+import argparse
+import html
 import json
 import os
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -25,7 +36,7 @@ sys.path.insert(0, str(REPO))
 
 from prebuttal.report import report_from_dict
 from prebuttal.share import render_share_html
-from prebuttal.venues import venue_from_report
+from prebuttal.venues import VENUE_KEYS, venue_from_report
 
 REPO_URL = "https://github.com/GuoYuKai-SaMuEl/prebuttal"
 
@@ -132,6 +143,608 @@ def with_analytics(html: str) -> str:
     return html.replace("</body>", block + "</body>", 1)
 
 
+# ---------------------------------------------------------------------------
+# Generated pages: every <head>, the guide's command reference and settings
+# table, one checklist page per built-in venue, and sitemap.xml.  Pure
+# functions of the code and the hand-written pages — no clock, no ~/.prebuttal
+# — so tests/test_site.py can rebuild them and compare byte for byte.
+
+SITE = REPO / "site"
+SITE_URL = "https://guoyukai-samuel.github.io/prebuttal/"
+PYPI_URL = "https://pypi.org/project/prebuttal/"
+
+
+@dataclass(frozen=True)
+class Page:
+    path: str  # under site/, e.g. "guide/index.html"
+    title: str
+    description: str
+    lang: str = "en"
+    locale: str = "en_US"
+    translated: bool = False  # the landing page exists in three languages
+    app_schema: bool = False  # JSON-LD SoftwareApplication (landing page only)
+
+    @property
+    def url(self) -> str:
+        return SITE_URL + self.path.removesuffix("index.html")
+
+    @property
+    def root(self) -> str:
+        """Relative path from this page back to the site root."""
+        return "../" * self.path.count("/")
+
+
+# Hand-written pages: the body is edited by hand, the <head> is generated.
+HAND_WRITTEN = [
+    Page(
+        "index.html",
+        "Prebuttal — answer Reviewer 2 before Reviewer 2 exists",
+        "A pre-submission stress test for ML papers: three independent AI reviewers and an "
+        "area chair on real NeurIPS, ICLR, ICML, ARR and CVPR review forms.",
+        translated=True,
+        app_schema=True,
+    ),
+    Page(
+        "zh-tw/index.html",
+        "Prebuttal — 在 Reviewer 2 出現之前先回答他",
+        "機器學習論文的投稿前壓力測試：三位互相獨立的 AI 審稿人加上一位領域主席，使用 "
+        "NeurIPS/ICLR/ICML/ARR/CVPR 的真實審稿表單；"
+        "另有不需模型、免費的直接退稿（desk reject）檢查。",
+        lang="zh-Hant",
+        locale="zh_TW",
+        translated=True,
+    ),
+    Page(
+        "zh-cn/index.html",
+        "Prebuttal — 在 Reviewer 2 出现之前先回应他",
+        "机器学习论文的投稿前压力测试：三位相互独立的 AI 审稿人加一位领域主席，使用 "
+        "NeurIPS/ICLR/ICML/ARR/CVPR 的真实审稿表；"
+        "另有无需模型、免费的直接拒稿（desk reject）检查。",
+        lang="zh-Hans",
+        locale="zh_CN",
+        translated=True,
+    ),
+    Page(
+        "guide/index.html",
+        "Guide: AI mock peer review and desk-reject checks for ML papers | Prebuttal",
+        "How to use Prebuttal: check a paper for desk-reject problems, run three independent "
+        "AI reviewers on a real review form, and track what each revision fixed.",
+    ),
+]
+
+# hreflang alternates of the landing page (x-default is the English one)
+TRANSLATIONS = [("en", ""), ("zh-Hans", "zh-cn/"), ("zh-Hant", "zh-tw/")]
+
+
+def _attr(text: str) -> str:
+    return html.escape(text, quote=True)
+
+
+def head(page: Page) -> str:
+    """Everything inside <head>: one function, so every page stays consistent."""
+    r = page.root
+    lines = [
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        f"<title>{html.escape(page.title, quote=False)}</title>",
+        f'<meta name="description" content="{_attr(page.description)}">',
+        f'<link rel="canonical" href="{page.url}">',
+    ]
+    if page.translated:
+        for lang, path in TRANSLATIONS:
+            lines.append(f'<link rel="alternate" hreflang="{lang}" href="{SITE_URL}{path}">')
+        lines.append(f'<link rel="alternate" hreflang="x-default" href="{SITE_URL}">')
+    lines += [
+        '<meta property="og:type" content="website">',
+        '<meta property="og:site_name" content="Prebuttal">',
+        f'<meta property="og:title" content="{_attr(page.title)}">',
+        f'<meta property="og:description" content="{_attr(page.description)}">',
+        f'<meta property="og:url" content="{page.url}">',
+        f'<meta property="og:image" content="{SITE_URL}og.png">',
+        '<meta property="og:image:width" content="1200">',
+        '<meta property="og:image:height" content="630">',
+        '<meta property="og:image:alt" content="Prebuttal: three AI reviewers and an area '
+        'chair, plus a desk-reject pre-flight">',
+        f'<meta property="og:locale" content="{page.locale}">',
+        '<meta name="twitter:card" content="summary_large_image">',
+        f'<link rel="icon" href="{r}favicon.svg" type="image/svg+xml">',
+        f'<link rel="apple-touch-icon" href="{r}apple-touch-icon.png">',
+        f'<link rel="stylesheet" href="{r}style.css">',
+    ]
+    if page.app_schema:
+        app = {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Prebuttal",
+            "description": page.description,
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Windows, macOS, Linux",
+            "softwareRequirements": "Python 3.11+",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+            "license": "https://opensource.org/licenses/MIT",
+            "url": SITE_URL,
+            "downloadUrl": PYPI_URL,
+            "sameAs": REPO_URL,
+        }
+        body = json.dumps(app, indent=1, ensure_ascii=False).replace("</", "<\\/")
+        lines.append(f'<script type="application/ld+json">\n{body}\n</script>')
+    return "\n".join(lines)
+
+
+def fill(page_html: str, name: str, block: str) -> str:
+    """Replace what is between ``<!-- name:start -->`` and ``<!-- name:end -->``."""
+    start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"
+    if page_html.count(start) != 1 or page_html.count(end) != 1:
+        raise ValueError(f"expected one {start} … {end} pair")
+    before, rest = page_html.split(start)
+    after = rest.split(end)[1]
+    return f"{before}{start}\n{block}\n{end}{after}"
+
+
+def _inline(text: str) -> str:
+    """Escape help text and turn `backticks` into <code>."""
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", html.escape(text, quote=False))
+
+
+# -- the command reference, walked from the real parser ----------------------
+
+
+def _subparsers(parser: argparse.ArgumentParser) -> argparse._SubParsersAction | None:
+    for a in parser._actions:
+        if isinstance(a, argparse._SubParsersAction):
+            return a
+    return None
+
+
+def _visible(parser: argparse.ArgumentParser) -> list[argparse.Action]:
+    return [
+        a
+        for a in parser._actions
+        if a.help != argparse.SUPPRESS
+        and not isinstance(a, (argparse._HelpAction, argparse._SubParsersAction))
+    ]
+
+
+def _arg_name(a: argparse.Action) -> str:
+    if not a.option_strings:
+        return str(a.metavar or a.dest)
+    flags = ", ".join(a.option_strings)
+    return flags if a.nargs == 0 else f"{flags} {a.metavar or a.dest.upper()}"
+
+
+def _synopsis(parser: argparse.ArgumentParser, prog: str) -> str:
+    """A usage line built by hand: argparse's own wraps at the terminal width."""
+    if parser.usage:
+        return parser.usage
+    parts = [prog]
+    for a in _visible(parser):
+        if a.option_strings:  # the first spelling, as argparse's usage line shows it
+            flag = a.option_strings[0]
+            parts.append(f"[{flag}]" if a.nargs == 0 else f"[{flag} {a.metavar or a.dest.upper()}]")
+    sub = _subparsers(parser)
+    if sub is not None:
+        names = " | ".join(c.dest for c in sub._choices_actions)
+        parts.append(f"[{names}]" if not sub.required else f"{{{names}}}")
+    for a in _visible(parser):
+        if not a.option_strings:
+            name = str(a.metavar or a.dest)
+            parts.append(
+                f"[{name}]"
+                if a.nargs == "?"
+                else f"{name} [{name} ...]"
+                if a.nargs == "+"
+                else name
+            )
+    return " ".join(parts)
+
+
+def _arg_rows(parser: argparse.ArgumentParser, prog: str) -> list[str]:
+    rows = []
+    for a in _visible(parser):
+        rows.append(
+            f"<tr><td><code>{html.escape(_arg_name(a))}</code></td>"
+            f"<td>{_inline(a.help or '')}</td></tr>"
+        )
+    sub = _subparsers(parser)
+    if sub is not None:
+        for choice in sub._choices_actions:
+            child = sub.choices[choice.dest]
+            rows.append(
+                f"<tr><td><code>{html.escape(_synopsis(child, prog + ' ' + choice.dest))}"
+                f"</code></td><td>{_inline(choice.help or '')}</td></tr>"
+            )
+            # the child's options; its positionals are already in the synopsis
+            rows += [
+                f"<tr><td><code>{html.escape(choice.dest + ' ' + _arg_name(a))}</code></td>"
+                f"<td>{_inline(a.help or '')}</td></tr>"
+                for a in _visible(child)
+                if a.option_strings
+            ]
+    return rows
+
+
+def reference_html() -> str:
+    from prebuttal.cli import build_parser
+
+    sub = _subparsers(build_parser())
+    assert sub is not None
+    out = []
+    for choice in sub._choices_actions:  # hidden aliases have no help, so no entry
+        name = choice.dest
+        parser = sub.choices[name]
+        prog = f"prebuttal {name}"
+        out.append(f'<h3 id="cmd-{name}"><code>{prog}</code></h3>')
+        out.append(f"<p>{_inline(choice.help or '')}</p>")
+        out.append(f'<pre class="term">{html.escape(_synopsis(parser, prog))}</pre>')
+        rows = _arg_rows(parser, prog)
+        if rows:
+            out.append('<table class="ref">')
+            out += rows
+            out.append("</table>")
+    return "\n".join(out)
+
+
+# -- the prebuttal.toml settings table ----------------------------------------
+# Descriptions are written here; tests/test_site.py fails when the sample
+# config (`prebuttal init`) has a section or key this table does not cover.
+
+
+def _toml(value: object) -> str:
+    if value == "":
+        return "unset"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return f'"{value}"'
+    if isinstance(value, (tuple, list)):
+        return "[" + ", ".join(f'"{v}"' for v in value) + "]"
+    return str(value)
+
+
+def config_docs() -> list[tuple[str, str, list[tuple[str, str, str]]]]:
+    """(section, what it is, [(key, default, description)])."""
+    from prebuttal.config import ACConfig, RunConfig
+    from prebuttal.models import EFFORT_LEVELS
+    from prebuttal.personas import __file__ as personas_init
+
+    run, ac = RunConfig(), ACConfig()
+    personas = sorted(p.stem for p in Path(personas_init).parent.glob("*.md"))
+    effort = " | ".join(f"`{e}`" for e in EFFORT_LEVELS)
+    venues = ", ".join(f"`{k}`" for k in VENUE_KEYS)
+    return [
+        (
+            "[default]",
+            "settings for every run",
+            [
+                (
+                    "venue",
+                    _toml(run.venue),
+                    f"The review form for `run` and the rules for `check`: {venues}, a custom "
+                    "venue's name, or a venue `.toml` path (relative to this file).",
+                ),
+                (
+                    "seed",
+                    _toml(run.seed),
+                    "Recorded in every report; reviewer *n* gets seed + *n* unless it sets "
+                    "its own. It stays the same across runs, so change it for a fresh draw.",
+                ),
+                (
+                    "budget_chars",
+                    _toml(run.budget_chars),
+                    "The most paper text one reviewer reads, in characters. Tables are always "
+                    "kept.",
+                ),
+                (
+                    "effort",
+                    _toml(run.effort),
+                    f"Reasoning effort, {effort}. Unset leaves each model at its provider's "
+                    "default; models without the control skip it.",
+                ),
+                (
+                    "figures",
+                    _toml(run.figures),
+                    "Also show figures as images to reviewers on the vision-capable API backends "
+                    "(about 1.5k tokens each). Other backends keep the captions.",
+                ),
+                ("max_figures", _toml(run.max_figures), "Images per reviewer, 1–20."),
+                (
+                    "compress",
+                    _toml(run.compress),
+                    "When the paper is over `budget_chars`, summarize the cut sections with the "
+                    "AC's model instead of truncating them (extra model calls).",
+                ),
+                ("max_tokens", _toml(run.max_tokens), "Output-token cap for each review."),
+                ("timeout_s", _toml(run.timeout_s), "Seconds before a model call is given up."),
+                ("retries", _toml(run.retries), "Retries of a failed model call."),
+                (
+                    "est_completion_tokens",
+                    _toml(run.est_completion_tokens),
+                    "Output tokens per review assumed by the `--dry-run` cost estimate.",
+                ),
+            ],
+        ),
+        (
+            "[[reviewer]]",
+            "one block per reviewer, 1–5 blocks",
+            [
+                ("id", '"R1", "R2", …', "The reviewer's label in the report."),
+                (
+                    "persona",
+                    '"senior_kind"',
+                    "Who reviews: "
+                    + ", ".join(f"`{p}`" for p in personas if p != "area_chair")
+                    + ". `paper_roast` is the blunt one.",
+                ),
+                (
+                    "backend",
+                    '"auto"',
+                    "`auto` or a backend name from `prebuttal backends`; a custom agent is "
+                    "`agent-NAME`.",
+                ),
+                ("model", "unset", "A model id; unset uses the backend's default."),
+                ("temperature", "0.4", "Sampling temperature where the backend takes one."),
+                ("seed", "seed + n", "This reviewer's seed."),
+                ("effort", "[default] effort", f"This reviewer's reasoning effort, {effort}."),
+            ],
+        ),
+        (
+            "[ac]",
+            "the area chair",
+            [
+                ("persona", _toml(ac.persona), "The meta-reviewer's persona."),
+                ("backend", _toml(ac.backend), "As for a reviewer."),
+                ("model", _toml(ac.model), "As for a reviewer."),
+                ("temperature", _toml(ac.temperature), "As for a reviewer."),
+                ("effort", "[default] effort", "As for a reviewer."),
+            ],
+        ),
+        (
+            "[output]",
+            "where reports go",
+            [
+                (
+                    "dir",
+                    _toml(run.output_dir),
+                    'Report folder; every run gets its own subfolder. `""` keeps reports only in '
+                    "the run archive.",
+                ),
+                ("formats", _toml(run.output_formats), "Any of `md`, `html`, `json`."),
+            ],
+        ),
+        (
+            "[relay]",
+            "the zero-key backend: you or your agent answer",
+            [
+                ("dir", _toml(run.relay_dir), "Where prompts are spooled and answers are read."),
+                ("timeout_s", _toml(run.relay_timeout_s), "Seconds to wait for the answers."),
+            ],
+        ),
+        (
+            "[share]",
+            "HTML reports",
+            [
+                ("repo_url", _toml(run.repo_url), "The link in the footer of HTML reports."),
+            ],
+        ),
+        (
+            "[agents.NAME]",
+            "a custom agent CLI, used as backend `agent-NAME`",
+            [
+                ("command", "—", "The command, as a list or one string."),
+                (
+                    "stdin",
+                    "true",
+                    "Send the prompt on stdin; `false` passes it as the last argument (short "
+                    "papers only).",
+                ),
+            ],
+        ),
+        (
+            '[pricing."MODEL"]',
+            "cost-estimate overrides, USD per 1M tokens",
+            [
+                ("in", "—", "Input price."),
+                ("out", "—", "Output price."),
+            ],
+        ),
+    ]
+
+
+def config_table_html() -> str:
+    out = ['<table class="ref">', "<tr><th>Setting</th><th>Default</th><th>What it does</th></tr>"]
+    for section, about, rows in config_docs():
+        out.append(
+            f'<tr class="group"><th colspan="3"><code>{html.escape(section)}</code> '
+            f"— {html.escape(about)}</th></tr>"
+        )
+        for key, default, desc in rows:
+            text = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", _inline(desc))
+            out.append(
+                f"<tr><td><code>{key}</code></td><td><code>{html.escape(default)}</code>"
+                f"</td><td>{text}</td></tr>"
+            )
+    out.append("</table>")
+    return "\n".join(out)
+
+
+# -- one submission-checklist page per built-in venue --------------------------
+
+# What the code does not know: the year of the call the rules were taken
+# from (update with the rules), and a sentence a reader of that venue needs.
+VENUE_NOTES: dict[str, tuple[str, str]] = {
+    "neurips": (
+        "2026",
+        "NeurIPS asks for its paper checklist after the references; papers "
+        "without it can be desk-rejected.",
+    ),
+    "iclr": (
+        "2027",
+        "ICLR reviews are public on OpenReview, and every ICLR review must "
+        "comment on the paper's stated limitations.",
+    ),
+    "icml": (
+        "2026",
+        "ICML asks for an Impact Statement after the main text; it does not "
+        "count toward the page limit.",
+    ),
+    "acl": (
+        "",
+        "The limit is for long papers; short papers get 4 pages. ARR desk-rejects "
+        "submissions without a Limitations section.",
+    ),
+    "cvpr": ("2027", "Only the references and the LLM Usage Statement may run past the 8 pages."),
+}
+
+
+def _venue_page(key: str) -> tuple[Page, str]:
+    from prebuttal.venues import VENUES
+
+    v = VENUES[key]
+    r = v.rules
+    year, note = VENUE_NOTES[key]
+    named = f"{v.name} {year}".strip()
+    page = Page(
+        f"venues/{key}/index.html",
+        f"{named} submission checklist — desk-reject pre-flight | Prebuttal",
+        f"Check a {v.name} submission before the deadline: page limit, required sections, "
+        "anonymity leaks and leftover ?? — free, no model, in seconds.",
+    )
+    rules: list[str] = []
+    if r.page_limit:
+        uncounted = ", ".join(f"<em>{html.escape(u)}</em>" for u in r.uncounted)
+        rules.append(
+            f"<li><strong>Main text within {r.page_limit} pages.</strong> The count stops at "
+            f"the first of {uncounted}; two-column layouts are read column by column. Over "
+            "the limit is a desk reject. Checked on the PDF (a LaTeX project needs compiling "
+            "first).</li>"
+        )
+    for s in r.required_sections:
+        rules.append(
+            f"<li><strong>A “{html.escape(s)}” section.</strong> The call requires it; the "
+            "check looks for a heading with that name.</li>"
+        )
+    if r.double_blind:
+        rules.append(
+            "<li><strong>Anonymity</strong> (double-blind): no author name in the PDF "
+            "metadata, no e-mail address on page 1, not the template's camera-ready or "
+            "preprint build, no acknowledgements section, no links to your own repository, "
+            "no “our previous work [12]”.</li>"
+        )
+    rules.append(
+        "<li><strong>Leftovers</strong>: unresolved <code>??</code> references, "
+        "<code>[?]</code> citations, TODO / FIXME, and text hidden from human readers (white "
+        "or tiny text — venues have desk-rejected papers for hidden instructions to "
+        "reviewers).</li>"
+    )
+    scores = [f for f in v.fields if f.kind == "score"]
+    forms = [f for f in v.fields if f.kind != "score"]
+    scales = []
+    for f in scores:
+        anchors = "".join(
+            f"<tr><td>{k}</td><td>{html.escape(f.anchors[k])}</td></tr>"
+            for k in sorted(f.anchors, key=float)
+        )
+        step = ", half-steps allowed" if f.allow_float else ""
+        scales.append(
+            f'<h3>{html.escape(f.label)} <span class="muted">1–{f.max:g}{step}</span></h3>\n'
+            f'<table class="ref scale">{anchors}</table>'
+        )
+    asks = "".join(f"<li>{html.escape(f.label)}</li>" for f in forms)
+    others = " · ".join(
+        f'<a href="../{k}/">{html.escape(VENUES[k].name)}</a>' for k in VENUE_KEYS if k != key
+    )
+    body = f"""<main>
+  <nav>
+    <a class="wordmark" href="../../">pre<span>buttal</span></a>
+    <div class="links">
+      <a href="../../guide/">Guide</a>
+      <a href="../../reports/sample.html">Sample report</a>
+      <a href="{REPO_URL}">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <h1>{html.escape(named)} submission checklist</h1>
+  <p class="lead">A desk-reject pre-flight for {html.escape(v.name)}: the page limit, required
+  sections, anonymity and leftovers — checked in seconds, with no model and no cost.</p>
+  <pre class="term">pip install prebuttal
+prebuttal check paper.pdf --venue {key}       # the PDF you will upload
+prebuttal check paper.zip --venue {key}       # Overleaf: Menu → Download → Source</pre>
+
+  <h2>What the check holds a {html.escape(v.name)} paper to</h2>
+  <ul class="rules">
+    {(chr(10) + "    ").join(rules)}
+  </ul>
+  <p>{html.escape(note)}</p>
+  <div class="note">Rules taken from <a href="{r.source}">{html.escape(r.source)}</a>. They
+  change every year — confirm against this year's call. Anything the check flags as an error
+  makes <code>prebuttal check</code> exit with code 6, so it can fail a CI job (see the
+  <a href="../../guide/#check">GitHub Action</a>).</div>
+
+  <h2>The {html.escape(v.name)} review form</h2>
+  <p>Besides the scores, every review answers:</p>
+  <ul>{asks}</ul>
+  {chr(10).join(scales)}
+
+  <h2>What will reviewers raise?</h2>
+  <p>The checklist catches what gets a paper rejected unread. To see what reviewers will say
+  about the paper itself, run three independent AI reviewers and an area chair on this form:</p>
+  <pre class="term">prebuttal run paper.pdf --venue {key}</pre>
+  <p>See a <a href="../../reports/sample.html">sample report</a>, or read the
+  <a href="../../guide/#review">guide</a>. Other venues: {others}.</p>
+
+  <footer>
+    MIT License · Prebuttal is not affiliated with {html.escape(v.name)} ·
+    <a href="{REPO_URL}">Source</a><br>
+    This site counts anonymous page views with <a href="https://www.goatcounter.com/">GoatCounter</a>
+    (no cookies, no personal data). The <code>prebuttal</code> tool itself sends no analytics.
+  </footer>
+</main>"""
+    doc = (
+        f'<!doctype html>\n<html lang="en">\n<head>\n<!-- head:start -->\n{head(page)}\n'
+        f"<!-- head:end -->\n</head>\n<body>\n{body}\n</body>\n</html>\n"
+    )
+    return page, with_analytics(doc)
+
+
+def sitemap(reports: list[str]) -> str:
+    paths = ["", "guide/", *(f"venues/{k}/" for k in VENUE_KEYS), "zh-tw/", "zh-cn/"]
+    paths += [f"reports/{name}" for name in sorted(reports)]
+    urls = "".join(f"  <url><loc>{SITE_URL}{p}</loc></url>\n" for p in paths)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{urls}</urlset>\n"
+    )
+
+
+def render_pages(site: Path = SITE) -> dict[str, str]:
+    """Every generated file, keyed by its path under ``site/``."""
+    out: dict[str, str] = {}
+    for page in HAND_WRITTEN:
+        text = (site / page.path).read_text(encoding="utf-8")
+        text = fill(text, "head", head(page))
+        if page.path == "guide/index.html":
+            text = fill(text, "reference", reference_html())
+            text = fill(text, "config", config_table_html())
+        out[page.path] = text
+    for key in VENUE_KEYS:
+        page, text = _venue_page(key)
+        out[page.path] = text
+    reports = [p.name for p in (site / "reports").glob("*.html")]
+    out["sitemap.xml"] = sitemap(reports)
+    return out
+
+
+def build_pages(site: Path = SITE) -> None:
+    for path, text in render_pages(site).items():
+        target = site / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        old = target.read_text(encoding="utf-8") if target.exists() else None
+        if old != text:
+            target.write_text(text, encoding="utf-8")
+            print(f"[site] {path}")
+
+
 def find_report(runs_dir: Path, pattern: str) -> dict | None:  # type: ignore[type-arg]
     candidates = sorted(p for p in runs_dir.glob(pattern) if (p / "report.json").exists())
     for run_dir in reversed(candidates):  # newest first
@@ -142,6 +755,9 @@ def find_report(runs_dir: Path, pattern: str) -> dict | None:  # type: ignore[ty
 
 
 def main() -> int:
+    if sys.argv[1:] == ["--pages"]:
+        build_pages()
+        return 0
     home = os.environ.get("PREBUTTAL_HOME") or os.path.expanduser("~/.prebuttal")
     runs_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(home) / "runs"
     out_dir = REPO / "site" / "reports"
@@ -169,6 +785,7 @@ def main() -> int:
         html = sample.read_text(encoding="utf-8")
         (out_dir / "sample.html").write_text(with_analytics(html), encoding="utf-8")
         print("[site] sample.html <- examples/sample-report.html")
+    build_pages()
     return 0
 
 

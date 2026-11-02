@@ -1,21 +1,58 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- head:start -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prebuttal — answer Reviewer 2 before Reviewer 2 exists</title>
-<meta name="description" content="A pre-submission stress test for ML papers: three independent AI reviewers plus an area chair, real NeurIPS/ICLR/ICML/ARR/CVPR review forms, a calibration pipeline against OpenReview.">
+<meta name="description" content="A pre-submission stress test for ML papers: three independent AI reviewers and an area chair on real NeurIPS, ICLR, ICML, ARR and CVPR review forms.">
+<link rel="canonical" href="https://guoyukai-samuel.github.io/prebuttal/">
 <link rel="alternate" hreflang="en" href="https://guoyukai-samuel.github.io/prebuttal/">
 <link rel="alternate" hreflang="zh-Hans" href="https://guoyukai-samuel.github.io/prebuttal/zh-cn/">
 <link rel="alternate" hreflang="zh-Hant" href="https://guoyukai-samuel.github.io/prebuttal/zh-tw/">
 <link rel="alternate" hreflang="x-default" href="https://guoyukai-samuel.github.io/prebuttal/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Prebuttal">
+<meta property="og:title" content="Prebuttal — answer Reviewer 2 before Reviewer 2 exists">
+<meta property="og:description" content="A pre-submission stress test for ML papers: three independent AI reviewers and an area chair on real NeurIPS, ICLR, ICML, ARR and CVPR review forms.">
+<meta property="og:url" content="https://guoyukai-samuel.github.io/prebuttal/">
+<meta property="og:image" content="https://guoyukai-samuel.github.io/prebuttal/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Prebuttal: three AI reviewers and an area chair, plus a desk-reject pre-flight">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "SoftwareApplication",
+ "name": "Prebuttal",
+ "description": "A pre-submission stress test for ML papers: three independent AI reviewers and an area chair on real NeurIPS, ICLR, ICML, ARR and CVPR review forms.",
+ "applicationCategory": "DeveloperApplication",
+ "operatingSystem": "Windows, macOS, Linux",
+ "softwareRequirements": "Python 3.11+",
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "USD"
+ },
+ "license": "https://opensource.org/licenses/MIT",
+ "url": "https://guoyukai-samuel.github.io/prebuttal/",
+ "downloadUrl": "https://pypi.org/project/prebuttal/",
+ "sameAs": "https://github.com/GuoYuKai-SaMuEl/prebuttal"
+}
+</script>
+<!-- head:end -->
 </head>
 <body>
 <main>
   <nav>
     <div class="wordmark">pre<span>buttal</span></div>
     <div class="links">
+      <a href="guide/">Guide</a>
       <span class="here">English</span>
       <a href="zh-cn/" lang="zh-Hans">简体中文</a>
       <a href="zh-tw/" lang="zh-Hant">繁體中文</a>
@@ -34,6 +71,7 @@
     <div class="install">pip install prebuttal</div>
     <div class="btns">
       <a class="btn primary" href="reports/sample.html">▶ See a sample report</a>
+      <a class="btn" href="guide/">Read the guide</a>
       <a class="btn" href="#check">Desk-reject pre-flight</a>
       <a class="btn" href="https://github.com/GuoYuKai-SaMuEl/prebuttal">GitHub</a>
     </div>
@@ -66,6 +104,7 @@
       across revisions.</p>
     </div>
   </div>
+  <p class="more"><a href="guide/#review">Guide: running a mock review and reading the report →</a></p>
 
   <h2>Sample runs</h2>
   <p class="sub">Full runs on public arXiv papers, compared with their real OpenReview outcomes.
@@ -159,6 +198,8 @@ prebuttal check — paper.pdf · ICML rules (8 pages, double-blind, requires Imp
       without compiling. A GitHub Action runs it on every push.</p>
     </div>
   </div>
+  <p class="more">Submission checklists, rule by rule: <a href="venues/neurips/">NeurIPS</a> · <a href="venues/iclr/">ICLR</a> · <a href="venues/icml/">ICML</a> · <a href="venues/acl/">ARR</a> · <a href="venues/cvpr/">CVPR</a> ·
+  <a href="guide/#check">Guide: the check and the GitHub Action →</a></p>
 
   <h2 id="revision-loop">The revision loop</h2>
   <p class="sub">Every run ends with a prioritised revision plan; every paper is a
@@ -214,6 +255,8 @@ $ prebuttal diff --llm mamba-revision#17 mamba-revision#18
       control.</p>
     </div>
   </div>
+  <p class="more"><a href="guide/#revision-loop">Guide: the revision loop →</a> ·
+  <a href="guide/#projects">projects &amp; history →</a></p>
 
   <h2>Bring your own backend</h2>
   <p class="sub">Auto-detected at startup; every run records who reviewed what.</p>
@@ -232,6 +275,8 @@ $ prebuttal diff --llm mamba-revision#17 mamba-revision#18
     layer, not a data custodian. For unpublished work use <code>ollama</code> or
     <code>relay</code>.
   </div>
+  <p class="more"><a href="guide/#backends">Guide: backends, keys &amp; privacy →</a> ·
+  <a href="guide/#configuration">every setting →</a></p>
 
   <footer>
     MIT License · Prebuttal is not affiliated with NeurIPS, ICLR, ICML, ARR or CVPR ·
