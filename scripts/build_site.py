@@ -286,6 +286,120 @@ def fill(page_html: str, name: str, block: str) -> str:
     return f"{before}{start}\n{block}\n{end}{after}"
 
 
+# -- the site header: one component, the same on every page -----------------
+
+# Labels per page language. Only the landing page is translated, so the
+# Chinese labels say where a link leads to English.
+NAV_LABELS = {
+    "en": {
+        "guide": "Guide",
+        "venues": "Checklists",
+        "sample": "Sample report",
+        "lang": "English",
+        "en_only": "Chinese: home page only",
+        "menu": "Language",
+    },
+    "zh-Hant": {
+        "guide": "指南",
+        "venues": "投稿檢查",
+        "sample": "範例報告",
+        "lang": "繁體中文",
+        "en_only": "",
+        "menu": "語言",
+    },
+    "zh-Hans": {
+        "guide": "指南",
+        "venues": "投稿检查",
+        "sample": "示例报告",
+        "lang": "简体中文",
+        "en_only": "",
+        "menu": "语言",
+    },
+}
+LANGUAGES = [
+    ("en", "English", ""),
+    ("zh-Hant", "繁體中文", "zh-tw/"),
+    ("zh-Hans", "简体中文", "zh-cn/"),
+]
+
+_CHEVRON = (
+    '<svg class="chev" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">'
+    '<path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" '
+    'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+)
+_GLOBE = (
+    '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">'
+    '<g fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.3"/>'
+    '<ellipse cx="8" cy="8" rx="2.7" ry="6.3"/><path d="M1.9 8h12.2"/></g></svg>'
+)
+# Octicons mark-github (MIT)
+_GITHUB = (
+    '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path '
+    'fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17'
+    "-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31"
+    "-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36"
+    ".09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 "
+    "3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23"
+    "-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 "
+    '.21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>'
+)
+# <details> menus: close when another opens, on a click outside, and on Escape
+_MENU_SCRIPT = (
+    "<script>document.addEventListener('click',e=>{for(const d of "
+    "document.querySelectorAll('details.menu[open]'))if(!d.contains(e.target))"
+    "d.removeAttribute('open')});document.addEventListener('keydown',e=>{if(e.key==="
+    "'Escape')for(const d of document.querySelectorAll('details.menu[open]'))"
+    "d.removeAttribute('open')})</script>"
+)
+
+
+def nav_html(page: Page) -> str:
+    from prebuttal.venues import VENUES
+
+    r = page.root
+    t = NAV_LABELS[page.lang]
+    section = page.path.split("/")[0]
+
+    def current(name: str) -> str:
+        return ' aria-current="page"' if section == name else ""
+
+    venues = "".join(
+        f'<a href="{r}venues/{k}/"'
+        + (' aria-current="page"' if page.path == f"venues/{k}/index.html" else "")
+        + f">{html.escape(VENUES[k].name)}</a>"
+        for k in VENUE_KEYS
+    )
+    # a translated page switches to its translation; the others to the home pages
+    langs = []
+    for code, name, path in LANGUAGES:
+        if code == page.lang:
+            langs.append(f'<span class="current" lang="{code}">{name}</span>')
+        else:
+            langs.append(f'<a href="{r}{path}" lang="{code}" hreflang="{code}">{name}</a>')
+    hint = (
+        f'<p class="menu-hint">{t["en_only"]}</p>' if not page.translated and t["en_only"] else ""
+    )
+    en = ' <span class="tag">EN</span>' if page.lang != "en" else ""
+    return f"""<header class="site-header">
+  <a class="wordmark" href="{r or "./"}"><picture>
+    <source srcset="{r}logo-dark.svg" media="(prefers-color-scheme: dark)">
+    <img src="{r}logo.svg" alt="Prebuttal" width="134" height="24"></picture></a>
+  <nav class="primary" aria-label="Site">
+    <a href="{r}guide/"{current("guide")}>{t["guide"]}{en}</a>
+    <details class="menu"><summary{current("venues")}>{t["venues"]}{en} {_CHEVRON}</summary>
+      <div class="menu-panel">{venues}</div></details>
+    <a href="{r}reports/sample.html">{t["sample"]}{en}</a>
+  </nav>
+  <div class="actions">
+    <details class="menu lang"><summary aria-label="{t["menu"]}: {t["lang"]}">{_GLOBE}
+      <span>{t["lang"]}</span> {_CHEVRON}</summary>
+      <div class="menu-panel right">{"".join(langs)}{hint}</div></details>
+    <a class="btn-gh" href="{REPO_URL}">{_GITHUB}<span>GitHub</span></a>
+  </div>
+</header>
+{_MENU_SCRIPT}"""
+
+
 def _inline(text: str) -> str:
     """Escape help text and turn `backticks` into <code>."""
     return re.sub(r"`([^`]+)`", r"<code>\1</code>", html.escape(text, quote=False))
@@ -659,16 +773,7 @@ def _venue_page(key: str) -> tuple[Page, str]:
         f'<a href="../{k}/">{html.escape(VENUES[k].name)}</a>' for k in VENUE_KEYS if k != key
     )
     body = f"""<main>
-  <nav>
-    <a class="wordmark" href="../../"><picture>
-      <source srcset="../../logo-dark.svg" media="(prefers-color-scheme: dark)">
-      <img src="../../logo.svg" alt="Prebuttal" width="134" height="24"></picture></a>
-    <div class="links">
-      <a href="../../guide/">Guide</a>
-      <a href="../../reports/sample.html">Sample report</a>
-      <a href="{REPO_URL}">GitHub ↗</a>
-    </div>
-  </nav>
+{nav_html(page)}
 
   <h1>{html.escape(named)} submission checklist</h1>
   <p class="lead">A desk-reject pre-flight for {html.escape(v.name)}: the page limit, required
@@ -730,6 +835,7 @@ def render_pages(site: Path = SITE) -> dict[str, str]:
     for page in HAND_WRITTEN:
         text = (site / page.path).read_text(encoding="utf-8")
         text = fill(text, "head", head(page))
+        text = fill(text, "nav", nav_html(page))
         if page.path == "guide/index.html":
             text = fill(text, "reference", reference_html())
             text = fill(text, "config", config_table_html())
