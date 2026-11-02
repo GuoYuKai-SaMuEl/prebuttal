@@ -175,3 +175,12 @@ def test_internal_links_resolve():
             if anchor and target.suffix == ".html":
                 assert anchor in ids[target], f"{page}: {href}"
 
+
+def test_guide_pins_the_same_action_release_as_the_readme():
+    """A release bumps `uses: GuoYuKai-SaMuEl/prebuttal@vX` in the READMEs and the guide."""
+    import re
+
+    pin = re.compile(r"GuoYuKai-SaMuEl/prebuttal@(v[\d.]+)")
+    readme = set(pin.findall((REPO / "README.md").read_text(encoding="utf-8")))
+    guide = set(pin.findall((SITE / "guide" / "index.html").read_text(encoding="utf-8")))
+    assert len(readme) == 1 and guide == readme

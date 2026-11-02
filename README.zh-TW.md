@@ -9,12 +9,13 @@
 [English](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.md) · [简体中文](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.zh-CN.md) · 繁體中文
 
 [**網站**](https://guoyukai-samuel.github.io/prebuttal/zh-tw/) ·
+[**使用指南（英文）**](https://guoyukai-samuel.github.io/prebuttal/guide/) ·
 [**範例報告**](https://guoyukai-samuel.github.io/prebuttal/reports/sample.html) ·
 [更新紀錄](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/CHANGELOG.md)
 
 </div>
 
-> 這是精簡版說明。完整文件以[英文 README](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.md)為準；工具的輸出與審稿表單都是英文。
+> 這是精簡版說明。每個指令與設定的完整說明在[使用指南（英文）](https://guoyukai-samuel.github.io/prebuttal/guide/)；工具的輸出與審稿表單都是英文。
 
 ## 快速開始
 
@@ -87,6 +88,8 @@ LaTeX 專案不需編譯即可檢查（頁數上限需要 PDF）。找到可能�
 
 ## 更多
 
-[完整英文說明](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/README.md)：設定檔、自訂會議、推理強度（effort）、讓審稿人看圖、執行紀錄與專案、在 coding agent 裡使用、校準腳本。
+[使用指南（英文）](https://guoyukai-samuel.github.io/prebuttal/guide/)：設定檔的每個選項、自訂會議、推理強度（effort）、讓審稿人看圖、執行紀錄與專案、在 coding agent 裡使用、完整指令表。
+
+各會議的投稿檢查清單（英文）：[NeurIPS](https://guoyukai-samuel.github.io/prebuttal/venues/neurips/) · [ICLR](https://guoyukai-samuel.github.io/prebuttal/venues/iclr/) · [ICML](https://guoyukai-samuel.github.io/prebuttal/venues/icml/) · [ARR](https://guoyukai-samuel.github.io/prebuttal/venues/acl/) · [CVPR](https://guoyukai-samuel.github.io/prebuttal/venues/cvpr/)
 
 MIT 授權。Prebuttal 是獨立專案，與 NeurIPS、ICLR、ICML、ACL/ARR、CVPR 或任何模型供應商均無關聯。

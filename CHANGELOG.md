@@ -13,6 +13,18 @@ releases (0.2, 0.3, …) are substantial new features.
 A smaller CLI: 13 commands, and `run` keeps only what changes from run to
 run (9 flags, was 15).
 
+### Added
+
+- **A guide on the website** ([/guide/](https://guoyukai-samuel.github.io/prebuttal/guide/)):
+  every command and setting, task by task. Its command reference and settings
+  table are generated from the CLI and the sample config, and a test fails when
+  they fall behind. The README is shorter and links to it.
+- **A submission checklist page per built-in venue** (NeurIPS, ICLR, ICML, ARR,
+  CVPR), generated from the rules `prebuttal check` applies and the venue's
+  review form.
+- The site has canonical links, Open Graph previews, a favicon, structured data
+  and a sitemap.
+
 ### Changed
 - `run --seed`, `--effort`, `--figures`, `--reviewers` and `--out-dir` are
   hidden: they repeat `prebuttal.toml` settings (`seed`, `effort`,
