@@ -24,6 +24,12 @@ run (9 flags, was 15).
   review form.
 - The site has canonical links, Open Graph previews, a favicon, structured data
   and a sitemap.
+- **`run` puts the desk-reject check into the revision plan.** On your own
+  draft, each error `prebuttal check` finds is now the first `must` of the
+  plan and each warning a `should`, marked `raised_by: ["check"]`, so they
+  lead "Fix first" and `prebuttal diff` shows them gone once fixed. They used
+  to appear only as a note above the report. The area chair is told the
+  findings, as facts kept apart from the paper's text.
 
 ### Changed
 - `run --seed`, `--effort`, `--figures`, `--reviewers` and `--out-dir` are

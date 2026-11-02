@@ -114,3 +114,123 @@ def test_diff_checks_plan_items_against_the_next_run(
     assert "- new in B: Figure 2 axis labels" in text
     assert "1 of 2 plan items were not re-detected in B." in text
     assert "Matching is by wording" in text  # a new item appeared: warn about rewording
+
+
+# -- `prebuttal check`'s findings in the plan and in front of the AC ----------
+
+_CHECK_NOTES = [
+    'Pre-flight check (error): no "NeurIPS Paper Checklist" section — the venue requires one',
+    "Pre-flight check (warning): an acknowledgements section is visible (page 9)",
+    "Pre-flight check skipped: cannot open PDF",  # not a finding
+    "hidden text found on page 2",  # another kind of note
+]
+
+
+def test_preflight_findings_round_trip_through_the_notes():
+    from prebuttal.check import ERROR, WARNING, CheckResult, preflight_findings, preflight_warnings
+
+    result = CheckResult(source="p.pdf", kind="pdf")
+    result.add(WARNING, "anonymity", "an acknowledgements section is visible (page 9)")
+    result.add(ERROR, "format", 'no "Impact Statement" section — the venue requires one')
+    assert preflight_findings(preflight_warnings(result)) == [
+        ("error", 'no "Impact Statement" section — the venue requires one'),
+        ("warning", "an acknowledgements section is visible (page 9)"),
+    ]
+    assert len(preflight_findings(_CHECK_NOTES)) == 2
+
+
+def test_check_findings_lead_the_plan_and_reach_the_ac(latex_project):
+    from conftest import PersonaFakeProvider
+
+    from prebuttal.config import load_config
+    from prebuttal.ingestion import ingest
+    from prebuttal.orchestrator import CHECK, run_report
+
+    cfg = load_config(None)
+    paper = ingest(str(latex_project))
+    paper.warnings += _CHECK_NOTES
+    ac_calls: list = []
+    report = run_report(
+        paper,
+        cfg,
+        get_venue("neurips"),
+        {r.id: PersonaFakeProvider() for r in cfg.reviewers},
+        PersonaFakeProvider(calls=ac_calls),
+        log=lambda m: None,
+    )
+    plan = report.meta.action_plan
+    assert [(it.priority, it.raised_by) for it in plan[:1]] == [("must", [CHECK])]
+    assert plan[0].issue.startswith('no "NeurIPS Paper Checklist" section')
+    assert plan[1].raised_by != [CHECK]  # the AC's own must comes after
+    shoulds = [it for it in plan if it.priority == "should"]
+    assert shoulds[0].raised_by == [CHECK]  # ahead of the AC's should
+    markdown = render_markdown(report, get_venue("neurips"))
+    assert '- [ ] **must** — no "NeurIPS Paper Checklist"' in markdown
+
+    user = ac_calls[0]["user"]
+    facts = user.index("A deterministic pre-flight check")
+    assert facts > user.index("</submission>")  # outside the untrusted paper text
+    assert '- [error] no "NeurIPS Paper Checklist" section' in user
+    assert "- [warning] an acknowledgements section is visible" in user
+    assert "skipped" not in user[facts:]
+
+
+def test_ac_prompt_unchanged_without_findings(latex_project):
+    from prebuttal.orchestrator import build_ac_user
+
+    assert "pre-flight" not in build_ac_user("pack", [], get_venue("iclr"))
+
+
+def test_check_items_survive_a_failed_ac_and_a_retry(latex_project):
+    from conftest import PersonaFakeProvider
+
+    from prebuttal.config import load_config
+    from prebuttal.ingestion import ingest
+    from prebuttal.orchestrator import CHECK, review_then_meta, run_report
+    from prebuttal.providers.base import ProviderError
+
+    class DownAC(PersonaFakeProvider):
+        def _complete(self, **kw):
+            raise ProviderError("HTTP 429")
+
+    cfg = load_config(None)
+    paper = ingest(str(latex_project))
+    paper.warnings += _CHECK_NOTES
+    providers = {r.id: PersonaFakeProvider() for r in cfg.reviewers}
+    venue = get_venue("neurips")
+    report = run_report(paper, cfg, venue, providers, DownAC(), log=lambda m: None)
+    assert report.meta.error and [it.raised_by for it in report.meta.action_plan] == [
+        [CHECK],
+        [CHECK],
+    ]
+
+    # `retry` rebuilds the paper from report.json: the notes carry the findings
+    old = report_from_dict(json.loads(dumps_json(report, venue)))
+    again = review_then_meta(
+        old.paper, cfg, venue, report.pack, providers, PersonaFakeProvider(),
+        lambda m: None, keep=list(old.reviews),
+    )  # fmt: skip
+    assert [it.raised_by for it in again.meta.action_plan].count([CHECK]) == 2
+
+
+def test_diff_shows_a_fixed_check_item_as_gone(
+    tmp_path, monkeypatch, latex_project, fake_statuses, fake_config
+):
+    monkeypatch.chdir(tmp_path)
+    for _ in range(2):
+        assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == 0
+    b, a = load_history()[:2]
+    p = a.dir_path / "report.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["meta"]["action_plan"].insert(
+        0,
+        {
+            "priority": "must",
+            "issue": 'no "NeurIPS Paper Checklist" section — the venue requires one',
+            "action": "Fix before submitting: a desk-reject risk",
+            "raised_by": ["check"],
+        },
+    )
+    p.write_text(json.dumps(data), encoding="utf-8")
+    text = render_diff(a, b)
+    assert '- not re-detected: [must] no "NeurIPS Paper Checklist" section' in text

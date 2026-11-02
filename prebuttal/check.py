@@ -568,7 +568,18 @@ def github_annotations(result: CheckResult) -> str:
     )
 
 
+PREFLIGHT = "Pre-flight check"
+_PREFLIGHT_NOTE = re.compile(rf"{PREFLIGHT} \(({ERROR}|{WARNING})\): (.+)", re.S)
+
+
 def preflight_warnings(result: CheckResult) -> list[str]:
     """Findings as report warnings, for `run` (errors first)."""
     ordered = result.errors + result.warnings
-    return [f"Pre-flight check ({f.level}): {f.message}" for f in ordered]
+    return [f"{PREFLIGHT} ({f.level}): {f.message}" for f in ordered]
+
+
+def preflight_findings(notes: list[str]) -> list[tuple[str, str]]:
+    """(level, message) of the findings `run` put in the paper's notes.
+
+    They travel as notes, so a stored report.json — and `retry` — keeps them."""
+    return [(m[1], m[2]) for n in notes if (m := _PREFLIGHT_NOTE.fullmatch(n))]

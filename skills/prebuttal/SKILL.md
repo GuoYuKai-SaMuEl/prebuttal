@@ -128,8 +128,10 @@ After the user revises the paper:
   disclose this to the user)
 - `meta.meta_review` — the area chair's synthesis and recommendation
 - `meta.action_plan[]` — the revision plan, most important first: `priority`
-  (must / should / could), `issue`, `action`, `raised_by` (reviewer ids),
-  `effort` (small / medium / large). `prebuttal show --plan` prints it as a checklist.
+  (must / should / could), `issue`, `action`, `raised_by` (reviewer ids, or
+  `check` for a `prebuttal check` finding on the user's own draft — a desk-reject
+  risk to fix first), `effort` (small / medium / large). `prebuttal show --plan`
+  prints it as a checklist.
 
 ## Presenting results to the user
 
