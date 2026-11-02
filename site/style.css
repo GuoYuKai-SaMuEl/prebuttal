@@ -95,6 +95,7 @@ nav .links .here { color: var(--muted); }
 /* Guide and venue pages. */
 main.wide { max-width: 1120px; }
 a.wordmark:hover { text-decoration: none; }
+.wordmark img { display: block; height: 24px; width: auto; }
 h1 { font-size: 34px; line-height: 1.2; margin: 40px 0 12px; }
 p.lead { font-size: 18px; color: var(--muted); margin: 0 0 24px; }
 h3 { font-size: 17px; margin: 28px 0 8px; }

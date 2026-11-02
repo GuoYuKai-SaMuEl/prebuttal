@@ -655,7 +655,9 @@ def _venue_page(key: str) -> tuple[Page, str]:
     )
     body = f"""<main>
   <nav>
-    <a class="wordmark" href="../../">pre<span>buttal</span></a>
+    <a class="wordmark" href="../../"><picture>
+      <source srcset="../../logo-dark.svg" media="(prefers-color-scheme: dark)">
+      <img src="../../logo.svg" alt="Prebuttal" width="134" height="24"></picture></a>
     <div class="links">
       <a href="../../guide/">Guide</a>
       <a href="../../reports/sample.html">Sample report</a>
