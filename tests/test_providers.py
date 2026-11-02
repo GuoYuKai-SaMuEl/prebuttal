@@ -512,6 +512,39 @@ def test_builtin_agents_run_locked_down_in_empty_cwd(monkeypatch, tmp_path):
         assert ["--disable", feature] in [seen[1][0][i : i + 2] for i in range(len(seen[1][0]))]
 
 
+def test_agent_answer_survives_a_temp_dir_that_cannot_be_removed(monkeypatch):
+    """Windows: the CLI (or a child it left running) can still hold the empty
+    working dir, and deleting it raised WinError 32 — which lost a finished
+    AC meta-review. The answer wins; the leftover dir is ignored."""
+    import os
+    import shutil
+    import subprocess as sp
+
+    from prebuttal.providers import agent_cli
+    from prebuttal.providers.agent_cli import claude_provider
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = '{"ok": 1}'
+        stderr = ""
+
+    monkeypatch.setattr(sp, "run", lambda cmd, input=None, cwd=None, **kw: FakeCompleted())
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    real_rmtree = shutil.rmtree
+    calls = []
+
+    def held_rmtree(path, ignore_errors=False, **kw):
+        calls.append(ignore_errors)
+        if not ignore_errors:
+            raise PermissionError(32, "being used by another process", path)
+        real_rmtree(path, ignore_errors=True)
+
+    monkeypatch.setattr(agent_cli.shutil, "rmtree", held_rmtree)
+    comp = claude_provider().complete(system="s", user="u", retries=0)
+    assert comp.text == '{"ok": 1}' and calls == [True]
+    assert not any(n.startswith("prebuttal-agent-") and os.path.isdir(n) for n in os.listdir("."))
+
+
 def test_agent_cli_outdated_flag_is_not_retried(monkeypatch):
     import subprocess as sp
 

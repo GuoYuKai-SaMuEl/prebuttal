@@ -148,8 +148,13 @@ class AgentCLIProvider(BaseProvider):
 
     def _complete(self, *, system, user, temperature, seed, max_tokens):
         if self.isolate_cwd:
-            with tempfile.TemporaryDirectory(prefix="prebuttal-agent-") as cwd:
+            cwd = tempfile.mkdtemp(prefix="prebuttal-agent-")
+            try:
                 return self._complete_in(system, user, cwd)
+            finally:
+                # On Windows the CLI (or a process it left running) can still hold
+                # the folder: a leftover empty temp dir must not cost the answer.
+                shutil.rmtree(cwd, ignore_errors=True)
         return self._complete_in(system, user, None)
 
     def _complete_in(self, system: str, user: str, cwd: str | None):
