@@ -93,50 +93,71 @@ _RAW_CAP = 20_000
 # ------------------------------------------------------------------ JSON utils
 
 
+_DICT_START = re.compile(r'\{\s*(?=["}])')
+_DECODER = json.JSONDecoder()
+
+
 def extract_json_object(text: str) -> dict | None:
     """Best-effort JSON object extraction from an LLM completion."""
-    if not text:
+    if not text or "{" not in text or "}" not in text:
         return None
 
-    m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
-    if m:
+    if text.count("```") >= 2:
+        m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+        if m:
+            try:
+                obj = json.loads(m.group(1))
+                if isinstance(obj, dict):
+                    return obj
+            except (ValueError, RecursionError):
+                pass
+
+    last_close = text.rfind("}")
+    for tries, m in enumerate(_DICT_START.finditer(text)):
+        start = m.start()
+        if start > last_close or tries >= 64:
+            break
         try:
-            obj = json.loads(m.group(1))
+            obj, _ = _DECODER.raw_decode(text, start)
             if isinstance(obj, dict):
                 return obj
-        except ValueError:
+        except (ValueError, RecursionError):
             pass
 
-    for start, ch in enumerate(text):
-        if ch != "{":
+    stack: list[int] = []
+    spans: list[tuple[int, int, int]] = []
+    in_str = False
+    esc = False
+    for i, c in enumerate(text):
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c in ('"', "\n"):
+                in_str = False
             continue
-        depth = 0
-        in_str = False
-        esc = False
-        for j in range(start, len(text)):
-            c = text[j]
-            if in_str:
-                if esc:
-                    esc = False
-                elif c == "\\":
-                    esc = True
-                elif c == '"':
-                    in_str = False
-                continue
-            if c == '"':
-                in_str = True
-            elif c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-                if depth == 0:
-                    try:
-                        obj = json.loads(text[start : j + 1])
-                        if isinstance(obj, dict):
-                            return obj
-                    except ValueError:
-                        pass
-                    break
+        if c == '"' and stack:
+            in_str = True
+        elif c == "{":
+            stack.append(i)
+        elif c == "}" and stack:
+            start = stack.pop()
+            spans.append((len(stack), start, i + 1))
+
+    if not spans:
+        return None
+    spans.sort()
+    max_depth = spans[0][0] + 3
+    for depth, start, end in spans:
+        if depth > max_depth or not _DICT_START.match(text, start):
+            continue
+        try:
+            obj = json.loads(text[start:end])
+            if isinstance(obj, dict):
+                return obj
+        except (ValueError, RecursionError):
+            pass
     return None
 
 

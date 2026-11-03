@@ -535,7 +535,9 @@ def render_diff(
     da, db = _load_run_json(a), _load_run_json(b)
     aa, ab = da.get("aggregate", {}), db.get("aggregate", {})
     ma, mb = _num(aa.get("mean")), _num(ab.get("mean"))
-    scale = aa.get("rating_scale") or ab.get("rating_scale")
+    scale_a = _num(aa.get("rating_scale")) or a.scale
+    scale_b = _num(ab.get("rating_scale")) or b.scale
+    same_scale = scale_a == scale_b or not (scale_a and scale_b)
 
     out: list[str] = ["# Revision diff", ""]
     out.append(f"A · {a.id} · {a.ts} · seed {a.seed}")
@@ -543,7 +545,8 @@ def render_diff(
     out.append("")
 
     out.append("## Predicted outcome")
-    out.append(f"- A {_scored(ma, scale)} → B {_scored(mb, scale)}{_delta(ma, mb)}")
+    delta = _delta(ma, mb) if same_scale else "  (venue changed — raw means are not comparable)"
+    out.append(f"- A {_scored(ma, scale_a)} → B {_scored(mb, scale_b)}{delta}")
     sa, sb = _num(aa.get("std")), _num(ab.get("std"))
     if sa is not None and sb is not None:
         out.append(f"- disagreement σ {sa:g} → {sb:g}")  # noqa: RUF001
@@ -553,7 +556,8 @@ def render_diff(
     va, vb = _num(ea.get("estimated_rating")), _num(eb.get("estimated_rating"))
     if va is not None or vb is not None:
         out.append("## Area chair")
-        out.append(f"- AC estimate A {_scored(va, scale)} → B {_scored(vb, scale)}{_delta(va, vb)}")
+        ac_delta = _delta(va, vb) if same_scale else ""
+        out.append(f"- AC estimate A {_scored(va, scale_a)} → B {_scored(vb, scale_b)}{ac_delta}")
         out.append("")
 
     ra, rb = _by_persona(da.get("reviewers", [])), _by_persona(db.get("reviewers", []))
@@ -562,7 +566,7 @@ def render_diff(
         x, y = ra.get(persona), rb.get(persona)
         fa = _num(x.get("rating")) if x else None
         fb = _num(y.get("rating")) if y else None
-        out.append(f"- {persona}: {_g(fa)} → {_g(fb)}{_delta(fa, fb)}")
+        out.append(f"- {persona}: {_g(fa)} → {_g(fb)}{_delta(fa, fb) if same_scale else ''}")
     out.append("")
 
     out.append("## Weakness movement (heuristic: ≥35% word overlap counts as the same weakness)")

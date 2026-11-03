@@ -326,3 +326,15 @@ def test_previous_run_returns_none_when_record_was_deleted(latex_project):
     _report, rec = _archive(latex_project)
     delete_runs({rec.id})
     assert previous_run(rec) is None
+
+
+def test_render_diff_across_venues_uses_each_scale(latex_project):
+    cfg = load_config(None)
+    ra, va = make_report(latex_project, venue_key="neurips")
+    rec_a = save_run(ra, va, cfg, md="# a", json_str=dumps_json(ra, va), html=None)
+    rb, vb = make_report(latex_project, venue_key="iclr", rating_shift=1)
+    rec_b = save_run(rb, vb, cfg, md="# b", json_str=dumps_json(rb, vb), html=None)
+    text = render_diff(rec_a, rec_b)
+    assert f"A {rec_a.mean:g}/6 → B {rec_b.mean:g}/10" in text
+    assert "venue changed — raw means are not comparable" in text
+    assert "Δ" not in text

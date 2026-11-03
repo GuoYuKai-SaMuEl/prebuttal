@@ -1,3 +1,5 @@
+import io
+
 from prebuttal import cli
 from prebuttal.keys import (
     apply_stored_keys,
@@ -107,3 +109,24 @@ def test_only_api_keys_are_applied(isolated_prebuttal_home, monkeypatch):
     keys_path().write_text("GEMINI_API_KEY=AIzaTest123456\nPREBUTTAL_EVIL=1\n", encoding="utf-8")
     assert apply_stored_keys() == ["GEMINI_API_KEY"]
     assert "PREBUTTAL_EVIL" not in os.environ
+
+
+def test_cli_key_set_reads_piped_stdin_and_rejects_empty_stdin(tmp_path, monkeypatch, capsys):
+    import os
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    rc = cli.main(["key", "set", "gemini"])
+    assert rc == cli.EXIT_USAGE
+    assert "GEMINI_API_KEY" in capsys.readouterr().err
+
+    with open(os.devnull, encoding="utf-8") as devnull:
+        monkeypatch.setattr("sys.stdin", devnull)
+        rc = cli.main(["key", "set", "gemini"])
+        assert rc == cli.EXIT_USAGE
+        assert "GEMINI_API_KEY" in capsys.readouterr().err
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("AIzaSyPipedKey12345\n"))
+    rc = cli.main(["key", "set", "gemini"])
+    assert rc == cli.EXIT_OK
+    assert "stored GEMINI_API_KEY" in capsys.readouterr().out

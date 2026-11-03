@@ -118,6 +118,20 @@ def test_extract_json_invalid():
     assert extract_json_object("{broken json") is None
 
 
+def test_extract_json_survives_unclosed_prose_brace_and_pathological_braces():
+    import time
+
+    assert extract_json_object('set $S = \\{x$ then {"rating": 6}') == {"rating": 6}
+    # unclosed `{` + odd quote on the same line must not skip the outer review dict
+    noisy = 'note: { odd " quote before {{"rating": 6, "weaknesses": [{"text": "w1"}]}}'
+    assert extract_json_object(noisy) == {"rating": 6, "weaknesses": [{"text": "w1"}]}
+    t0 = time.perf_counter()
+    assert extract_json_object("{" * 20_000) is None
+    assert extract_json_object("prose { word } " * 10_000 + '{"rating": 5}') == {"rating": 5}
+    assert extract_json_object('{"a": ' * 3_000 + '{"rating": 4}') == {"rating": 4}
+    assert time.perf_counter() - t0 < 1.0
+
+
 def test_coerce_fields():
     venue = get_venue("iclr")
     payload = {

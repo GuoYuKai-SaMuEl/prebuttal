@@ -27,6 +27,15 @@ releases (0.2, 0.3, …) are substantial new features.
 - `prebuttal diff` with one argument no longer raises `StopIteration` if the
   target run was deleted from the history between resolving it and looking up
   the run before it.
+- Reading review JSON from a model response that contains thousands of braces
+  (e.g. echoed LaTeX tables or malformed output) no longer stalls for several
+  seconds per reviewer.
+- `prebuttal diff` between two runs at venues with different rating scales now
+  labels each run with its own scale and omits raw-mean deltas across scales.
+- `prebuttal key set <backend>` without `--key` now reads a line from `stdin`
+  when `stdin` is not a terminal (including `< NUL` on Windows, which is now
+  treated as non-interactive across all prompts) and exits with an error if
+  empty instead of blocking on `getpass`.
 
 ## [0.6.0] — 2026-11-03
 

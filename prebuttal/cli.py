@@ -787,9 +787,28 @@ def _backend_models(name: str) -> int:
 # ------------------------------------------------------- interactive plan flow
 
 
+def _stdin_is_tty() -> bool:
+    """True when stdin is a real terminal (on Windows, ``NUL`` has ``isatty() == True``)."""
+    try:
+        if not sys.stdin.isatty():
+            return False
+        if sys.platform == "win32":
+            import ctypes
+            import msvcrt
+
+            mode = ctypes.c_ulong()
+            handle = msvcrt.get_osfhandle(sys.stdin.fileno())
+            return bool(
+                ctypes.windll.kernel32.GetConsoleMode(ctypes.c_void_p(handle), ctypes.byref(mode))
+            )
+        return True
+    except Exception:  # pragma: no cover - exotic stdio
+        return False
+
+
 def _is_interactive() -> bool:
     try:
-        return sys.stdin.isatty() and sys.stdout.isatty()
+        return _stdin_is_tty() and sys.stdout.isatty()
     except Exception:  # pragma: no cover - exotic stdio
         return False
 
@@ -864,7 +883,17 @@ def cmd_key(args) -> int:
         return _fail(str(e))
 
     if args.key_cmd == "set":
-        value = args.key or getpass.getpass(f"Paste your {args.backend} API key (input hidden): ")
+        if args.key:
+            value = args.key
+        elif not _stdin_is_tty():
+            value = sys.stdin.readline().strip()
+            if not value:
+                return _fail(f"no key on stdin — set {var} in the environment or run in a terminal")
+        else:
+            try:
+                value = getpass.getpass(f"Paste your {args.backend} API key (input hidden): ")
+            except EOFError:
+                return _fail("aborted (no input available)")
         try:
             key_store.store_key(var, value)
         except key_store.KeyError_ as e:
