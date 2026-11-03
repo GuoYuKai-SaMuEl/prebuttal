@@ -20,6 +20,9 @@ in particular *fewer parameters, simpler commands*.
 - **0.5** — nothing leaks before submission: `prebuttal check`, agent CLIs
   without any tool that reads files, and `backends` as the one setup view.
   Details below, kept as the record of what was planned.
+- **0.6** — a smaller CLI: 13 commands, `run` down to 9 flags (project-wide
+  settings live in `prebuttal.toml`), `venues <name>`, `show --plan`; the
+  removed names stay as hidden aliases until 0.7.
 
 ## 0.5 — nothing leaks before submission (released)
 
@@ -69,12 +72,10 @@ until 0.6. `check` got one option after all, `--venue`: most users have no
 `prebuttal.toml`, and checking a paper against the wrong venue's rules is
 worse than a flag.
 
-## 0.6 — a smaller CLI (implemented on main, not released yet)
+## 0.6 — a smaller CLI (released)
 
 Every breaking simplification in one release, so users adjust once, and
 before 0.7 adds features — new settings then land on the smaller surface.
-Released after the CVPR deadline (November 16), not while people are
-mid-submission.
 
 - **The 0.4 aliases go**, as their notices promised: `open`, `export`,
   `dashboard`, `models`, `key status`, and `run --format` / `--stdout`.
@@ -105,7 +106,7 @@ What 0.6 removes stays as a hidden alias with a notice until 0.7, as the
 Done when: `run` has at most 9 flags, there are 13 commands, every removed
 name points to its replacement, and the README (all three languages), the
 agent skill and the site use only the new forms. All met (a test pins the
-13 commands and 9 flags); what is left is the release itself.
+13 commands and 9 flags).
 
 ## 0.7 — a revision loop you can trust
 

@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: GuoYuKai-SaMuEl/prebuttal@v0.5.4
+      - uses: GuoYuKai-SaMuEl/prebuttal@v0.6.0
         with:
           paper: paper/          # a LaTeX folder, main .tex or .zip, or a built PDF
           venue: cvpr            # optional: else prebuttal.toml, else neurips
@@ -189,10 +189,10 @@ Pre-1.0: patch releases are fixes and small additions, minor releases are
 substantial features. In short (details in
 [ROADMAP.md](https://github.com/GuoYuKai-SaMuEl/prebuttal/blob/main/ROADMAP.md)):
 
-1. **0.5 (current) — nothing leaks before submission**: `prebuttal check`
+1. **0.5 — nothing leaks before submission**: `prebuttal check`
    (also as a GitHub Action), agent CLIs with no tool that can read your
    keys, `backends` as the one setup view; CVPR and Overleaf .zip sources
-2. **0.6 — a smaller CLI**: the 0.4 aliases go, `plan` becomes
+2. **0.6 (current) — a smaller CLI**: the 0.4 aliases go, `plan` becomes
    `show --plan`, and `run` keeps only per-run flags (project-wide ones
    live in `prebuttal.toml`)
 3. **0.7 — a revision loop you can trust**: repeated reviews, a diff that
