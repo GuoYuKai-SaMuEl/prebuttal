@@ -10,6 +10,24 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Fixed
+- `prebuttal check` on a LaTeX project missed section headings that contained
+  nested braces (`\section{\textbf{Limitations}}`, `\section{Limitations\label{...}}`,
+  `\section[Short]{...}`) or macros (`\section{NeurIPS Paper \checklist}`),
+  which could false-flag a missing required section. Headings (`\section`,
+  `\subsection`, `\chapter`) are now read with balanced braces and stripped of
+  formatting commands, `\label` and `\footnote`.
+- Setting `GOOGLE_API_KEY` (without `GEMINI_API_KEY`) was accepted by the
+  Gemini provider, but `prebuttal backends` and `auto` mode only checked
+  `GEMINI_API_KEY` and reported `api-gemini` as unavailable.
+- A custom `[agents.<name>]` backend recorded a configured `model` in the
+  report and plan even though custom agent commands do not receive `--model`.
+  It now records no model (`CLI default`), and `--dry-run` notes that the
+  model flag belongs in `command`.
+- `prebuttal diff` with one argument no longer raises `StopIteration` if the
+  target run was deleted from the history between resolving it and looking up
+  the run before it.
+
 ## [0.6.0] — 2026-11-03
 
 A smaller CLI: 13 commands, and `run` keeps only what changes from run to

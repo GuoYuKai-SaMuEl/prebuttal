@@ -66,8 +66,8 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 #   PREBUTTAL_BACKEND=relay   (the --backend flag still wins)
 # Pin one per reviewer for a fixed setup, e.g.
 #   backend = "api-gemini"   model = "gemini-3.5-flash-lite"
-# (model works for every backend; agent CLIs get it as `--model X`,
-#  empty model = the backend/CLI's own default)
+# (claude and codex CLIs get model as `--model X`; custom [agents.*] put
+#  any model flag in `command`. Empty model = the backend/CLI's own default)
 
 [[reviewer]]
 id = "R1"

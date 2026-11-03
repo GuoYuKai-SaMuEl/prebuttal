@@ -663,7 +663,7 @@ def config_docs() -> list[tuple[str, str, list[tuple[str, str, str]]]]:
             "[agents.NAME]",
             "a custom agent CLI, used as backend `agent-NAME`",
             [
-                ("command", "—", "The command, as a list or one string."),
+                ("command", "—", "The command, as a list or one string (put any model flag here)."),
                 (
                     "stdin",
                     "true",

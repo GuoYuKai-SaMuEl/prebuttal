@@ -60,15 +60,20 @@ def render_dry_run(
             return f"  effort: {effort} (not supported here — model default)"
         return f"  effort: {effort}"
 
+    def _model(backend: str, model: str) -> str:
+        if model and backend.startswith("agent-") and backend[6:] in cfg.agents:
+            return f"{model} (not forwarded — set in [agents.{backend[6:]}] command)"
+        return model or "CLI default"
+
     for rid, backend, model in resolved:
-        model_s = model or "CLI default"
+        model_s = _model(backend, model)
         persona = persona_by_id.get(rid, "")
         lines.append(
             f"  {rid:<4} {persona:<18} → {backend:<14} model: {model_s}"
             + _effort(rid, backend, model)
         )
     lines.append(
-        f"  {'AC':<4} {'area_chair':<18} → {ac[0]:<14} model: {ac[1] or 'CLI default'}"
+        f"  {'AC':<4} {'area_chair':<18} → {ac[0]:<14} model: {_model(ac[0], ac[1])}"
         + _effort("AC", ac[0], ac[1])
     )
     lines.append("")

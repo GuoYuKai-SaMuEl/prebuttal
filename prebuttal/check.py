@@ -313,7 +313,43 @@ def _leftovers_text(result: CheckResult, texts: list[str]) -> None:
 
 # ------------------------------------------------------------------ LaTeX
 
-_SECTION = re.compile(r"\\(?:section|chapter)\*?\s*\{([^{}]*)\}")
+_SECTION = re.compile(r"\\(?:section|subsection|chapter)\*?\s*(?:\[[^\]]*\])?")
+_HEAD_DROP = re.compile(r"\\(?:label|footnote|thanks)\*?\s*(?=\{)")
+_HEAD_STYLE = re.compile(
+    r"\\(?:textbf|textit|emph|texttt|textrm|textsf|textsc|text|underline|mbox|"
+    r"mathrm|mathit|mathbf|mathsf|mathtt|mathcal|mathbb|"
+    r"bf|it|sc|rm|sf|tt|upshape|mdseries|bfseries|itshape|scshape|normalfont|"
+    r"tiny|scriptsize|footnotesize|small|normalsize|large|Large|LARGE|huge|Huge|"
+    r"protect|noindent|centering|raggedright|quad|qquad)\*?(?![a-zA-Z])"
+)
+
+
+def _section_titles(tex: str) -> list[str]:
+    """Plain-text section headings from LaTeX, balanced braces included."""
+    from .ingestion.latex import _group_after
+
+    titles: list[str] = []
+    for m in _SECTION.finditer(tex):
+        g = _group_after(tex, m.end())
+        if g is None:
+            continue
+        raw = g[0]
+        while tp := re.search(r"\\texorpdfstring\s*(?=\{)", raw):
+            first = _group_after(raw, tp.end())
+            second = _group_after(raw, first[1]) if first else None
+            if first and second:
+                raw = raw[: tp.start()] + second[0] + raw[second[1] :]
+            else:
+                raw = raw[: tp.start()] + raw[tp.end() :]
+        while d := _HEAD_DROP.search(raw):
+            arg = _group_after(raw, d.end())
+            raw = raw[: d.start()] + " " + raw[arg[1] if arg else d.end() :]
+        raw = _HEAD_STYLE.sub(" ", raw)
+        raw = re.sub(r"\\\\|[{}~\\]", " ", raw)
+        titles.append(" ".join(raw.split()))
+    return titles
+
+
 _LABEL = re.compile(r"\\label\s*\{([^{}]+)\}")
 _REF = re.compile(
     r"\\(?:ref|eqref|autoref|cref|Cref|pageref|vref|nameref|subref)\*?\s*\{([^{}]+)\}"
@@ -405,7 +441,7 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
                     f"{where}: \\author{{{names[:60]}}} is printed — no venue style in "
                     "submission mode hides it; use the venue's template or anonymize it",
                 )
-        heads = [h for h in _SECTION.findall(tex) if _heading_matches(h, "Acknowledgment")]
+        heads = [h for h in _section_titles(tex) if _heading_matches(h, "Acknowledgment")]
         if heads:
             result.add(
                 WARNING,
@@ -417,7 +453,7 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
     else:
         result.skipped.append("anonymity (the venue is not double-blind)")
 
-    titles = _SECTION.findall(tex)
+    titles = _section_titles(tex)
     for name in rules.required_sections:
         if any(_heading_matches(t, name) for t in titles):
             result.passed.append(f'"{name}" section present')

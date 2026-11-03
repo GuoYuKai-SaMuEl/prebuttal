@@ -293,14 +293,15 @@ def build_parser() -> argparse.ArgumentParser:
 # ------------------------------------------------------------------ commands
 
 
-_API_KEYS = {cls.BACKEND: cls.KEY_VARS[0] for cls in API_PROVIDERS}
+_API_KEYS = {cls.BACKEND: cls.KEY_VARS for cls in API_PROVIDERS}
 
 
 def _auth(s) -> str:
     """Where a backend's access comes from, for the one setup view."""
-    var = _API_KEYS.get(s.backend)
-    if var:
-        src = key_store.source(var)
+    vars_ = _API_KEYS.get(s.backend)
+    if vars_:
+        var = next((v for v in vars_ if key_store.source(v)), "")
+        src = key_store.source(var) if var else None
         if not src:
             return s.detail  # "not set (where to get one; `prebuttal key set ...`)"
         where = "env var" if src == "env" else "stored key"

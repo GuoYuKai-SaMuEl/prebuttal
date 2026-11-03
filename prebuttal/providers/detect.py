@@ -130,7 +130,7 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
         )
 
     for cls in API_PROVIDERS:
-        env = cls.KEY_VARS[0]
+        env = next((v for v in cls.KEY_VARS if os.environ.get(v)), cls.KEY_VARS[0])
         has = bool(os.environ.get(env))
         note = f"{env} set"
         if not has:

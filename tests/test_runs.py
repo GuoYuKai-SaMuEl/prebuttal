@@ -318,3 +318,11 @@ def test_note_on_a_busy_history_is_a_clean_error(latex_project, monkeypatch, cap
     monkeypatch.setattr(runs_mod.time, "sleep", lambda s: None)
     assert cli.main(["note", "latest", "x"]) == cli.EXIT_USAGE
     assert "busy" in capsys.readouterr().err
+
+
+def test_previous_run_returns_none_when_record_was_deleted(latex_project):
+    from prebuttal.runs import delete_runs, previous_run
+
+    _report, rec = _archive(latex_project)
+    delete_runs({rec.id})
+    assert previous_run(rec) is None

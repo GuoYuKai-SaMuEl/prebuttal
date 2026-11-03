@@ -989,3 +989,36 @@ def test_backends_ollama_shows_no_default_without_a_chat_model(monkeypatch):
     assert listing.models == ["nomic-embed-text:latest"]  # still listed, for `ollama rm`
     assert listing.default == "none" and "only embedding models" in listing.note
     assert "(default: none)" in listing.render() and " *" not in listing.render()
+
+
+def test_google_api_key_enables_gemini_in_scan_and_backends(monkeypatch, capsys):
+    from prebuttal import cli
+
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setattr("prebuttal.providers.detect.ollama_tags", lambda base: [])
+    for v in ("GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "AIzaGoogleKey1234567890")
+    gem = next(s for s in scan_backends(load_config(None)) if s.backend == "api-gemini")
+    assert gem.available is True and gem.detail == "GOOGLE_API_KEY set"
+    assert cli.main(["backends"]) == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "[x] api-gemini" in out and "env var GOOGLE_API_KEY (AIz…90)" in out
+
+
+def test_custom_agent_does_not_record_an_unforwarded_model(tmp_path):
+    from prebuttal.dryrun import render_dry_run
+    from prebuttal.providers import build_provider
+
+    cfg_file = tmp_path / "prebuttal.toml"
+    cfg_file.write_text(
+        '[agents.mine]\ncommand = ["mine", "--headless"]\n\n'
+        '[[reviewer]]\nid = "R1"\npersona = "senior_kind"\n'
+        'backend = "agent-mine"\nmodel = "gpt-5"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(str(cfg_file))
+    p = build_provider("agent-mine", "gpt-5", cfg)
+    assert p.model == "" and "gpt-5" not in p.describe()
+    dry = render_dry_run(cfg, [("R1", "agent-mine", "gpt-5")], ("agent-mine", ""), 1000, [])
+    assert "gpt-5 (not forwarded — set in [agents.mine] command)" in dry

@@ -118,7 +118,7 @@ class AgentCLIProvider(BaseProvider):
         empty temp dir so an injected prompt finds no project files.
         ``effort_args``: flag template for the reasoning effort, with
         ``{effort}`` substituted, inserted where ``model_flag`` puts --model."""
-        super().__init__(backend, model, timeout_s=timeout_s)
+        super().__init__(backend, model if model_flag else "", timeout_s=timeout_s)
         self.command = list(command)
         self.stdin = stdin
         self.detail = detail

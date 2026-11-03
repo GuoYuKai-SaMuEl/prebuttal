@@ -497,3 +497,26 @@ def test_annotation_messages_are_escaped():
     result = CheckResult(source="p.pdf", kind="pdf")
     result.add(ERROR, "a: b, c", "m")  # the title is a property: : and , are escaped too
     assert github_annotations(result) == "::error title=prebuttal check (a%3A b%2C c)::m"
+
+
+@pytest.mark.parametrize(
+    ("heading", "venue"),
+    [
+        (r"\section{NeurIPS Paper \checklist}", "neurips"),
+        (r"\section{\textbf{Limitations}\label{sec:lim}}", "acl"),
+        (r"\section[Short]{\emph{Impact Statement}\footnote{Note.}}", "icml"),
+        (
+            r"\subsection*{\texorpdfstring{\textbf{LLM Usage Statement}}{LLM Usage Statement}}",
+            "cvpr",
+        ),
+    ],
+)
+def test_latex_sections_with_nested_braces_and_macros(tmp_path, heading, venue):
+    tex = (
+        "\\documentclass{article}\n\\begin{document}\n\\section{Intro}\nText.\n"
+        f"{heading}\nText.\n\\section{{Acknowledgments\\thanks{{Grant 1}}}}\n\\end{{document}}\n"
+    )
+    (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
+    result = check_latex(tmp_path, get_venue(venue).rules)
+    assert [f for f in result.errors if f.area == "format"] == []
+    assert any("acknowledgements" in f.message for f in result.warnings)

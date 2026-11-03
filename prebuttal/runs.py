@@ -424,8 +424,8 @@ def find_run(
 def previous_run(rec: RunRecord) -> RunRecord | None:
     """The run before ``rec`` in the same project, if any."""
     runs = [r for r in load_history() if r.project == rec.project]
-    idx = next(i for i, r in enumerate(runs) if r.id == rec.id)
-    return runs[idx + 1] if idx + 1 < len(runs) else None
+    idx = next((i for i, r in enumerate(runs) if r.id == rec.id), None)
+    return runs[idx + 1] if idx is not None and idx + 1 < len(runs) else None
 
 
 # ------------------------------------------------------------------ rendering
