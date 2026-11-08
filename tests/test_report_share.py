@@ -204,3 +204,11 @@ def test_a_cut_without_line_breaks_does_not_split_bold():
     text = "word " * 70 + "**a bold claim that runs past the limit** and more " * 3
     html = _md_blocks(_clip_lines(text, 400))
     assert "**" not in html and html.endswith("…</p>")
+
+
+def test_rating_bar_rounds_half_up_like_the_scores():
+    from prebuttal.report import _bar
+
+    assert _bar(3.5, 6).count("█") == 4  # was 4 by banker's rounding — consistent now
+    assert _bar(2.5, 6).count("█") == 3  # was 2: half rounds up, as coerce_fields does
+    assert _bar(0.4, 6).count("█") == 0 and _bar(7.0, 6).count("█") == 6  # clamped

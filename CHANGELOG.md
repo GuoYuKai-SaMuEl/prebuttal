@@ -34,7 +34,11 @@ releases (0.2, 0.3, …) are substantial new features.
   target run was deleted from the history between resolving it and looking up
   the run before it.
 - A rating like 4.5 on an integer-only scale rounded to even (4.5 → 4 but
-  5.5 → 6); it now rounds half up (4.5 → 5, 3.5 → 4).
+  5.5 → 6); it now rounds half up (4.5 → 5, 3.5 → 4) — the report's rating
+  bar rounds the same way.
+- A model rating written as a many-digit number (`"999…9"` as a string, or a
+  400-digit integer in the JSON) no longer fails that reviewer with an
+  overflow; it is treated as no parseable rating.
 - Reading review JSON from a model response that contains thousands of braces
   (e.g. echoed LaTeX tables or malformed output) no longer stalls for several
   seconds per reviewer.

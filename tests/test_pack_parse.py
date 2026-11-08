@@ -151,6 +151,13 @@ def test_coerce_fields():
     assert f["confidence"] == 5.0
 
 
+def test_to_number_never_raises_on_huge_values():
+    venue = get_venue("neurips")
+    assert coerce_fields({"rating": "9" * 400}, venue)["rating"] is None  # string -> inf
+    assert coerce_fields({"rating": 10**400}, venue)["rating"] is None  # int -> OverflowError
+    assert coerce_fields({"rating": "4.5"}, venue)["rating"] == 5.0  # ordinary values pass
+
+
 def test_coerce_float_clamp_int():
     venue = get_venue("neurips")
     f = coerce_fields({"rating": 4.6}, venue)  # int scale -> rounds

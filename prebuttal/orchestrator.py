@@ -193,12 +193,18 @@ def _to_number(v) -> float | None:
     if isinstance(v, bool):
         return None
     if isinstance(v, (int, float)):
+        try:
+            f = float(v)
+        except OverflowError:  # a many-digit int from JSON
+            return None
         # json.loads accepts NaN / Infinity, which would poison every mean
-        return float(v) if math.isfinite(v) else None
+        return f if math.isfinite(f) else None
     if isinstance(v, str):
         m = re.search(r"-?\d+(?:\.\d+)?", v)
         if m:
-            return float(m.group())
+            f = float(m.group())
+            # "999…9" parses to inf, which would overflow every rounding below
+            return f if math.isfinite(f) else None
     return None
 
 

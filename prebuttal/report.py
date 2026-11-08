@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import MISSING
 from dataclasses import fields as dc_fields
 from typing import Any
@@ -71,7 +72,7 @@ def _params(backend: str, model: str, temperature: float, seed: int | None) -> t
 
 
 def _bar(value: float, maximum: float) -> str:
-    filled = max(0, min(round(value), int(maximum)))
+    filled = max(0, min(math.floor(value + 0.5), int(maximum)))  # half rounds up, as ratings do
     return "█" * filled + "░" * max(0, int(maximum) - filled)
 
 
