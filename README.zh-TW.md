@@ -47,7 +47,7 @@ LaTeX 專案不需編譯即可檢查（頁數上限需要 PDF）。找到可能�
 論文放在 GitHub 上的話，也可以每次 push 都自動檢查，不需要任何 secrets：
 
 ```yaml
-- uses: GuoYuKai-SaMuEl/prebuttal@v0.6.0
+- uses: GuoYuKai-SaMuEl/prebuttal@v0.6.1
   with:
     paper: paper/      # LaTeX 資料夾、主 .tex、.zip 或編譯好的 PDF
     venue: cvpr

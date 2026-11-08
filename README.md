@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: GuoYuKai-SaMuEl/prebuttal@v0.6.0
+      - uses: GuoYuKai-SaMuEl/prebuttal@v0.6.1
         with:
           paper: paper/          # a LaTeX folder, main .tex or .zip, or a built PDF
           venue: cvpr            # optional: else prebuttal.toml, else neurips
