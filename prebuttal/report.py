@@ -238,9 +238,15 @@ def _applied(backend: str, model: str) -> dict[str, bool]:
     return {"temperature_applied": temp_ok, "seed_applied": seed_ok}
 
 
+# report.json layout version: bumped only when a field changes meaning or goes
+# away (new fields don't bump it); reports from before 0.6.1 have no "schema"
+REPORT_SCHEMA = 1
+
+
 def to_json(report: ReviewReport, venue: Venue) -> dict[str, Any]:
     r = report
     return {
+        "schema": REPORT_SCHEMA,
         "prebuttal_version": __version__,
         "generated_at": r.run.generated_at,
         "venue": _venue_json(venue),

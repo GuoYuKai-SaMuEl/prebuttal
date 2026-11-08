@@ -10,6 +10,12 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Added
+- `report.json` carries `"schema": 1`, the layout version (bumped only when
+  a field changes meaning or goes away), and each revision-plan item an `id`
+  (`P1`, `P2`, ... in plan order), so later tools can refer to an item of an
+  archived run.
+
 ### Fixed
 - `prebuttal check` on a LaTeX project missed section headings that contained
   nested braces (`\section{\textbf{Limitations}}`, `\section{Limitations\label{...}}`,

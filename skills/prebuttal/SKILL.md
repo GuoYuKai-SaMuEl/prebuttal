@@ -130,8 +130,10 @@ After the user revises the paper:
 - `meta.action_plan[]` — the revision plan, most important first: `priority`
   (must / should / could), `issue`, `action`, `raised_by` (reviewer ids, or
   `check` for a `prebuttal check` finding on the user's own draft — a desk-reject
-  risk to fix first), `effort` (small / medium / large). `prebuttal show --plan`
-  prints it as a checklist.
+  risk to fix first), `effort` (small / medium / large), `id` (`P1`, `P2`, ...
+  in plan order, for referring to an item). `prebuttal show --plan` prints it
+  as a checklist.
+- `schema` — the report.json layout version (missing in reports before 0.6.1)
 
 ## Presenting results to the user
 

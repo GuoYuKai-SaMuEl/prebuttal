@@ -225,6 +225,7 @@ class ActionItem:
     action: str
     raised_by: list[str] = field(default_factory=list)  # reviewer ids
     effort: str = ""  # small | medium | large ("" = not estimated)
+    id: str = ""  # P1, P2, ... in plan order, unique within the run ("" before 0.6.1)
 
 
 @dataclass

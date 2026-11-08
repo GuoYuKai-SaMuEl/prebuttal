@@ -626,6 +626,13 @@ def _by_priority(items: list[ActionItem]) -> list[ActionItem]:
     return sorted(items, key=lambda a: order[a.priority])  # stable within a priority
 
 
+def number_plan(items: list[ActionItem]) -> list[ActionItem]:
+    """Give each item its id (P1, P2, ...) in final plan order."""
+    for i, it in enumerate(items, 1):
+        it.id = f"P{i}"
+    return items
+
+
 CHECK = "check"  # raised_by of the plan items `prebuttal check` adds
 
 
@@ -739,7 +746,7 @@ def review_then_meta(
 
     def report(meta: MetaReview) -> ReviewReport:
         # the check's items first within each priority, ahead of the AC's
-        meta.action_plan = _by_priority(check_action_items(checks) + meta.action_plan)
+        meta.action_plan = number_plan(_by_priority(check_action_items(checks) + meta.action_plan))
         return assemble_report(paper, cfg, venue, pack, reviews, meta)
 
     def interrupted() -> RunInterrupted:

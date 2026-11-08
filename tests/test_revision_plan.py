@@ -52,9 +52,13 @@ def test_plan_in_markdown_html_and_json(latex_project):
     html = render_share_html(report, venue, "https://x")
     assert "Revision plan" in html and 'class="prio prio-must"' in html
     data = json.loads(dumps_json(report, venue))
+    assert data["schema"] == 1
     assert data["meta"]["action_plan"][0]["raised_by"] == ["R2", "R3"]
     again = report_from_dict(data).meta.action_plan
     assert again == plan
+    for it in data["meta"]["action_plan"]:  # a report from before 0.6.1 still loads
+        del it["id"]
+    assert [it.id for it in report_from_dict(data).meta.action_plan] == ["", ""]
 
 
 def test_cli_run_prints_fix_first_and_plan_command(
@@ -160,6 +164,7 @@ def test_check_findings_lead_the_plan_and_reach_the_ac(latex_project):
         log=lambda m: None,
     )
     plan = report.meta.action_plan
+    assert [it.id for it in plan] == [f"P{i}" for i in range(1, len(plan) + 1)]
     assert [(it.priority, it.raised_by) for it in plan[:1]] == [("must", [CHECK])]
     assert plan[0].issue.startswith('no "NeurIPS Paper Checklist" section')
     assert plan[1].raised_by != [CHECK]  # the AC's own must comes after
@@ -212,6 +217,8 @@ def test_check_items_survive_a_failed_ac_and_a_retry(latex_project):
         lambda m: None, keep=list(old.reviews),
     )  # fmt: skip
     assert [it.raised_by for it in again.meta.action_plan].count([CHECK]) == 2
+    ids = [it.id for it in again.meta.action_plan]
+    assert ids == [f"P{i}" for i in range(1, len(ids) + 1)]  # renumbered, no duplicates
 
 
 def test_diff_shows_a_fixed_check_item_as_gone(
