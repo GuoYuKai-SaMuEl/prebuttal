@@ -63,6 +63,7 @@ from .providers import (
     scan_backends,
 )
 from .report import dumps_json, render_markdown, render_plan, report_from_dict
+from .revdiff import render_diff
 from .runs import (
     delete_runs,
     load_history,
@@ -70,7 +71,6 @@ from .runs import (
     previous_run,
     project_summaries,
     rename_in_history,
-    render_diff,
     render_projects_table,
     render_runs_table,
     resolve_ref,
@@ -597,19 +597,19 @@ def cmd_diff(args) -> int:
             return EXIT_USAGE
     matcher = None
     if args.llm:
-        matcher = _plan_matcher(args)
+        matcher = _model_matcher(args)
         if matcher is None:
             return EXIT_NO_BACKEND
     try:
-        print(render_diff(a, b, match_plan=matcher))
+        print(render_diff(a, b, matcher=matcher))
     except (FileNotFoundError, ValueError) as e:
         return _fail(str(e))
     return EXIT_OK
 
 
-def _plan_matcher(args):
-    """`diff --llm`: the configured AC backend as a plan matcher."""
-    from .diffmatch import match_plan
+def _model_matcher(args):
+    """`diff --llm`: the configured AC backend as the diff's matcher."""
+    from .diffmatch import ModelMatcher
 
     cfg = apply_overrides(load_config(None), backend=env_backend())
     statuses = scan_backends(cfg)
@@ -631,7 +631,7 @@ def _plan_matcher(args):
         print(f"error: {e}", file=sys.stderr)
         return None
     _log(f"[prebuttal] matching revision plans via {provider.describe()}")
-    return lambda a, bp, bw: match_plan(provider, a, bp, bw)
+    return ModelMatcher(provider)
 
 
 def cmd_note(args) -> int:

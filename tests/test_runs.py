@@ -8,12 +8,12 @@ from conftest import latest_report, make_report
 from prebuttal import cli
 from prebuttal.config import load_config
 from prebuttal.report import dumps_json
+from prebuttal.revdiff import render_diff
 from prebuttal.runs import (
     find_run,
     history_path,
     load_history,
     project_summaries,
-    render_diff,
     render_projects_table,
     render_runs_table,
     save_run,
@@ -237,7 +237,7 @@ def test_diff_keeps_reviewers_that_share_a_persona(latex_project):
 
 def test_weakness_matching_is_one_to_one(latex_project):
     """Two old weaknesses cannot both 'persist' through one new weakness."""
-    from prebuttal.runs import render_diff
+    from prebuttal.revdiff import render_diff
 
     report, venue = make_report(latex_project)
     cfg = load_config(None)

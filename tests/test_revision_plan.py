@@ -9,7 +9,8 @@ from conftest import make_report
 from prebuttal import cli
 from prebuttal.orchestrator import build_ac_system, coerce_action_plan
 from prebuttal.report import dumps_json, render_markdown, report_from_dict
-from prebuttal.runs import load_history, render_diff
+from prebuttal.revdiff import render_diff
+from prebuttal.runs import load_history
 from prebuttal.share import render_share_html
 from prebuttal.venues import get_venue
 

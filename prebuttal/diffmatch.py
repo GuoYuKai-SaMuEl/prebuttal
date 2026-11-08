@@ -4,23 +4,19 @@ The default diff matches A's plan against B by word overlap, so an issue B
 raises in other words shows up twice ("not re-detected" and "new").  One
 model call fixes that: it is told which of A's items B still raises (in its
 plan or any reviewer's weaknesses) and which of B's plan items are new.
+
+:class:`ModelMatcher` is the :class:`~prebuttal.revdiff.Matcher` that does
+this.  Weakness movement still uses word overlap (``weaknesses`` returns
+None), so it is unchanged by ``--llm``.
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 
 from .orchestrator import extract_json_object, wrap_submission
 from .providers.base import BaseProvider, ProviderError
-
-
-@dataclass
-class PlanMatch:
-    still: set[int]  # indices into A's plan that B still raises
-    new_b: list[int]  # indices into B's plan that A's plan did not contain
-    label: str  # who matched, for the report header
-
+from .revdiff import PlanMatch
 
 SYSTEM = """\
 You compare two rounds of simulated peer review of the same paper, before (A)
@@ -81,3 +77,17 @@ def match_plan(
     )
     label = provider.backend + (f" / {provider.model}" if provider.model else "")
     return PlanMatch(still=still, new_b=new_b, label=label)
+
+
+class ModelMatcher:
+    """A model as the diff's matcher: plan items by meaning, one call."""
+
+    def __init__(self, provider: BaseProvider):
+        self.provider = provider
+        self.label = provider.backend + (f" / {provider.model}" if provider.model else "")
+
+    def weaknesses(self, old: list[str], new: list[str]) -> list[int | None] | None:
+        return None  # word overlap for now
+
+    def plan(self, a_plan: list[str], b_plan: list[str], b_weak: list[str]) -> PlanMatch | None:
+        return match_plan(self.provider, a_plan, b_plan, b_weak)
