@@ -118,6 +118,17 @@ def test_extract_json_invalid():
     assert extract_json_object("{broken json") is None
 
 
+def test_extract_json_keeps_latex_backslashes():
+    # a codex review wrote math as \(O(nm)\) inside strings: invalid JSON escapes
+    text = '{"summary": "cost \\(O(nm)\\) with \\cite{x}", "rating": 2}'
+    assert extract_json_object(text) == {"summary": "cost \\(O(nm)\\) with \\cite{x}", "rating": 2}
+    fenced = 'Review:\n```json\n{"s": "see \\usepackage and \\u00e9", "rating": 3}\n```'
+    assert extract_json_object(fenced) == {"s": "see \\usepackage and é", "rating": 3}
+    # valid escapes are left alone: an escaped backslash stays one backslash
+    assert extract_json_object('{"s": "a \\\\( b"}') == {"s": "a \\( b"}
+    assert extract_json_object("\\(x\\) and {no json}") is None
+
+
 def test_extract_json_survives_unclosed_prose_brace_and_pathological_braces():
     import time
 

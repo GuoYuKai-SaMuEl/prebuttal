@@ -48,6 +48,9 @@ releases (0.2, 0.3, …) are substantial new features.
   when `stdin` is not a terminal (including `< NUL` on Windows, which is now
   treated as non-interactive across all prompts) and exits with an error if
   empty instead of blocking on `getpass`.
+- A review whose JSON wrote LaTeX inside a string (`\(O(n)\)`, `\cite{x}`)
+  was an invalid JSON escape, so that reviewer failed even after the repair
+  pass. Such backslashes are now read as written.
 
 ## [0.6.0] — 2026-11-03
 

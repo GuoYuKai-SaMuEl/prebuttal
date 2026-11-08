@@ -95,10 +95,29 @@ _RAW_CAP = 20_000
 
 _DICT_START = re.compile(r'\{\s*(?=["}])')
 _DECODER = json.JSONDecoder()
+# a valid JSON escape (kept), or any other backslash (doubled): models write
+# LaTeX such as \(O(n)\) or \cite{x} inside JSON strings
+_ESCAPE = re.compile(r'\\(["\\/bfnrt]|u[0-9a-fA-F]{4})|\\')
+
+
+def _fix_escapes(text: str) -> str:
+    return _ESCAPE.sub(lambda m: m.group(0) if m.group(1) else "\\\\", text)
 
 
 def extract_json_object(text: str) -> dict | None:
-    """Best-effort JSON object extraction from an LLM completion."""
+    """Best-effort JSON object extraction from an LLM completion.
+
+    If nothing decodes, try once more with invalid backslash escapes doubled,
+    so a LaTeX ``\\(`` in a string reads as itself instead of losing the review."""
+    obj = _extract_json_object(text)
+    if obj is None and text and "\\" in text:
+        fixed = _fix_escapes(text)
+        if fixed != text:
+            obj = _extract_json_object(fixed)
+    return obj
+
+
+def _extract_json_object(text: str) -> dict | None:
     if not text or "{" not in text or "}" not in text:
         return None
 
