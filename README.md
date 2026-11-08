@@ -197,7 +197,8 @@ substantial features. In short (details in
    live in `prebuttal.toml`)
 3. **0.7 — a revision loop you can trust**: repeated reviews, a diff that
    says when a change is within noise, meaning-based matching by default
-4. **0.8 — reach**: more venues, community personas
+4. **Patch releases, as they are ready** — more venue forms before each
+   deadline, community personas, a full review in the GitHub Action
 5. **Separate track** — calibration against real OpenReview outcomes
 
 ## Contributing

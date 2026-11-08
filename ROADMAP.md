@@ -125,15 +125,25 @@ that word-overlap matching misleads.
 Done when: on Mamba v1 → v2 the tool itself reports "no measurable change".
 0.7 also drops the hidden aliases 0.6 left.
 
-## 0.8 — reach
+## Patch releases, as they are ready
 
-- More venue forms (AAAI, TMLR, COLM, KDD), each linked to its official
-  source; community personas. (CVPR shipped early, in 0.5.3, for its
-  November deadline.)
-- The GitHub Action: `prebuttal check` on every push shipped in 0.5.3;
+Reach does not get its own minor version: none of it changes the CLI, and
+a venue form is only useful before that venue's deadline. These ship as
+patches (0.6.x, 0.7.x), the way CVPR shipped in 0.5.3 for its November
+deadline.
+
+- **More venue forms**, each linked to its official source, timed to the
+  deadlines: ICML (late January), KDD (February), COLM (March), AAAI
+  (August), TMLR (rolling).
+- **Community personas**: reviewer personas as files, shared the way
+  custom venues are.
+- **The GitHub Action**: `prebuttal check` on every push shipped in 0.5.3;
   still to come, an optional full review with the user's own secrets.
-- Maybe: a browser-only quick scan on GitHub Pages (drop a PDF, bring your
-  own key, no server — we stay a non-custodian). Only if usage asks for it.
+
+## Maybe
+
+- A browser-only quick scan on GitHub Pages (drop a PDF, bring your own
+  key, no server — we stay a non-custodian). Only if usage asks for it.
 
 ## Separate track: calibration
 
