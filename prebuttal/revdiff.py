@@ -203,12 +203,21 @@ def _check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
     if match is None:
         match = WORD_OVERLAP.plan(a_issues, b_issues, b_weak)
     by_words = fell_back or _by_words(matcher)
+    new_b: list[int] = []
+    for j in match.new_b:  # a Matcher is public API: drop indices it got wrong
+        if (
+            isinstance(j, int)
+            and not isinstance(j, bool)
+            and j not in new_b
+            and 0 <= j < len(b_issues)
+        ):
+            new_b.append(j)
     return PlanCheck(
         items=[
             PlanItemStatus(str(it.get("priority", "?")), issue, i in match.still)
             for i, (it, issue) in enumerate(zip(plan_a, a_issues, strict=True))
         ],
-        new_in_b=[b_issues[j] for j in match.new_b],
+        new_in_b=[b_issues[j] for j in new_b],
         matched_by=match.label,
         by_words=by_words,
         fell_back=fell_back,

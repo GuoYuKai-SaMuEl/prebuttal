@@ -155,6 +155,8 @@ def test_coerce_float_clamp_int():
     venue = get_venue("neurips")
     f = coerce_fields({"rating": 4.6}, venue)  # int scale -> rounds
     assert f["rating"] == 5.0
+    assert coerce_fields({"rating": 4.5}, venue)["rating"] == 5.0  # half rounds up
+    assert coerce_fields({"rating": 3.5}, venue)["rating"] == 4.0
     arr = get_venue("acl")
     f2 = coerce_fields({"overall_assessment": 2.5}, arr)  # half-steps allowed
     assert f2["overall_assessment"] == 2.5

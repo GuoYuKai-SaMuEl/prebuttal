@@ -221,7 +221,7 @@ def coerce_fields(payload: dict, venue: Venue) -> dict:
                 fields[f.key] = None
             else:
                 if not f.allow_float:
-                    n = float(round(n))
+                    n = float(math.floor(n + 0.5))  # half rounds up, not to even
                 n = min(max(n, f.min), float(f.max))
                 fields[f.key] = n
     return fields

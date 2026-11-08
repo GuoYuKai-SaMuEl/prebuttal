@@ -106,6 +106,13 @@ def test_a_matcher_answers_both_questions(runs):
     assert "Matching is by wording" not in text
 
 
+def test_out_of_range_plan_answers_cannot_crash_the_diff(runs):
+    m = _Matcher(plan=PlanMatch(still={0, 99}, new_b=[0, 0, 7, -1, True], label="fake / m1"))
+    d = compute_diff(*runs, matcher=m)
+    assert d.plan.new_in_b == ["Latent-array models are not compared."]  # deduped, in range
+    render_diff_markdown(d)  # and it renders
+
+
 @pytest.mark.parametrize("weak", [None, [0], [0, 0], [0, 5], [-1, None]])
 def test_unusable_weakness_answers_fall_back_to_words(runs, weak):
     d = compute_diff(*runs, matcher=_Matcher(weak=weak))
