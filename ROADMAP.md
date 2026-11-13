@@ -133,8 +133,9 @@ patches (0.6.x, 0.7.x), the way CVPR shipped in 0.5.3 for its November
 deadline.
 
 - **More venue forms**, each linked to its official source, timed to the
-  deadlines: ICML (late January), KDD (February), COLM (March), AAAI
-  (August), TMLR (rolling).
+  deadlines: KDD (February), COLM (March), AAAI (August), TMLR (rolling).
+- **Built-in forms kept current**: each checked against that year's call
+  before its deadline (ICML 2027: late January).
 - **Community personas**: reviewer personas as files, shared the way
   custom venues are.
 - **The GitHub Action**: `prebuttal check` on every push shipped in 0.5.3;
