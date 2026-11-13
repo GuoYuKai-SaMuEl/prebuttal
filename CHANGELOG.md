@@ -10,6 +10,18 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Removed
+- The names 0.6 kept as hidden aliases are gone, as their notices said. Each
+  now stops with an error that names its replacement:
+  - `run --seed`, `--effort`, `--figures`, `--reviewers`, `--out-dir`: set
+    `seed`, `effort`, `figures`, the `[[reviewer]]` list or `[output] dir` in
+    `prebuttal.toml`;
+  - `run --json PATH`: `prebuttal show --json` after the run (with
+    `--no-save`: `[output] formats = ["md", "html", "json"]`);
+  - `prebuttal plan`: `prebuttal show --plan`;
+  - `prebuttal venues show <name>`: `prebuttal venues <name>`;
+  - `prebuttal runs --paper`: `prebuttal runs <project>`.
+
 ## [0.6.1] — 2026-11-09
 
 ### Added

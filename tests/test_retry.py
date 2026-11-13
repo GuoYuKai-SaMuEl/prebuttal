@@ -40,7 +40,7 @@ def flaky_config(tmp_path, monkeypatch):
 
 def test_retry_reruns_only_the_failed_reviewer(latex_project, fake_statuses, flaky_config, capsys):
     cfg_path, calls = flaky_config
-    rc = cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    rc = cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     assert rc == cli.EXIT_PARTIAL
     assert "prebuttal retry" in capsys.readouterr().err  # the hint names the command
     first = load_history()[0]
@@ -81,7 +81,7 @@ def test_retry_of_a_run_without_archived_text_is_refused(
     latex_project, fake_statuses, flaky_config, capsys
 ):
     cfg_path, _calls = flaky_config
-    cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     rec = load_history()[0]
     (rec.dir_path / "pack.md").unlink()  # as archived by 0.3.1 and earlier
     _Flaky.down = False
@@ -115,7 +115,7 @@ def test_ctrl_c_saves_finished_reviews_for_retry(
     )
     cfg_path.write_text(toml, encoding="utf-8")
     try:
-        rc = cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+        rc = cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     finally:
         release.set()
     assert rc == 130
@@ -146,7 +146,7 @@ def test_ctrl_c_during_retry_keeps_the_reviewer_that_finished(
     latex_project, fake_statuses, flaky_config
 ):
     cfg_path, calls = flaky_config
-    cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     first = load_history()[0]
 
     _Flaky.down = False

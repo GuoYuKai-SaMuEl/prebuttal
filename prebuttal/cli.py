@@ -38,7 +38,7 @@ from .config import (
 from .dashboard import dashboard_path, ensure_html, render_dashboard
 from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
-from .models import EFFORT_LEVELS, dataclass_to_dict
+from .models import dataclass_to_dict
 from .orchestrator import RunInterrupted, run_report
 from .outputs import FORMATS, write_local
 from .pack import render_pack
@@ -112,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     # commands added without help= stay out of the listing (hidden aliases)
     sub = parser.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
-    # no abbreviations: `--out x` must not silently mean `--out-dir x`
+    # no abbreviations: a typo like `--not x` must not silently mean `--note x`
     run = sub.add_parser(
         "run", help="review a paper (PDF / LaTeX dir or .zip / arXiv link)", allow_abbrev=False
     )
@@ -150,14 +150,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not archive this run to the run history (~/.prebuttal, or $PREBUTTAL_HOME)",
     )
-    # hidden 0.6 aliases, gone in 0.7: settings in prebuttal.toml / `prebuttal show`
-    hide = argparse.SUPPRESS
-    run.add_argument("--reviewers", type=int, default=None, help=hide)
-    run.add_argument("--seed", type=int, default=None, help=hide)
-    run.add_argument("--effort", choices=EFFORT_LEVELS, default=None, help=hide)
-    run.add_argument("--figures", action="store_true", help=hide)
-    run.add_argument("--out-dir", default=None, help=hide)
-    run.add_argument("--json", metavar="PATH", default=None, help=hide)
 
     retry_p = sub.add_parser(
         "retry",
@@ -210,7 +202,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     runs_p = sub.add_parser("runs", help="list archived review runs")
     runs_p.add_argument("project", nargs="?", default=None, help="only this project's runs")
-    runs_p.add_argument("--paper", default=None, help=argparse.SUPPRESS)  # gone in 0.7
     runs_p.add_argument("-n", "--limit", type=int, default=20, help="show the N most recent runs")
     runs_p.add_argument("--json", action="store_true", help="machine-readable history")
 
@@ -227,10 +218,6 @@ def build_parser() -> argparse.ArgumentParser:
     show_p.add_argument(
         "--plan", action="store_true", help="only the revision plan, as a checklist (--json: items)"
     )
-
-    plan_p = sub.add_parser("plan")  # hidden 0.6 alias of `show --plan`, gone in 0.7
-    plan_p.add_argument("run", nargs="?", default=None)
-    plan_p.add_argument("--json", action="store_true")
 
     diff_p = sub.add_parser(
         "diff",
@@ -283,9 +270,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write to ./.prebuttal/venues (shared with the project) instead of ~/.prebuttal",
     )
-    # `venues <name>` arrives here (see main); `venues show` is a hidden 0.6 alias
-    for name in (_VENUE_VIEW, "show"):
-        ven_sub.add_parser(name, prog="prebuttal venues").add_argument("venue")
+    # `venues <name>` arrives here (see main)
+    ven_sub.add_parser(_VENUE_VIEW, prog="prebuttal venues").add_argument("venue")
 
     return parser
 
@@ -455,17 +441,6 @@ def cmd_runs(args) -> int:
         records = [r for r in records if r.project == args.project]
         if not records:
             return _fail(f"no runs in project '{args.project}'")
-    if args.paper:
-        _log(
-            "[prebuttal] `runs --paper` goes in 0.7: projects are named after the paper, "
-            "so `prebuttal runs <project>` (see `prebuttal projects`) finds its runs"
-        )
-        q = args.paper.lower()
-        records = [
-            r
-            for r in records
-            if q in r.id.lower() or q in r.paper_title.lower() or q in r.source.lower()
-        ]
     records = records[: max(1, args.limit)]
     if args.json:
         print(json.dumps([r.__dict__ for r in records], indent=2, ensure_ascii=False))
@@ -509,13 +484,6 @@ def cmd_show(args) -> int:
     except OSError as e:
         return _fail(f"archived {name} for {rec.label} is missing ({e})")
     return EXIT_OK
-
-
-def cmd_plan(args) -> int:
-    """Hidden 0.6 alias of `show --plan`."""
-    _renamed("prebuttal plan", "prebuttal show --plan")
-    rec = _resolve_run_or_exit(args.run)
-    return EXIT_USAGE if rec is None else _print_plan(rec, as_json=args.json)
 
 
 def _print_plan(rec, *, as_json: bool) -> int:
@@ -571,10 +539,6 @@ def _save_report(rec, fmt: str, dest: Path) -> int:
         return _fail(f"cannot save {rec.label}: {e}")
     print(f"{rec.label} → {dest}")
     return EXIT_OK
-
-
-def _renamed(old: str, new: str) -> None:
-    _log(f"[prebuttal] `{old}` is now `{new}`; this alias goes in 0.7")
 
 
 def cmd_diff(args) -> int:
@@ -740,9 +704,7 @@ def cmd_venues(args) -> int:
         print(f"the .md, then: prebuttal venues {key}  ·  prebuttal run paper.pdf --venue {key}")
         return 0
 
-    if args.venues_cmd in (_VENUE_VIEW, "show"):
-        if args.venues_cmd == "show":
-            _renamed("prebuttal venues show <name>", "prebuttal venues <name>")
+    if args.venues_cmd == _VENUE_VIEW:
         try:
             venue = get_venue(args.venue)
         except VenueError as e:
@@ -958,22 +920,10 @@ def cmd_run(args) -> int:
     backend = args.backend
     if backend is None and (backend := env_backend()) is not None:
         _log(f"[prebuttal] backend '{backend}' for all roles (from ${BACKEND_ENV})")
-    cfg = apply_overrides(
-        cfg,
-        venue=args.venue,
-        seed=args.seed,
-        backend=backend,
-        model=args.model,
-        reviewers_count=args.reviewers,
-        effort=args.effort,
-    )
+    cfg = apply_overrides(cfg, venue=args.venue, backend=backend, model=args.model)
     venue = get_venue(cfg.venue)
     if venue.custom:
         _log(f"[prebuttal] venue: {venue.name} (custom, {venue.origin})")
-    for flag, now in _MOVED_RUN_FLAGS.items():
-        value = getattr(args, flag.lstrip("-").replace("-", "_"))
-        if value is not None and value is not False:  # `--seed 0` == False
-            _log(f"[prebuttal] `{flag}` is now {now}; this flag goes in 0.7")
     # validate output choices before any (possibly paid) review runs
     try:
         formats = cfg.output_formats
@@ -984,8 +934,6 @@ def cmd_run(args) -> int:
 
     _log(f"[prebuttal] ingesting {args.paper} ...")
     try:
-        if args.figures:
-            cfg.figures = True
         paper = ingest(args.paper, figure_images=cfg.max_figures if cfg.figures else 0)
     except IngestError as e:
         return _fail(str(e))
@@ -1108,8 +1056,7 @@ def cmd_run(args) -> int:
         project=project,
         note=note,
         formats=formats,
-        out_dir=args.out_dir if args.out_dir is not None else cfg.output_dir,
-        json_path=args.json,
+        out_dir=cfg.output_dir,
         save=not args.no_save,
     )
     return 130 if interrupted else rc
@@ -1124,7 +1071,6 @@ def _deliver(
     note: str,
     formats: tuple[str, ...],
     out_dir: str,
-    json_path: str | None,
     save: bool,
 ) -> int:
     """Render, archive and write a finished report; print the summary; exit code."""
@@ -1151,11 +1097,6 @@ def _deliver(
             _dir, written = write_local(
                 Path(out_dir), project, venue.key, {f: texts[f] for f in formats}
             )
-        if json_path:
-            jp = Path(json_path)
-            jp.parent.mkdir(parents=True, exist_ok=True)
-            jp.write_text(json_str, encoding="utf-8")
-            written.append(jp)
     except OSError as e:
         print(f"error: cannot write report: {e}", file=sys.stderr)
         if rec is not None:
@@ -1286,7 +1227,6 @@ def cmd_retry(args) -> int:
         note=f"retry of {rec.label}" + (" (interrupted)" if interrupted else ""),
         formats=cfg.output_formats,
         out_dir=cfg.output_dir,
-        json_path=None,
         save=True,
     )
     return 130 if interrupted else rc
@@ -1303,50 +1243,64 @@ def _utf8_stdio() -> None:
 
 
 _TOML = "in prebuttal.toml (`prebuttal init` writes one)"
-# run flags hidden in 0.6, gone in 0.7: what replaces each
-_MOVED_RUN_FLAGS = {
-    "--reviewers": f"one [[reviewer]] block per reviewer {_TOML}",
-    "--seed": f"`seed = N` {_TOML}",
-    "--effort": f'`effort = "high"` {_TOML}',
-    "--figures": f"`figures = true` {_TOML}",
-    "--out-dir": f'`[output] dir = "..."` {_TOML}',
-    "--json": "`prebuttal show --json` after the run (with --no-save: "
-    f'`[output] formats = ["md", "html", "json"]` {_TOML})',
-}
-
 # Removed flags and commands — explain the replacement instead of a bare argparse error.
+# `run` flags: (removed in, what replaces it)
 _REMOVED_FLAGS = {
-    "--share": "HTML reports are written by default now; drop --share",
-    "--out": (
-        "each run gets its own folder under prebuttal-reports/<project>/ "
-        "(nothing is overwritten); `prebuttal show -o FILE` saves a copy anywhere"
+    "--reviewers": ("0.7", f"one [[reviewer]] block per reviewer {_TOML}"),
+    "--seed": ("0.7", f"`seed = N` {_TOML}"),
+    "--effort": ("0.7", f'`effort = "high"` {_TOML}'),
+    "--figures": ("0.7", f"`figures = true` {_TOML}"),
+    "--out-dir": ("0.7", f'`[output] dir = "..."` {_TOML}'),
+    "--json": (
+        "0.7",
+        "use `prebuttal show --json` after the run (with --no-save: "
+        f'`[output] formats = ["md", "html", "json"]` {_TOML})',
     ),
-    "--format": f'use `[output] formats = ["md", "html", "json"]` {_TOML}',
-    "--stdout": "print the report with `prebuttal show` after the run",
+    "--share": ("0.6", "HTML reports are written by default now; drop --share"),
+    "--out": (
+        "0.6",
+        "each run gets its own folder under prebuttal-reports/<project>/ "
+        "(nothing is overwritten); `prebuttal show -o FILE` saves a copy anywhere",
+    ),
+    "--format": ("0.6", f'use `[output] formats = ["md", "html", "json"]` {_TOML}'),
+    "--stdout": ("0.6", "print the report with `prebuttal show` after the run"),
 }
-_REMOVED_COMMANDS = {
-    "open": "prebuttal show --open",
-    "export": "prebuttal show -o FILE",
-    "dashboard": "prebuttal projects --open",
-    "models": "prebuttal backends <name>",
+# other commands' flags: (command, flag) -> (removed in, what replaces it)
+_REMOVED_CMD_FLAGS = {
+    ("runs", "--paper"): (
+        "0.7",
+        "use `prebuttal runs <project>` (projects are named after the paper; "
+        "`prebuttal projects` lists them)",
+    ),
+}
+# commands (the first argv words): (removed in, what replaces it)
+_REMOVED_COMMANDS: dict[tuple[str, ...], tuple[str, str]] = {
+    ("open",): ("0.6", "prebuttal show --open"),
+    ("export",): ("0.6", "prebuttal show -o FILE"),
+    ("dashboard",): ("0.6", "prebuttal projects --open"),
+    ("models",): ("0.6", "prebuttal backends <name>"),
+    ("key", "status"): ("0.6", "prebuttal backends"),
+    ("plan",): ("0.7", "prebuttal show --plan"),
+    ("venues", "show"): ("0.7", "prebuttal venues <name>"),
 }
 
 
 def _removed_flag(argv: list[str]) -> str | None:
-    for tok in argv:
+    cmd = argv[0] if argv else ""
+    for tok in argv[1:]:
+        if tok == "--":
+            break
         name = tok.split("=", 1)[0]
-        if name in _REMOVED_FLAGS:
-            return f"error: {name} was removed — {_REMOVED_FLAGS[name]}"
+        gone = _REMOVED_FLAGS.get(name) if cmd == "run" else _REMOVED_CMD_FLAGS.get((cmd, name))
+        if gone:
+            return f"error: {name} was removed in {gone[0]} — {gone[1]}"
     return None
 
 
 def _removed_command(argv: list[str]) -> str | None:
-    if argv[:1] and argv[0] in _REMOVED_COMMANDS:
-        return (
-            f"error: `prebuttal {argv[0]}` was removed in 0.6 — use `{_REMOVED_COMMANDS[argv[0]]}`"
-        )
-    if argv[:2] == ["key", "status"]:
-        return "error: `prebuttal key status` was removed in 0.6 — use `prebuttal backends`"
+    for words, (since, new) in _REMOVED_COMMANDS.items():
+        if tuple(argv[: len(words)]) == words:
+            return f"error: `prebuttal {' '.join(words)}` was removed in {since} — use `{new}`"
     return None
 
 
@@ -1357,11 +1311,11 @@ def main(argv=None) -> int:
     if (
         argv[:1] == ["venues"]
         and len(argv) > 1
-        and argv[1] not in ("new", "show", _VENUE_VIEW)
+        and argv[1] not in ("new", "show", _VENUE_VIEW)  # `show`: removed, see below
         and not argv[1].startswith("-")
     ):
         argv = ["venues", _VENUE_VIEW, *argv[1:]]
-    msg = _removed_command(argv) or (_removed_flag(argv) if argv[:1] == ["run"] else None)
+    msg = _removed_command(argv) or _removed_flag(argv)
     if msg:
         print(msg, file=sys.stderr)
         return EXIT_USAGE
@@ -1381,7 +1335,6 @@ def main(argv=None) -> int:
             "projects": cmd_projects,
             "runs": cmd_runs,
             "show": cmd_show,
-            "plan": cmd_plan,
             "diff": cmd_diff,
             "note": cmd_note,
             "rm": cmd_rm,

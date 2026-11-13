@@ -49,9 +49,24 @@ def make_report(latex_project, *, venue_key: str = "iclr", rating_shift: int = 0
 
 
 def latest_report(root: Path, fmt: str = "md") -> Path:
-    """The newest report a CLI run wrote under ``root`` (= its --out-dir)."""
+    """The newest report a CLI run wrote under ``root`` (= its `[output] dir`)."""
     (path,) = root.glob(f"*/latest.{fmt}")
     return path
+
+
+def latest_json(root: Path) -> dict:
+    """The newest report.json a CLI run wrote under ``root`` (needs json in formats)."""
+    return json.loads(latest_report(root, "json").read_text(encoding="utf-8"))
+
+
+def fake_toml(out_dir: str | None = None, *, with_json: bool = False) -> str:
+    """FAKE_TOML plus an [output] section: where reports go, and report.json too."""
+    lines = []
+    if out_dir is not None:
+        lines.append(f'dir = "{out_dir}"')
+    if with_json:
+        lines.append('formats = ["md", "html", "json"]')
+    return FAKE_TOML + ("\n[output]\n" + "\n".join(lines) + "\n" if lines else "")
 
 
 # ------------------------------------------------- shared CLI-test fixtures

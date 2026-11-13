@@ -1,36 +1,11 @@
 import argparse
-import json
 
 import pytest
-from conftest import PersonaFakeProvider, latest_report
+from conftest import FAKE_TOML, PersonaFakeProvider, fake_toml, latest_json, latest_report
 
 from prebuttal import cli
 from prebuttal.providers import register_backend
 from prebuttal.providers.detect import BackendStatus
-
-FAKE_TOML = """
-[default]
-venue = "iclr"
-seed = 7
-
-[[reviewer]]
-id = "R1"
-persona = "senior_kind"
-backend = "fake"
-
-[[reviewer]]
-id = "R2"
-persona = "adversarial"
-backend = "fake"
-
-[[reviewer]]
-id = "R3"
-persona = "detail_obsessive"
-backend = "fake"
-
-[ac]
-backend = "fake"
-"""
 
 
 @pytest.fixture(autouse=True)
@@ -58,27 +33,16 @@ def fake_statuses(monkeypatch):
 def test_run_end_to_end_with_fake_backend(tmp_path, monkeypatch, latex_project, fake_statuses):
     monkeypatch.chdir(tmp_path)
     cfg_path = tmp_path / "prebuttal.toml"
-    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
+    cfg_path.write_text(fake_toml("reports", with_json=True), encoding="utf-8")
 
-    rc = cli.main(
-        [
-            "run",
-            str(latex_project),
-            "--config",
-            str(cfg_path),
-            "--json",
-            "out.json",
-            "--out-dir",
-            "reports",
-        ]
-    )
+    rc = cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     assert rc == cli.EXIT_OK
 
     md = latest_report(tmp_path / "reports").read_text(encoding="utf-8")
     assert "Predicted outcome" in md
     assert "Meta-review" in md
 
-    data = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    data = latest_json(tmp_path / "reports")
     assert data["aggregate"]["mean"] == 6.0
     assert data["run"]["seed"] == 7
 
@@ -91,23 +55,12 @@ def test_run_creates_missing_output_dirs(tmp_path, monkeypatch, latex_project, f
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PREBUTTAL_HOME", str(tmp_path / "home"))
     cfg_path = tmp_path / "prebuttal.toml"
-    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
-    rc = cli.main(
-        [
-            "run",
-            str(latex_project),
-            "--config",
-            str(cfg_path),
-            "--out-dir",
-            "new/dir",
-            "--json",
-            "other/out.json",
-        ]
-    )
+    cfg_path.write_text(fake_toml("new/dir", with_json=True), encoding="utf-8")
+    rc = cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     assert rc == cli.EXIT_OK
     assert latest_report(tmp_path / "new/dir").is_file()
     assert latest_report(tmp_path / "new/dir", "html").is_file()
-    assert (tmp_path / "other/out.json").is_file()
+    assert latest_report(tmp_path / "new/dir", "json").is_file()
 
 
 def test_removed_flags_explain_the_replacement(capsys):
@@ -119,7 +72,21 @@ def test_removed_flags_explain_the_replacement(capsys):
     assert cli.main(["run", "paper.pdf", "--format=md,json"]) == cli.EXIT_USAGE
     assert "[output] formats" in capsys.readouterr().err
     assert cli.main(["run", "paper.pdf", "--stdout"]) == cli.EXIT_USAGE
-    assert "prebuttal show" in capsys.readouterr().err
+    assert "removed in 0.6 — print the report with `prebuttal show`" in capsys.readouterr().err
+    # the 0.6 aliases, gone in 0.7: each names the setting that replaces it
+    for argv, setting in (
+        (["--seed", "0"], "`seed = N`"),
+        (["--effort", "low"], '`effort = "high"`'),
+        (["--figures"], "`figures = true`"),
+        (["--out-dir", "r"], "[output] dir"),
+        (["--reviewers", "4"], "[[reviewer]] block"),
+        (["--json", "o.json"], "`prebuttal show --json`"),
+    ):
+        assert cli.main(["run", "paper.pdf", *argv]) == cli.EXIT_USAGE
+        err = capsys.readouterr().err
+        assert f"{argv[0]} was removed in 0.7" in err and setting in err
+    # `--json` is still a flag of other commands
+    assert "removed" not in (cli.main(["runs", "--json"]), capsys.readouterr().err)[1]
 
 
 def test_run_dry_run_prints_matrix_no_calls(
@@ -503,6 +470,14 @@ def test_removed_commands_name_their_replacement(capsys):
         assert cli.main(argv) == cli.EXIT_USAGE
         err = capsys.readouterr().err
         assert "removed in 0.6" in err and f"`{new}`" in err
+    for argv, new in (
+        (["plan", "mamba#2"], "prebuttal show --plan"),
+        (["venues", "show", "iclr"], "prebuttal venues <name>"),
+        (["runs", "--paper", "mamba"], "prebuttal runs <project>"),
+    ):
+        assert cli.main(argv) == cli.EXIT_USAGE
+        err = capsys.readouterr().err
+        assert "removed in 0.7" in err and f"`{new}`" in err
 
 
 def test_the_cli_is_13_commands_and_run_has_9_flags():
@@ -526,21 +501,3 @@ def test_the_cli_is_13_commands_and_run_has_9_flags():
         "--venue", "--config", "--backend", "--model", "--dry-run", "--yes",
         "--project", "--note", "--no-save",
     }  # fmt: skip
-
-
-def test_project_wide_run_flags_still_work_with_a_notice(
-    tmp_path, monkeypatch, latex_project, fake_statuses, capsys
-):
-    """Hidden in 0.6, gone in 0.7: each notice names the setting that replaces it."""
-    monkeypatch.chdir(tmp_path)
-    cfg_path = tmp_path / "prebuttal.toml"
-    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
-    # --seed 0 too: 0 == False must not hide its notice
-    argv = ["run", str(latex_project), "--config", str(cfg_path), "--seed", "0", "--effort", "low"]
-    argv += ["--figures", "--out-dir", "r", "--json", "o.json"]
-    assert cli.main(argv) == cli.EXIT_OK
-    err = capsys.readouterr().err
-    for setting in ("`seed = N`", '`effort = "high"`', "`figures = true`", "[output] dir"):
-        assert setting in err
-    assert "`prebuttal show --json`" in err and err.count("goes in 0.7") == 5
-    assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["run"]["seed"] == 0

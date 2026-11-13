@@ -89,8 +89,10 @@ def test_no_save_leaves_the_store_untouched(run, tmp_path):
     assert (tmp_path / "prebuttal-reports" / PROJECT / "latest.html").is_file()
 
 
-def test_output_dir_empty_keeps_reports_in_the_archive_only(run, tmp_path):
-    rc, out = run("--out-dir", "")
+def test_output_dir_empty_keeps_reports_in_the_archive_only(run, fake_config, tmp_path):
+    with fake_config.open("a", encoding="utf-8") as fh:
+        fh.write('\n[output]\ndir = ""\n')
+    rc, out = run()
     assert rc == cli.EXIT_OK
     assert not (tmp_path / "prebuttal-reports").exists()
     assert "Report:" not in out
@@ -293,27 +295,6 @@ def test_projects_open_is_the_html_overview(run, capsys, monkeypatch):
         link = rec.dir_path.relative_to(opened[0].parent).as_posix() + "/report.html"
         assert f'href="{link}"' in html
         assert (opened[0].parent / link).is_file()
-
-
-def test_runs_paper_still_filters_with_a_notice_until_0_7(run, capsys):
-    run()
-    rc, out, err = _cli(capsys, "runs", "--paper", "nothing-like-this")
-    assert rc == cli.EXIT_OK and PROJECT not in out
-    rc, out, err = _cli(capsys, "runs", "--paper", PROJECT[:5])
-    assert rc == cli.EXIT_OK and PROJECT in out
-    assert "`runs --paper` goes in 0.7" in err and "prebuttal runs <project>" in err
-    runs_help = cli.build_parser()._subparsers._group_actions[0].choices["runs"].format_help()
-    assert "--paper" not in runs_help
-
-
-def test_plan_is_a_hidden_alias_until_0_7(run, capsys):
-    run()
-    rc, out, err = _cli(capsys, "plan")
-    assert rc == cli.EXIT_OK and out.startswith("# Revision plan")
-    assert "is now `prebuttal show --plan`; this alias goes in 0.7" in err
-    help_text = cli.build_parser().format_help()
-    listed = {ln.split()[0] for ln in help_text.splitlines() if ln[:5].strip() and ln[:4] == "    "}
-    assert "plan" not in listed and "show" in listed
 
 
 def test_show_views_are_exclusive(capsys):

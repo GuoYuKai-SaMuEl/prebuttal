@@ -1,10 +1,9 @@
 """`prebuttal check`: the deterministic desk-reject pre-flight."""
 
 import io
-import json
 
 import pytest
-from conftest import FAKE_TOML, latest_report
+from conftest import FAKE_TOML, fake_toml, latest_json, latest_report
 
 from prebuttal import cli
 from prebuttal.check import ERROR, WARNING, check_latex, check_pdf_bytes
@@ -435,12 +434,10 @@ def test_run_report_carries_the_preflight(tmp_path, monkeypatch, latex_project, 
         encoding="utf-8",
     )
     cfg_path = tmp_path / "prebuttal.toml"
-    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
-    rc = cli.main(
-        ["run", str(latex_project), "--config", str(cfg_path), "--json", "o.json", "--out-dir", "r"]
-    )
+    cfg_path.write_text(fake_toml("r", with_json=True), encoding="utf-8")
+    rc = cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     assert rc == cli.EXIT_OK
-    warnings = json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["paper"]["warnings"]
+    warnings = latest_json(tmp_path / "r")["paper"]["warnings"]
     assert any(w.startswith("Pre-flight check (error)") and "tab:nowhere" in w for w in warnings)
     assert "tab:nowhere" in latest_report(tmp_path / "r").read_text(encoding="utf-8")
 
@@ -468,7 +465,7 @@ def test_stored_keys_load_only_for_commands_that_call_models(
 
     cfg_path = tmp_path / "prebuttal.toml"
     cfg_path.write_text(FAKE_TOML, encoding="utf-8")
-    cli.main(["run", str(latex_project), "--config", str(cfg_path), "--out-dir", "r"])
+    cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     assert "using stored keys: GEMINI_API_KEY" in capsys.readouterr().err
 
 

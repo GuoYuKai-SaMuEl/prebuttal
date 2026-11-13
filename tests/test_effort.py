@@ -6,7 +6,7 @@ import httpx
 import pytest
 from test_providers import _install_mock_http
 
-from prebuttal.config import ConfigError, apply_overrides, load_config, role_effort
+from prebuttal.config import ConfigError, load_config, role_effort
 from prebuttal.models import effort_support, param_support
 
 OK_OPENAI = {
@@ -45,9 +45,6 @@ def test_effort_config_levels_and_precedence(tmp_path):
     )
     cfg = load_config(p)
     assert [role_effort(cfg, r) for r in ("R1", "R2", "AC")] == ["high", "medium", "low"]
-
-    cfg = apply_overrides(cfg, effort="low")  # --effort wins everywhere
-    assert {role_effort(cfg, r) for r in ("R1", "R2", "AC")} == {"low"}
 
     assert role_effort(load_config(None), "R1") == ""  # unset: each model's default
 
@@ -178,7 +175,7 @@ def test_report_and_dry_run_show_effort(latex_project):
     assert "| high |" in md and "| default |" in md
 
     cfg = load_config(None)
-    cfg = apply_overrides(cfg, effort="medium")
+    cfg.effort = "medium"
     statuses = [BackendStatus("relay", "relay", True, "")]
     plan = render_dry_run(cfg, [("R1", "agent-claude", "")], ("relay", ""), 1000, statuses)
     assert "effort: medium" in plan

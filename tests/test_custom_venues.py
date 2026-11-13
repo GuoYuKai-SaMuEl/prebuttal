@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
-from conftest import FAKE_TOML, latest_report
+from conftest import fake_toml, latest_json, latest_report
 
 from prebuttal import cli
 from prebuttal.config import ConfigError, apply_overrides, load_config
@@ -155,11 +154,9 @@ def test_cli_new_list_show(tmp_path, monkeypatch, capsys, isolated_prebuttal_hom
     assert "icml-2027" in out and "aaai" in out and "broken" in out and "INVALID" in out
     assert cli.main(["venues", "icml-2027"]) == 0
     assert "Marginally above publication threshold" in capsys.readouterr().out
-    # hidden 0.6 alias, gone in 0.7
-    assert cli.main(["venues", "show", "icml-2027"]) == 0
-    out, err = capsys.readouterr()
-    assert "Marginally above publication threshold" in out
-    assert "is now `prebuttal venues <name>`; this alias goes in 0.7" in err
+    # the 0.6 alias is gone in 0.7, and says what replaced it
+    assert cli.main(["venues", "show", "icml-2027"]) == cli.EXIT_USAGE
+    assert "`prebuttal venues <name>`" in capsys.readouterr().err
     for name in ("new", "show"):  # `venues new` / `venues show` mean something else
         assert cli.main(["venues", "new", name]) == cli.EXIT_USAGE
     assert cli.main(["venues", "nope"]) == cli.EXIT_USAGE
@@ -181,13 +178,12 @@ def test_run_with_custom_venue_and_render_after_file_is_gone(
     )
     venue_file = _write(tmp_path / "forms", toml=toml, form="# Lab form: be fair.\n")
     cfg_path = tmp_path / "prebuttal.toml"
-    cfg_path.write_text(FAKE_TOML, encoding="utf-8")
+    cfg_path.write_text(fake_toml("reports", with_json=True), encoding="utf-8")
     rc = cli.main(
-        ["run", str(latex_project), "--config", str(cfg_path), "--venue", str(venue_file),
-         "--json", "out.json", "--out-dir", "reports"]
-    )  # fmt: skip
+        ["run", str(latex_project), "--config", str(cfg_path), "--venue", str(venue_file)]
+    )
     assert rc == cli.EXIT_OK
-    data = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    data = latest_json(tmp_path / "reports")
     assert data["venue"]["key"] == "lab" and data["venue"]["custom"] is True
     assert data["venue"]["definition"]["fields"][-2]["max"] == 10
     assert data["aggregate"]["mean"] == 6.0

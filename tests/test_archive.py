@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from conftest import fake_toml, latest_report
 
 from prebuttal import cli
 from prebuttal.check import CheckError, check_source
@@ -53,9 +54,10 @@ def test_run_on_a_zip_keeps_no_temporary_path(
 ):
     archive = _zip(tmp_path / "paper.zip", _project_files(latex_project))
     monkeypatch.chdir(tmp_path)
-    rc = cli.main(["run", "paper.zip", "--config", str(fake_config), "--json", "out.json"])
+    fake_config.write_text(fake_toml(with_json=True), encoding="utf-8")
+    rc = cli.main(["run", "paper.zip", "--config", str(fake_config)])
     assert rc == cli.EXIT_OK
-    text = (tmp_path / "out.json").read_text(encoding="utf-8")
+    text = latest_report(tmp_path / "prebuttal-reports", "json").read_text(encoding="utf-8")
     assert json.loads(text)["paper"]["source_path"] == "paper.zip"
     assert "prebuttal-zip" not in text
     assert archive.is_file()

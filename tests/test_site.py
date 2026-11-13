@@ -118,7 +118,7 @@ def test_reference_lists_visible_commands_only():
     ref = bs.reference_html()
     for name in ("run", "check", "show", "venues", "backends", "key"):
         assert f'id="cmd-{name}"' in ref
-    assert 'id="cmd-plan"' not in ref  # a hidden alias
+    assert 'id="cmd-plan"' not in ref  # removed in 0.7
     for hidden in ("--seed", "--effort", "--reviewers", "--out-dir", "--figures", "_view"):
         assert hidden not in ref
 

@@ -199,22 +199,6 @@ def default_reviewers(n: int = 3) -> list[ReviewerConfig]:
     return out
 
 
-def resize_reviewers(current: list[ReviewerConfig], n: int) -> list[ReviewerConfig]:
-    """Keep the configured reviewers (backend, model, persona...) and only drop
-    the extra ones or add default ones, instead of discarding the setup."""
-    if n <= len(current):
-        return list(current[:n])
-    out = list(current)
-    taken = {r.id for r in out}
-    for extra in default_reviewers(n)[len(out) :]:
-        num = len(out) + 1
-        while f"R{num}" in taken:
-            num += 1
-        out.append(replace(extra, id=f"R{num}"))
-        taken.add(f"R{num}")
-    return out
-
-
 def check_effort(value: Any, where: str) -> str:
     from .models import EFFORT_LEVELS
 
@@ -388,26 +372,13 @@ def apply_overrides(
     cfg: RunConfig,
     *,
     venue: str | None = None,
-    seed: int | None = None,
     backend: str | None = None,
     model: str | None = None,
-    reviewers_count: int | None = None,
-    effort: str | None = None,
 ) -> RunConfig:
     """Apply CLI-flag overrides to ``cfg`` (in place) and return it."""
-    if effort is not None:  # --effort wins over every per-role setting
-        cfg.effort = check_effort(effort, "--effort")
-        cfg.reviewers = [replace(r, effort="") for r in cfg.reviewers]
-        cfg.ac = replace(cfg.ac, effort="")
     if venue is not None:
         check_venue(venue)
         cfg.venue = venue
-    if seed is not None:
-        cfg.seed = seed
-    if reviewers_count is not None and reviewers_count != len(cfg.reviewers):
-        if not 1 <= reviewers_count <= 5:
-            raise ConfigError("--reviewers must be between 1 and 5")
-        cfg.reviewers = resize_reviewers(cfg.reviewers, reviewers_count)
     if backend is not None:
         # a model the file set for another backend means nothing to this one:
         # it falls back to the new backend's default unless --model names one

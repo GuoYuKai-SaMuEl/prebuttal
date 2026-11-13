@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import latest_report
+from conftest import latest_json, latest_report
 
 from prebuttal import cli
 from prebuttal.providers.base import ProviderError
@@ -108,6 +108,10 @@ backend = "relay"
 [relay]
 dir = "{spool.as_posix()}"
 timeout_s = 30
+
+[output]
+dir = "reports"
+formats = ["md", "html", "json"]
 """,
         encoding="utf-8",
     )
@@ -142,18 +146,7 @@ timeout_s = 30
         )
 
     with Responder(spool, payload_for=iclr_payload):
-        rc = cli.main(
-            [
-                "run",
-                str(latex_project),
-                "--config",
-                str(cfg_path),
-                "--out-dir",
-                "reports",
-                "--json",
-                "out.json",
-            ]
-        )
+        rc = cli.main(["run", str(latex_project), "--config", str(cfg_path)])
     assert rc == cli.EXIT_OK
 
     md = latest_report(tmp_path / "reports").read_text(encoding="utf-8")
@@ -161,7 +154,7 @@ timeout_s = 30
     assert "relay" in md
     assert "(4.67 / 10)" in md or "**4.67 / 10**" in md  # mean of 6, 3, 5
 
-    data = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    data = latest_json(tmp_path / "reports")
     assert data["aggregate"]["mean"] == 4.67
     assert all(r["backend"] == "relay" for r in data["reviewers"])
 

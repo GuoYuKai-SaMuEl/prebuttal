@@ -70,16 +70,14 @@ def test_cli_run_prints_fix_first_and_plan_command(
     assert "Fix first: [must] Baseline set is thin" in out
     assert "prebuttal show --plan" in out
 
-    for argv in (["show", "--plan"], ["plan"]):  # `plan` stays until 0.6
-        assert cli.main(argv) == cli.EXIT_OK
-        out = capsys.readouterr().out
-        assert out.startswith("# Revision plan — ")
-        assert "- [ ] **must** — Baseline set is thin" in out
+    assert cli.main(["show", "--plan"]) == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert out.startswith("# Revision plan — ")
+    assert "- [ ] **must** — Baseline set is thin" in out
 
-    for argv in (["show", "--plan", "--json"], ["plan", "--json"]):
-        assert cli.main(argv) == cli.EXIT_OK
-        items = json.loads(capsys.readouterr().out)
-        assert items[0]["priority"] == "must" and items[1]["effort"] == "small"
+    assert cli.main(["show", "--plan", "--json"]) == cli.EXIT_OK
+    items = json.loads(capsys.readouterr().out)
+    assert items[0]["priority"] == "must" and items[1]["effort"] == "small"
 
     assert cli.main(["show", "--plan", "--open"]) == cli.EXIT_USAGE
     assert "--plan prints the plan" in capsys.readouterr().err

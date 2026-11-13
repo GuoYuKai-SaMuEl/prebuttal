@@ -105,20 +105,15 @@ persona = "adversarial"
 
 def test_overrides():
     cfg = load_config(None)
-    cfg = apply_overrides(
-        cfg, venue="acl", seed=99, backend="ollama", model="llama3.1", reviewers_count=4
-    )
+    cfg = apply_overrides(cfg, venue="acl", backend="ollama", model="llama3.1")
     assert cfg.venue == "acl"
-    assert cfg.seed == 99
     assert all(r.backend == "ollama" for r in cfg.reviewers)
     assert all(r.model == "llama3.1" for r in cfg.reviewers)
-    assert len(cfg.reviewers) == 4
-    assert cfg.reviewers[3].persona == "senior_kind"  # cycle restarts
 
 
 def test_reviewer_seed_sequence():
     cfg = load_config(None)
-    cfg = apply_overrides(cfg, seed=42)
+    cfg.seed = 42
     assert [reviewer_seed(cfg, r, i) for i, r in enumerate(cfg.reviewers)] == [43, 44, 45]
     cfg.reviewers[0].seed = 1000
     assert reviewer_seed(cfg, cfg.reviewers[0], 0) == 1000
@@ -160,26 +155,6 @@ def test_reviewer_seed_from_toml(tmp_path):
     assert cfg.reviewers[0].seed == 7
     assert reviewer_seed(cfg, cfg.reviewers[0], 0) == 7
     assert cfg.reviewers[1].seed is None
-
-
-def test_reviewers_count_keeps_configured_reviewers(tmp_path):
-    cfg = load_config(
-        _toml(
-            tmp_path,
-            '[[reviewer]]\nid = "A"\npersona = "adversarial"\nbackend = "api-gemini"\n'
-            'model = "m1"\n[[reviewer]]\nid = "R2"\nbackend = "ollama"\n',
-        )
-    )
-    grown = apply_overrides(cfg, reviewers_count=4).reviewers
-    assert [r.id for r in grown] == ["A", "R2", "R3", "R4"]
-    assert (grown[0].backend, grown[0].model, grown[0].persona) == (
-        "api-gemini",
-        "m1",
-        "adversarial",
-    )
-    assert grown[1].backend == "ollama"
-    shrunk = apply_overrides(load_config(tmp_path / "prebuttal.toml"), reviewers_count=1)
-    assert [(r.id, r.backend) for r in shrunk.reviewers] == [("A", "api-gemini")]
 
 
 def test_backend_override_drops_models_meant_for_another_backend():
