@@ -111,19 +111,27 @@ agent skill and the site use only the new forms. All met (a test pins the
 ## 0.7 — a revision loop you can trust
 
 The Mamba demo showed that single-run score changes are mostly noise and
-that word-overlap matching misleads.
+that word-overlap matching misleads. A run stays a single run by default —
+most users have quotas and want a quick answer — so the noise check has to
+work without repeats.
 
-- **Repeated reviews**: `repeats = 3` in `prebuttal.toml` (a setting, not a
-  flag); the report shows the mean and the run-to-run range.
-- **Noise-aware diff**: when a change is smaller than the measured
-  run-to-run variation, `diff` says it can't be told apart from noise.
+- **Noise-aware diff, single runs included**: run-to-run variation measured
+  per backend (Mamba, several runs each) ships with the tool; when a change
+  is smaller than it, `diff` says the change can't be told apart from noise,
+  and says the range is an estimate.
+- **Repeated reviews, as an advanced setting**: `repeats = 3` in
+  `prebuttal.toml` (not a flag) reviews each paper three times, with one
+  area chair over all of them; the report shows the mean and the
+  run-to-run range, and `diff` uses the range measured on your paper.
+  `diff` suggests it only when a change falls within noise.
 - **Meaning-based diff by default** whenever an AC backend is available,
   word overlap only as the offline fallback — `--llm` can then go.
 - **Plan tracking across versions**: each revision-plan item marked
   resolved / raised again across v1 → v2 → v3 of a project, on the dashboard.
 
-Done when: on Mamba v1 → v2 the tool itself reports "no measurable change".
-0.7 also drops the hidden aliases 0.6 left.
+Done when: on Mamba v1 → v2 the tool itself reports "no measurable change",
+both on single runs (estimated range) and with `repeats = 3` (measured
+range). 0.7 also drops the hidden aliases 0.6 left.
 
 ## Patch releases, as they are ready
 
