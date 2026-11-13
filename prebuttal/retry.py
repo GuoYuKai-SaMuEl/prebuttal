@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .config import ReviewerConfig, RunConfig
 from .models import FigureImage, ReviewReport
-from .orchestrator import Log, review_then_meta
+from .orchestrator import Log, Slot, review_then_meta
 from .providers import BaseProvider
 from .report import report_from_dict
 from .venues import Venue, VenueError, get_venue, venue_from_report
@@ -92,23 +92,25 @@ def retry_report(
     Ctrl-C raises RunInterrupted with what finished, as for `prebuttal run`."""
     old = report_from_dict(data)
     targets = failed_reviewers(old)
-    sub = replace(
-        cfg,
-        seed=old.run.seed,
-        reviewers=[
+    # each failed review again: same reviewer, round and (explicit) seed
+    slots = [
+        Slot(
             ReviewerConfig(
-                id=old.reviews[i].reviewer_id,
-                persona=old.reviews[i].persona,
-                backend=providers[old.reviews[i].reviewer_id].backend,
-                model=providers[old.reviews[i].reviewer_id].model,
-                temperature=old.reviews[i].temperature,
-                seed=old.reviews[i].seed,
-            )
-            for i in targets
-        ],
-    )
+                id=r.reviewer_id,
+                persona=r.persona,
+                backend=providers[r.reviewer_id].backend,
+                model=providers[r.reviewer_id].model,
+                temperature=r.temperature,
+                seed=r.seed,
+            ),
+            index=n,
+            repeat=r.repeat,
+        )
+        for n, r in enumerate(old.reviews[i] for i in targets)
+    ]
+    sub = replace(cfg, seed=old.run.seed, reviewers=[s.reviewer for s in slots])
     sub.ac = replace(cfg.ac, temperature=old.meta.temperature)
     old.paper.figure_images = list(images or [])  # shown again, archived again
     old.paper.source_path, old.paper.source_type = old.run.source, old.run.source_type
     keep = [None if i in targets else r for i, r in enumerate(old.reviews)]
-    return review_then_meta(old.paper, sub, venue, pack, providers, ac_provider, log, keep)
+    return review_then_meta(old.paper, sub, venue, pack, providers, ac_provider, log, keep, slots)

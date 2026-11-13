@@ -10,6 +10,11 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Added
+- Each reviewer in `report.json` (and `resolved-config.json`) carries
+  `repeat`, the round its review belongs to — always `0` until repeated
+  reviews arrive. `retry` redoes a failed review in the same round.
+
 ### Removed
 - The names 0.6 kept as hidden aliases are gone, as their notices said. Each
   now stops with an error that names its replacement:

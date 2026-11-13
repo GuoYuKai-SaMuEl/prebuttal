@@ -266,3 +266,40 @@ def test_failed_and_interrupted_roles_keep_their_effort(latex_project):
     report = exc.value.report
     assert [r.effort for r in report.reviews] == ["high"] * len(cfg.reviewers)
     assert report.meta.effort == "high"
+
+
+def test_reviews_are_written_per_slot(latex_project):
+    """A review is a slot (reviewer, round); every reviewer once is the default."""
+    from prebuttal.models import slot_label
+    from prebuttal.orchestrator import Slot, review_slots, run_reviews
+
+    cfg = load_config(None)
+    assert [s.key for s in review_slots(cfg)] == [("R1", 0), ("R2", 0), ("R3", 0)]
+    assert (slot_label("R1"), slot_label("R1", 1)) == ("R1", "R1·2")
+
+    providers, _ac = _providers(cfg, [])
+    lines: list[str] = []
+    r1 = cfg.reviewers[0]
+    reviews = run_reviews(
+        cfg, get_venue("iclr"), "PACK", providers, lines.append,
+        slots=[Slot(r1, 0), Slot(r1, 0, repeat=1)],
+    )  # fmt: skip
+    assert [r.slot for r in reviews] == [("R1", 0), ("R1", 1)]
+    assert [r.label for r in reviews] == ["R1", "R1·2"]
+    assert any(ln.startswith("[R1·2] done") for ln in lines)
+
+
+def test_a_crashed_slot_keeps_its_round(latex_project):
+    from prebuttal.orchestrator import Slot, run_reviews
+
+    class _Boom(PersonaFakeProvider):
+        def _complete(self, **kw):
+            raise RuntimeError("bug")
+
+    cfg = load_config(None)
+    r2 = cfg.reviewers[1]
+    (review,) = run_reviews(
+        cfg, get_venue("iclr"), "PACK", {"R2": _Boom()}, lambda m: None,
+        slots=[Slot(r2, 1, repeat=2)],
+    )  # fmt: skip
+    assert review.slot == ("R2", 2) and not review.parse_ok and "RuntimeError" in review.error

@@ -1202,7 +1202,7 @@ def cmd_retry(args) -> int:
     except ProviderError as e:
         return _fail(str(e), EXIT_NO_BACKEND)
     ac_provider = built.pop("AC")
-    names = ", ".join(old.reviews[i].reviewer_id for i in targets)
+    names = ", ".join(old.reviews[i].label for i in targets)
     _log(
         f"[prebuttal] retrying {rec.label}: "
         + (f"reviewers {names}, then the AC" if names else "the AC")

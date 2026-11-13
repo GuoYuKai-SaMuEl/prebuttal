@@ -200,6 +200,7 @@ class Review:
     model: str
     temperature: float
     seed: int | None
+    repeat: int = 0  # which round of this reviewer (`repeats` in prebuttal.toml)
     effort: str = ""  # reasoning effort actually sent; "" = the model's default
     images: int = 0  # figure images this reviewer was shown
     fields: dict[str, Any] = field(default_factory=dict)
@@ -211,6 +212,20 @@ class Review:
     usage: Usage = field(default_factory=Usage)
     duration_s: float = 0.0
     started_at: str = ""
+
+    @property
+    def slot(self) -> tuple[str, int]:
+        """Which review this is: (reviewer id, round)."""
+        return (self.reviewer_id, self.repeat)
+
+    @property
+    def label(self) -> str:
+        return slot_label(self.reviewer_id, self.repeat)
+
+
+def slot_label(reviewer_id: str, repeat: int = 0) -> str:
+    """``R1`` for a reviewer's first round, ``R1·2`` for its second, ..."""
+    return reviewer_id if repeat == 0 else f"{reviewer_id}·{repeat + 1}"
 
 
 PRIORITIES = ("must", "should", "could")

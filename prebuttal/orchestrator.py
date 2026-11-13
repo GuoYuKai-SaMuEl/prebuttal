@@ -14,10 +14,11 @@ import re
 import threading
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any, cast
 
 from .check import ERROR, preflight_findings
-from .config import RunConfig, reviewer_seed
+from .config import ReviewerConfig, RunConfig, reviewer_seed
 from .models import (
     PRIORITIES,
     ActionItem,
@@ -30,6 +31,7 @@ from .models import (
     Usage,
     make_aggregate,
     sha256_text,
+    slot_label,
 )
 from .pack import render_pack
 from .personas import load_persona
@@ -390,6 +392,7 @@ def run_one_reviewer(
     log: Log,
     delay_s: float = 0.0,
     images: Sequence[FigureImage] = (),
+    repeat: int = 0,
 ) -> Review:
     if delay_s:
         time.sleep(delay_s)
@@ -403,9 +406,11 @@ def run_one_reviewer(
         model=provider.model,
         temperature=rcfg.temperature,
         seed=seed,
+        repeat=repeat,
         effort=provider.applied_effort,
         started_at=RunInfo.now_iso(),
     )
+    tag = review.label
     try:
         persona_text = load_persona(rcfg.persona)
     except KeyError as e:
@@ -416,7 +421,7 @@ def run_one_reviewer(
     user = build_reviewer_user(pack, [im.label for im in images])
     t0 = time.monotonic()
     shown = f" + {len(images)} figure image(s)" if images else ""
-    log(f"[{rcfg.id}] dispatching {rcfg.persona} via {provider.describe()}{shown}")
+    log(f"[{tag}] dispatching {rcfg.persona} via {provider.describe()}{shown}")
 
     def call(user: str, pngs: list[bytes] | None):
         return provider.complete(
@@ -436,7 +441,7 @@ def run_one_reviewer(
             if not images or not _about_images(str(e)):
                 raise
             # a text-only model behind a vision-capable API: go without
-            log(f"[{rcfg.id}] request with figure images failed ({str(e)[:120]}); text only")
+            log(f"[{tag}] request with figure images failed ({str(e)[:120]}); text only")
             images = ()
             comp = call(build_reviewer_user(pack), None)
         review.images = len(images)
@@ -444,7 +449,7 @@ def run_one_reviewer(
         review.duration_s = time.monotonic() - t0
         review.error = str(e)
         review.raw_output = ""
-        log(f"[{rcfg.id}] FAILED: {e}")
+        log(f"[{tag}] FAILED: {e}")
         return review
 
     review.usage = comp.usage
@@ -456,7 +461,7 @@ def run_one_reviewer(
     if payload is None:
         review.parse_ok = False
         review.error = "could not parse a JSON review from the model output"
-        log(f"[{rcfg.id}] completed but output was not valid JSON")
+        log(f"[{tag}] completed but output was not valid JSON")
         return review
 
     review.fields = coerce_fields(payload, venue)
@@ -464,7 +469,7 @@ def run_one_reviewer(
     review.confidence = review.fields.get(venue.confidence_key) if venue.confidence_key else None
     review.parse_ok = True
     rating_str = f" rating {review.rating:g}" if review.rating is not None else ""
-    log(f"[{rcfg.id}] done in {review.duration_s:.0f}s{rating_str} ({review.usage.describe()})")
+    log(f"[{tag}] done in {review.duration_s:.0f}s{rating_str} ({review.usage.describe()})")
     return review
 
 
@@ -482,14 +487,35 @@ class RunInterrupted(KeyboardInterrupt):
         self.report = report
 
 
-def _failed_review(rcfg, provider: BaseProvider, cfg: RunConfig, idx: int, error: str) -> Review:
+@dataclass(frozen=True)
+class Slot:
+    """One review to write: a reviewer, its position in ``cfg.reviewers`` (default
+    seeds count from it) and the round (`repeats` in prebuttal.toml)."""
+
+    reviewer: ReviewerConfig
+    index: int
+    repeat: int = 0
+
+    @property
+    def key(self) -> tuple[str, int]:
+        return (self.reviewer.id, self.repeat)
+
+
+def review_slots(cfg: RunConfig) -> list[Slot]:
+    """Every review a run writes, in report order."""
+    return [Slot(r, i) for i, r in enumerate(cfg.reviewers)]
+
+
+def _failed_review(slot: Slot, provider: BaseProvider, cfg: RunConfig, error: str) -> Review:
+    rcfg = slot.reviewer
     return Review(
         reviewer_id=rcfg.id,
         persona=rcfg.persona,
         backend=provider.backend,
         model=provider.model,
         temperature=rcfg.temperature,
-        seed=reviewer_seed(cfg, rcfg, idx),
+        seed=reviewer_seed(cfg, rcfg, slot.index),
+        repeat=slot.repeat,
         effort=provider.applied_effort,  # `retry` re-runs it with this effort
         error=error,
     )
@@ -502,19 +528,21 @@ def run_reviews(
     providers: dict[str, BaseProvider],
     log: Log,
     images: Sequence[FigureImage] = (),
+    slots: Sequence[Slot] | None = None,
 ) -> list[Review]:
-    reviews: list[Review] = [None] * len(cfg.reviewers)  # type: ignore[list-item]
+    """One review per slot (default: every reviewer once), in slot order."""
+    todo = list(slots) if slots is not None else review_slots(cfg)
+    reviews: list[Review] = [None] * len(todo)  # type: ignore[list-item]
 
-    def work(idx: int, rcfg, provider: BaseProvider, delay: float) -> None:
+    def work(n: int, slot: Slot, provider: BaseProvider, delay: float) -> None:
         try:
-            reviews[idx] = run_one_reviewer(
-                rcfg, idx, venue, pack, provider, cfg, log, delay, images
-            )
+            reviews[n] = run_one_reviewer(
+                slot.reviewer, slot.index, venue, pack, provider, cfg, log, delay, images,
+                repeat=slot.repeat,
+            )  # fmt: skip
         except Exception as e:  # a bug in one reviewer must not lose the others' (paid) work
-            log(f"[{rcfg.id}] FAILED: unexpected {type(e).__name__}: {e}")
-            reviews[idx] = _failed_review(
-                rcfg, provider, cfg, idx, f"unexpected {type(e).__name__}: {e}"
-            )
+            log(f"[{slot_label(*slot.key)}] FAILED: unexpected {type(e).__name__}: {e}")
+            reviews[n] = _failed_review(slot, provider, cfg, f"unexpected {type(e).__name__}: {e}")
 
     # Daemon threads, not a ThreadPoolExecutor: an executor joins its workers
     # on exit, so Ctrl-C would wait for every in-flight call (a relay poll can
@@ -523,14 +551,17 @@ def run_reviews(
     # ":free" models draw from a shared, burst-hostile upstream pool: dispatch
     # them a few seconds apart instead of all in the same instant.
     free_seen = 0
-    for idx, rcfg in enumerate(cfg.reviewers):
-        provider = providers[rcfg.id]
+    for n, slot in enumerate(todo):
+        provider = providers[slot.reviewer.id]
         delay = 0.0
         if provider.model.endswith(":free"):
             delay = free_seen * 6.0
             free_seen += 1
         t = threading.Thread(
-            target=work, args=(idx, rcfg, provider, delay), name=f"prebuttal-{rcfg.id}", daemon=True
+            target=work,
+            args=(n, slot, provider, delay),
+            name=f"prebuttal-{slot_label(*slot.key)}",
+            daemon=True,
         )
         t.start()
         threads.append(t)
@@ -540,9 +571,9 @@ def run_reviews(
                 t.join(0.25)  # short joins keep Ctrl-C deliverable (notably on Windows)
     except KeyboardInterrupt:
         done = list(reviews)  # snapshot: a straggler finishing now must not change it
-        for idx, rcfg in enumerate(cfg.reviewers):
-            if done[idx] is None:
-                done[idx] = _failed_review(rcfg, providers[rcfg.id], cfg, idx, INTERRUPTED)
+        for n, slot in enumerate(todo):
+            if done[n] is None:
+                done[n] = _failed_review(slot, providers[slot.reviewer.id], cfg, INTERRUPTED)
         raise RunInterrupted(done) from None
     return reviews
 
@@ -749,24 +780,30 @@ def review_then_meta(
     ac_provider: BaseProvider,
     log: Log,
     keep: list[Review | None] | None = None,
+    slots: Sequence[Slot] | None = None,
 ) -> ReviewReport:
-    """Run ``cfg.reviewers``, then the AC over every review.
+    """Write every review slot (default: ``review_slots(cfg)``), then the AC.
 
-    ``keep`` (for `retry`) holds reviews to reuse; its empty slots are filled,
-    in order, by ``cfg.reviewers``.  Ctrl-C raises RunInterrupted carrying the
-    report of what had finished, so the caller can archive it."""
-    slots: list[Review | None] = list(keep) if keep is not None else [None] * len(cfg.reviewers)
-    targets = [i for i, r in enumerate(slots) if r is None]
+    ``keep`` (for `retry`) holds reviews to reuse; its empty places are filled,
+    in order, by ``slots``.  Ctrl-C raises RunInterrupted carrying the report
+    of what had finished, so the caller can archive it."""
+    todo = list(slots) if slots is not None else review_slots(cfg)
+    filled: list[Review | None] = list(keep) if keep is not None else [None] * len(todo)
+    targets = [i for i, r in enumerate(filled) if r is None]
+    if targets and len(targets) != len(todo):
+        raise ValueError(f"{len(targets)} empty review places for {len(todo)} slots")
     try:
         fresh = (
-            run_reviews(cfg, venue, pack, providers, log, paper.figure_images) if targets else []
+            run_reviews(cfg, venue, pack, providers, log, paper.figure_images, todo)
+            if targets
+            else []
         )
         stopped = False
     except RunInterrupted as e:
         fresh, stopped = e.reviews, True
     for i, review in zip(targets, fresh, strict=True):
-        slots[i] = review
-    reviews = cast(list[Review], slots)  # every slot is filled now
+        filled[i] = review
+    reviews = cast(list[Review], filled)  # every place is filled now
     checks = preflight_findings(paper.warnings)
 
     def report(meta: MetaReview) -> ReviewReport:

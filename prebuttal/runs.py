@@ -201,6 +201,7 @@ def save_run(
         "reviewers": [
             {
                 "id": r.reviewer_id,
+                "repeat": r.repeat,
                 "persona": r.persona,
                 "backend": r.backend,
                 "model": r.model,

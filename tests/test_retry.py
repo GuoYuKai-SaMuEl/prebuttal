@@ -68,6 +68,36 @@ def test_retry_reruns_only_the_failed_reviewer(latex_project, fake_statuses, fla
     assert new["paper"]["sections"] == old["paper"]["sections"] > 0
 
 
+def test_retry_keeps_the_round_of_the_review_it_redoes(
+    latex_project, fake_statuses, flaky_config, capsys
+):
+    """A review is a slot (reviewer, round): retry writes the same slot again."""
+    cfg_path, _calls = flaky_config
+    cli.main(["run", str(latex_project), "--config", str(cfg_path)])
+    first = load_history()[0]
+    resolved = json.loads((first.dir_path / "resolved-config.json").read_text(encoding="utf-8"))
+    assert [r["repeat"] for r in resolved["reviewers"]] == [0, 0, 0]
+    # as if R2 had failed in its second round of a `repeats = 2` run
+    p = first.dir_path / "report.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    assert [r["repeat"] for r in data["reviewers"]] == [0, 0, 0]
+    data["reviewers"][1]["repeat"] = 1
+    p.write_text(json.dumps(data), encoding="utf-8")
+
+    _Flaky.down = False
+    capsys.readouterr()
+    assert cli.main(["retry"]) == cli.EXIT_OK
+    err = capsys.readouterr().err
+    assert "retrying" in err and "reviewers R2·2, then the AC" in err and "[R2·2] done" in err
+    new = json.loads((load_history()[0].dir_path / "report.json").read_text(encoding="utf-8"))
+    assert [(r["reviewer_id"], r["repeat"]) for r in new["reviewers"]] == [
+        ("R1", 0),
+        ("R2", 1),
+        ("R3", 0),
+    ]
+    assert new["reviewers"][1]["seed"] == data["reviewers"][1]["seed"]
+
+
 def test_retry_with_nothing_failed(latex_project, fake_statuses, fake_config, monkeypatch, capsys):
     monkeypatch.chdir(fake_config.parent)
     assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == cli.EXIT_OK
