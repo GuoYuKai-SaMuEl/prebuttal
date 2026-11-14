@@ -116,22 +116,28 @@ most users have quotas and want a quick answer — so the noise check has to
 work without repeats.
 
 - **Noise-aware diff, single runs included**: run-to-run variation measured
-  per backend (Mamba, several runs each) ships with the tool; when a change
-  is smaller than it, `diff` says the change can't be told apart from noise,
-  and says the range is an estimate.
+  on real runs (Mamba and a borderline paper, three backends) ships with the
+  tool as one default, 3.5% of the rating scale; when a change is smaller
+  than it, `diff` says the change can't be told apart from noise, and says
+  the range is an estimate.
 - **Repeated reviews, as an advanced setting**: `repeats = 3` in
   `prebuttal.toml` (not a flag) reviews each paper three times, with one
   area chair over all of them; the report shows the mean and the
   run-to-run range, and `diff` uses the range measured on your paper.
   `diff` suggests it only when a change falls within noise.
 - **Meaning-based diff by default** whenever an AC backend is available,
-  word overlap only as the offline fallback — `--llm` can then go.
+  word overlap only as the offline fallback; `--llm` stays as a hidden
+  alias until 0.8.
 - **Plan tracking across versions**: each revision-plan item marked
   resolved / raised again across v1 → v2 → v3 of a project, on the dashboard.
 
 Done when: on Mamba v1 → v2 the tool itself reports "no measurable change",
 both on single runs (estimated range) and with `repeats = 3` (measured
 range). 0.7 also drops the hidden aliases 0.6 left.
+
+Status: all of the above is built. On single runs, every Mamba v1 → v2
+pair measured reads as within noise; the `repeats = 3` run on Mamba is
+still to do.
 
 ## Patch releases, as they are ready
 

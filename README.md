@@ -58,7 +58,8 @@ Report:   prebuttal-reports/globalgate-a-universal/2026-10-27_2228_neurips/repor
   so reviewers cite "Table 3, column 4" — not a guess.
 - **A revision plan, not just a verdict.** The area chair turns the reviews
   into a prioritised must / should / could checklist; `prebuttal diff` checks
-  it against the next round.
+  it against the next round by meaning and says when a score change is
+  within run-to-run noise. The dashboard follows each item across runs.
 - **A desk-reject pre-flight.** `prebuttal check` catches anonymity leaks,
   page-limit overruns, missing required sections and leftover `??` — no
   model, no cost, also as a GitHub Action.
@@ -123,14 +124,15 @@ command and setting, task by task:
   the plan and cost before anything runs (`--dry-run`), the three personas, and how
   to read the report.
 - [**The revision loop**](https://guoyukai-samuel.github.io/prebuttal/guide/#revision-loop) —
-  `--note`, `prebuttal diff` (`--llm` matches by meaning), `prebuttal retry`.
+  `--note`, `prebuttal diff` (matched by meaning, with a noise check),
+  `repeats`, `prebuttal retry`.
 - [**Projects & history**](https://guoyukai-samuel.github.io/prebuttal/guide/#projects) —
   `projects`, `runs`, `show` (`--open`, `-o`, `--plan`, `--json`), `note`, `rm`.
 - [**Backends & privacy**](https://guoyukai-samuel.github.io/prebuttal/guide/#backends) —
   what `auto` picks, API keys (`prebuttal key set`), environment variables.
 - [**Configuration**](https://guoyukai-samuel.github.io/prebuttal/guide/#configuration) —
   every `prebuttal.toml` setting: per-reviewer backends and models, `effort`,
-  `figures`, `[output]`.
+  `figures`, `repeats`, `[output]`.
 - [**Your own venue**](https://guoyukai-samuel.github.io/prebuttal/guide/#venues) —
   any review form and scale as one TOML file.
 - [**Inside a coding agent**](https://guoyukai-samuel.github.io/prebuttal/guide/#agents) —

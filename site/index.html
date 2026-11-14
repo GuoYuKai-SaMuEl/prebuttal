@@ -214,8 +214,9 @@ Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires on
 <span class="d">$</span> prebuttal retry mamba-revision#12   <span class="d"># same quota, same fix</span>
   Predicted: 7.33/10 (σ 0.94)  → saved as mamba-revision#18
 
-<span class="d">$</span> prebuttal diff --llm mamba-revision#17 mamba-revision#18
+<span class="d">$</span> prebuttal diff mamba-revision#17 mamba-revision#18
   panel          7.33/10 → 7.33/10 (Δ +0)
+                 within run-to-run noise (±0.99, estimated)
   still raised:  [must] Headline claims exceed the tested regime …
   still raised:  [should] No seeds, standard deviations …
   new in B:      the custom fused CUDA kernel's portability
@@ -225,8 +226,8 @@ Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires on
           <em>must / should / could</em> items: the issue with its table or section, the fix,
           who raised it. <code>prebuttal show --plan</code> prints it.</dd></div>
         <div><dt>Diff the next round</dt><dd><code>prebuttal diff</code> lists what is no
-          longer raised, what still is and what is new; <code>--llm</code> matches by
-          meaning.</dd></div>
+          longer raised, what still is and what is new, matched by meaning, and says
+          when a score change is within run-to-run noise.</dd></div>
         <div><dt>History per paper</dt><dd>The same PDF, LaTeX folder or arXiv id always
           lands in the same project. Runs are numbered (<code>mamba#3</code>) and carry
           your <code>--note</code>; <code>prebuttal projects --open</code> shows the

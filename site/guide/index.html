@@ -172,16 +172,25 @@ prebuttal run paper.pdf --dry-run          # the plan and the cost, nothing call
   <h2 id="revision-loop">4. The revision loop</h2>
   <p>Revise, then run again with a note on what changed:</p>
   <pre class="term">prebuttal run paper.pdf --note "added the Perceiver baseline"
-prebuttal diff          # newest run vs the one before: ratings, weaknesses, plan items
-prebuttal diff --llm    # match plan items by meaning (one model call) instead of wording</pre>
+prebuttal diff          # newest run vs the one before: score, ratings, weaknesses, plan items</pre>
   <p><code>diff</code> lists the plan items that are no longer raised, the ones still
-  raised, and what is new. Plain <code>diff</code> matches by wording, so a reworded
-  issue can show up as both “not re-detected” and “new” — read both lists before
-  ticking anything off, or use <code>--llm</code>. The seed stays the same between
-  runs unless you change <code>seed</code> in <code>prebuttal.toml</code>.</p>
+  raised, and what is new. It matches by meaning, with two calls to the AC's backend,
+  so a reworded issue is not counted as fixed. With no backend it can use (none
+  available, relay) it falls back to matching by wording, says so, and then a
+  reworded issue can show up as both “not re-detected” and “new” — read both lists
+  before ticking anything off. The seed stays the same between runs unless you change
+  <code>seed</code> in <code>prebuttal.toml</code>.</p>
   <p>Single runs are noisy: a score that moves by a point may be the model, not your
-  revision. The <a href="../reports/mamba-revision.html">Mamba revision demo</a> shows
-  what that looks like on a real paper.</p>
+  revision. <code>diff</code> says so under the score — “within run-to-run noise
+  (±0.99, estimated)” on a 10-point scale — using a noise range measured on real
+  runs. To measure it on your own paper, set <code>repeats = 3</code> in
+  <code>prebuttal.toml</code>: each reviewer reviews three times (about three times
+  the reviewer cost), the AC once over all of them, and <code>diff</code> uses the
+  range it measured. The <a href="../reports/mamba-revision.html">Mamba revision
+  demo</a> shows what that looks like on a real paper.</p>
+  <p>After each run the summary says how many items of the previous run's plan are no
+  longer raised, and <code>prebuttal projects --open</code> shows each item of the
+  latest plan with the run it first appeared in.</p>
   <p><strong>A reviewer failed</strong> (a quota, a timeout)? The report uses the
   reviews that finished, and <code>prebuttal retry</code> re-runs only the failed
   reviewers and the AC, on the same text. Ctrl+C keeps what finished, too.</p>

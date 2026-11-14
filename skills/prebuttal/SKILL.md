@@ -104,15 +104,19 @@ After the user revises the paper:
    the revision: `--note "what changed"`. The same paper source lands
    in the same project automatically.
 2. `prebuttal diff` — the newest run vs the one before it in the same project:
-   score deltas per reviewer plus weakness movement (gone / persists / new,
-   heuristic word-overlap matching), and the previous run's revision plan
-   checked against the new run (not re-detected / still raised / new).
-   Matching is by wording: before calling a "gone" or "not re-detected" item
-   fixed, check it is not simply reworded among the "new" ones — or run
-   `prebuttal diff --llm`, which matches plan items by meaning with one model
-   call. Present real fixes as wins and the rest as the user's TODO. A score
-   that moves by about a point between single runs may be noise, not the
-   revision: say so rather than celebrating it.
+   the predicted score with a noise verdict, ratings per reviewer, weakness
+   movement (gone / persists / new) and the previous run's revision plan
+   checked against the new run (not re-detected / still raised / new). It
+   matches by meaning with two calls to the AC's backend; with no usable
+   backend it falls back to word overlap, says why on stderr, and the
+   section headers say "heuristic" — then check that a "gone" item is not
+   simply reworded among the "new" ones before calling it fixed.
+   Relay the noise verdict as written: "within run-to-run noise" means the
+   score change can't be told from chance, so don't present it as the
+   revision's effect; "larger than run-to-run noise" can be. If the user
+   wants a firmer answer, `repeats = 3` in `prebuttal.toml` reviews three
+   times per run (about 3x the reviewer cost) and narrows the range.
+   Present real fixes as wins and the rest as the user's TODO.
 3. `prebuttal runs <project>` lists a paper's runs; reference one as
    `<project>#3`, `<project>~1` (one before the newest) or by id prefix.
    `prebuttal projects` lists every paper.
