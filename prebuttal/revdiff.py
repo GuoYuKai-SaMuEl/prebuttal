@@ -27,6 +27,9 @@ class PlanMatch:
     still: set[int]  # indices into A's plan that B still raises
     new_b: list[int]  # indices into B's plan that A's plan did not contain
     label: str  # who matched, for the report header
+    # A item -> the B plan items that are the same issue (to follow an item
+    # across runs); an A item B raises only in a weakness has none
+    links: dict[int, list[int]] = field(default_factory=dict)
 
 
 Pairs = list[int | None]  # for each old weakness, the new one it matches, or None
@@ -89,7 +92,12 @@ class WordOverlap:
         b_texts = b_plan + b_weak
         still = {i for i, x in enumerate(a_plan) if any(word_sim(x, t) >= SAME for t in b_texts)}
         new_b = [j for j, x in enumerate(b_plan) if not any(word_sim(x, y) >= SAME for y in a_plan)]
-        return PlanMatch(still=still, new_b=new_b, label=self.label)
+        links = {
+            i: same
+            for i, x in enumerate(a_plan)
+            if (same := [j for j, y in enumerate(b_plan) if word_sim(x, y) >= SAME])
+        }
+        return PlanMatch(still=still, new_b=new_b, label=self.label, links=links)
 
 
 WORD_OVERLAP = WordOverlap()
@@ -138,6 +146,11 @@ class PlanCheck:
     matched_by: str  # Matcher.label of whoever answered
     by_words: bool  # answered by word overlap (as chosen, or as the fallback)
     fell_back: bool  # a model matcher was asked and could not answer
+    # the plan ids (P1, P2...; by position in runs before 0.6.1) and the
+    # answer itself, so the plan can be followed across runs (plantrack)
+    a_ids: list[str] = field(default_factory=list)
+    b_ids: list[str] = field(default_factory=list)
+    match: PlanMatch | None = None
 
     @property
     def not_redetected(self) -> int:
@@ -246,14 +259,32 @@ def _index_ok(j: object, n: int) -> bool:
 
 
 def _valid_plan(m: PlanMatch, n_a: int, n_b: int) -> bool:
-    return all(_index_ok(i, n_a) for i in m.still) and all(_index_ok(j, n_b) for j in m.new_b)
+    if not isinstance(m.links, dict):
+        return False
+    linked_ok = all(
+        _index_ok(i, n_a) and isinstance(js, list) and all(_index_ok(j, n_b) for j in js)
+        for i, js in m.links.items()
+    )
+    return (
+        linked_ok
+        and all(_index_ok(i, n_a) for i in m.still)
+        and all(_index_ok(j, n_b) for j in m.new_b)
+    )
 
 
-def _check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
-    plan_a = [it for it in (da.get("meta", {}).get("action_plan") or []) if isinstance(it, dict)]
+def plan_items(data: dict) -> list[dict]:
+    """A report.json's revision plan, each item with its id (by position when
+    the run predates plan ids)."""
+    items = [it for it in (data.get("meta", {}).get("action_plan") or []) if isinstance(it, dict)]
+    return [{**it, "id": str(it.get("id") or f"P{n}")} for n, it in enumerate(items, 1)]
+
+
+def check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
+    """A's revision plan (report.json ``da``) checked against B; None when A has none."""
+    plan_a = plan_items(da)
     if not plan_a:
         return None
-    plan_b = [it for it in (db.get("meta", {}).get("action_plan") or []) if isinstance(it, dict)]
+    plan_b = plan_items(db)
     a_issues = [str(it.get("issue", "")) for it in plan_a]
     b_issues = [str(it.get("issue", "")) for it in plan_b]
     b_weak = [str(w) for r in db.get("reviewers", []) for w in _weaknesses_of(r)]
@@ -273,6 +304,9 @@ def _check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
         matched_by=match.label,
         by_words=by_words,
         fell_back=fell_back,
+        a_ids=[it["id"] for it in plan_a],
+        b_ids=[it["id"] for it in plan_b],
+        match=match,
     )
 
 
@@ -330,7 +364,7 @@ def compute_diff(a: RunRecord, b: RunRecord, *, matcher: Matcher | None = None) 
         weaknesses=movements,
         weaknesses_by_words=not used_words or any(used_words),
         weaknesses_matched_by=matcher.label,
-        plan=_check_plan(matcher, da, db),
+        plan=check_plan(matcher, da, db),
         round_means=(_round_means(aa), _round_means(ab)),
     )
 
@@ -485,7 +519,9 @@ __all__ = [
     "Weakness",
     "WeaknessMovement",
     "WordOverlap",
+    "check_plan",
     "compute_diff",
+    "plan_items",
     "render_diff",
     "render_diff_markdown",
     "word_sim",

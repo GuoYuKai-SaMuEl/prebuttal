@@ -26,6 +26,16 @@ releases (0.2, 0.3, …) are substantial new features.
   rounds it was raised (`A: 2 of 3 rounds`): one raised once may be chance.
 
 ### Added
+- The revision plan is followed across runs. After a run, its plan is
+  checked against the project's previous run (one call to the AC's
+  backend; word overlap with relay) and the summary says `Plan: 3 of 5
+  items of mamba#2 no longer raised · 1 new`. The match is kept in the run's
+  folder (`plan-track.json`), as is the one `prebuttal diff` makes for two
+  consecutive runs. The dashboard (`prebuttal projects --open`) lists each
+  project's latest plan with the run each item first appeared in ("since
+  #1", "new in #3") and the previous run's items no longer raised. It never
+  calls a model: a pair with no kept match is matched by wording, and says
+  so. Its score change reads "within noise" when chance alone could explain it.
 - `prebuttal diff` says whether the predicted score's change can be told
   from run-to-run noise: "within run-to-run noise (±0.99, estimated — not
   measured on this paper)", or "larger than …". A single run uses a default

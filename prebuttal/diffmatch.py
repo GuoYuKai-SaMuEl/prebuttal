@@ -80,6 +80,7 @@ def match_plan(
         return None
     still: set[int] = set()
     judged: set[int] = set()
+    links: dict[int, list[int]] = {}
     for entry in data["a"]:
         if not isinstance(entry, dict):
             return None
@@ -89,6 +90,15 @@ def match_plan(
         judged.add(i)
         if entry.get("still_raised") is True:
             still.add(i)
+        refs = entry.get("matched_by") or []
+        if not isinstance(refs, list):
+            return None
+        # B plan items only (W refs are weaknesses): which item carries it on
+        same = [_index(r, "B", len(b_plan)) for r in refs if str(r).strip().upper()[:1] == "B"]
+        if any(j is None for j in same):
+            return None
+        if entry.get("still_raised") is True and same:
+            links[i] = sorted({j for j in same if j is not None})
     if len(judged) < len(a_plan):  # an incomplete answer is worse than the heuristic
         return None
     new_refs = data.get("new_in_b") or []
@@ -98,7 +108,7 @@ def match_plan(
     if any(j is None for j in new_b):  # it named a B item that does not exist
         return None
     return PlanMatch(still=still, new_b=sorted({j for j in new_b if j is not None}),
-                     label=_label(provider))  # fmt: skip
+                     label=_label(provider), links=links)  # fmt: skip
 
 
 def match_weaknesses(

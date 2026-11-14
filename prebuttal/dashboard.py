@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 
 from . import __version__
+from .noise import check_noise
+from .plantrack import project_plan
 from .report import report_from_dict
 from .runs import ProjectSummary, RunRecord, runs_root
 from .share import render_share_html
@@ -99,6 +101,12 @@ def _delta(p: ProjectSummary) -> str:
     d = b.mean - a.mean if a.scale == b.scale else None
     if d is None:
         return '<span class="delta">venue changed</span>'
+    n = check_noise(a.mean, b.mean, a.round_means or [], b.round_means or [], b.scale or 10)
+    if n.within:  # a change chance alone could make: no colour, no direction
+        return (
+            f'<span class="delta flat" title="within run-to-run noise (±{n.band:g})">'
+            f"{d:+g} vs #{a.run_no} · within noise</span>"
+        )
     cls = "up" if d > 0 else ("down" if d < 0 else "flat")
     return f'<span class="delta {cls}">{d:+g} vs #{a.run_no}</span>'
 
@@ -122,6 +130,44 @@ def _run_rows(p: ProjectSummary, base: Path) -> str:
     return "".join(rows)
 
 
+def _plan_section(p: ProjectSummary) -> str:
+    """The latest revision plan, each item with the run it first appeared in."""
+    plan = project_plan(p.runs)
+    if plan is None:
+        return ""
+    lis = []
+    for it in plan.items:
+        if it.since == plan.run.run_no:
+            when = f"new in #{it.since}" if plan.previous is not None else ""
+        else:
+            when = f"since #{it.since}"
+        tag = f' <span class="since">{_e(when)}</span>' if when else ""
+        lis.append(f"<li><b>[{_e(it.priority)}]</b> {_e(it.issue[:300])}{tag}</li>")
+    carried = sum(it.since != plan.run.run_no for it in plan.items)
+    dropped = ""
+    if plan.previous is not None and plan.dropped:
+        items = "".join(
+            f"<li><b>[{_e(pr)}]</b> {_e(issue[:300])}</li>" for pr, issue in plan.dropped
+        )
+        dropped = (
+            f'<p class="sub">No longer raised in #{plan.run.run_no} '
+            f"(from #{plan.previous.run_no}):</p><ul class=dropped>{items}</ul>"
+        )
+    how = (
+        '<p class="sub">Matched by wording: an issue reworded between runs can look '
+        "new — <code>prebuttal diff</code> with a model backend matches by meaning.</p>"
+        if plan.by_words
+        else ""
+    )
+    earlier = f" · {carried} from earlier runs" if plan.previous is not None else ""
+    title = f"Revision plan of #{plan.run.run_no} · {_plural(len(plan.items), 'item')}{earlier}"
+    return f"""
+    <details class="plan">
+      <summary>{title}</summary>
+      <ol>{"".join(lis)}</ol>{dropped}{how}
+    </details>"""
+
+
 def render_dashboard(projects: list[ProjectSummary], *, base: Path | None = None) -> str:
     base = base or runs_root()
     n_runs = sum(len(p.runs) for p in projects)
@@ -143,7 +189,7 @@ def render_dashboard(projects: list[ProjectSummary], *, base: Path | None = None
       <thead><tr><th>run</th><th>date</th><th>venue</th><th>score</th><th>σ</th>
         <th>note</th><th></th></tr></thead>
       <tbody>{_run_rows(p, base)}</tbody>
-    </table>
+    </table>{_plan_section(p)}
   </section>""")  # noqa: RUF001
     body = "".join(cards) or (
         '<p class="empty">No runs yet. Review a paper with '
@@ -189,6 +235,12 @@ def render_dashboard(projects: list[ProjectSummary], *, base: Path | None = None
   a {{ color:var(--accent); }}
   code {{ font-size:12.5px; }}
   .empty {{ color:var(--mute); }}
+  details.plan {{ margin-top:10px; font-size:13.5px; }}
+  details.plan summary {{ cursor:pointer; color:var(--accent); }}
+  details.plan ol, details.plan ul {{ margin:6px 0; padding-left:22px; }}
+  details.plan li {{ margin:3px 0; }}
+  .since {{ color:var(--mute); font-size:12.5px; white-space:nowrap; }}
+  ul.dropped li {{ color:var(--mute); }}
   footer {{ color:var(--mute); font-size:12.5px; margin-top:24px; }}
   @media (max-width:640px) {{ table {{ display:block; overflow-x:auto; }} }}
 </style>

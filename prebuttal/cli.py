@@ -64,7 +64,7 @@ from .providers import (
     scan_backends,
 )
 from .report import dumps_json, render_markdown, render_plan, report_from_dict
-from .revdiff import render_diff
+from .revdiff import compute_diff, render_diff_markdown
 from .runs import (
     delete_runs,
     load_history,
@@ -564,9 +564,15 @@ def cmd_diff(args) -> int:
     if matcher is None:
         _log(f"[prebuttal] matching by word overlap: {why_not}")
     try:
-        print(render_diff(a, b, matcher=matcher))
+        d = compute_diff(a, b, matcher=matcher)
     except (FileNotFoundError, ValueError) as e:
         return _fail(str(e))
+    print(render_diff_markdown(d))
+    before = previous_run(b)
+    if before is not None and before.id == a.id:  # consecutive: the dashboard can reuse it
+        from .plantrack import keep_diff_check
+
+        keep_diff_check(a, b, d.plan)
     return EXIT_OK
 
 
@@ -1061,8 +1067,37 @@ def cmd_run(args) -> int:
         formats=formats,
         out_dir=cfg.output_dir,
         save=not args.no_save,
+        plan_matcher=_plan_matcher(ac_provider, interrupted),
     )
     return 130 if interrupted else rc
+
+
+def _plan_matcher(ac_provider, interrupted: bool):
+    """Who follows the plan after a run: the AC's backend (one more call), word
+    overlap when that needs a person (relay) or the run was cut short."""
+    from .diffmatch import ModelMatcher
+    from .revdiff import WORD_OVERLAP
+
+    if interrupted or ac_provider.backend == "relay":
+        return WORD_OVERLAP
+    return ModelMatcher(ac_provider)
+
+
+def _track_plan(prev, rec, matcher):
+    """The previous run's plan checked against this run, kept for the dashboard;
+    never fails the run (a missing track is computed again later)."""
+    from .plantrack import track_pair
+    from .revdiff import WORD_OVERLAP
+
+    if prev is None or rec is None:
+        return None
+    if matcher is not WORD_OVERLAP:
+        _log(f"[prebuttal] following the revision plan from {prev.label} via {matcher.label}")
+    try:
+        return track_pair(prev, rec, matcher)
+    except Exception as e:  # a cache: never worth a failed run
+        _log(f"[prebuttal] could not follow the revision plan from {prev.label}: {e}")
+        return None
 
 
 def _deliver(
@@ -1075,8 +1110,12 @@ def _deliver(
     formats: tuple[str, ...],
     out_dir: str,
     save: bool,
+    plan_matcher=None,
 ) -> int:
-    """Render, archive and write a finished report; print the summary; exit code."""
+    """Render, archive and write a finished report; print the summary; exit code.
+
+    ``plan_matcher``: follow the revision plan from the project's previous run
+    (`run`; a retry completes a run rather than revising the paper)."""
     md = render_markdown(report, venue)
     json_str = dumps_json(report, venue)
     html_str = render_share_html(report, venue, cfg.repo_url)
@@ -1093,6 +1132,7 @@ def _deliver(
             )  # fmt: skip
         except OSError as e:
             _log(f"[prebuttal] warning: could not archive this run ({e})")
+    track = _track_plan(prev, rec, plan_matcher) if plan_matcher is not None else None
 
     written: list[Path] = []
     try:
@@ -1137,6 +1177,13 @@ def _deliver(
             print(
                 f"Change:   {agg.mean - prev.mean:+g} vs {prev.label} "
                 f"({prev.mean:g} → {agg.mean:g}){verdict}"
+            )
+        if track is not None and prev is not None:
+            gone = len(track.a_ids) - len(track.still)
+            how = " (by wording)" if track.by_words else ""
+            print(
+                f"Plan:     {gone} of {len(track.a_ids)} items of {prev.label} no longer "
+                f"raised · {len(track.new_in_b)} new{how}"
             )
         print(f"Saved:    {rec.label}")
     for i, it in enumerate(report.meta.action_plan[:3]):
