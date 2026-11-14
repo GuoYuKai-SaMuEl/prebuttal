@@ -1,11 +1,11 @@
-"""`prebuttal diff --llm`: revision-plan items matched by meaning."""
+"""`prebuttal diff`: weaknesses and revision-plan items matched by meaning."""
 
 import json
 
 from conftest import PersonaFakeProvider
 
 from prebuttal import cli
-from prebuttal.diffmatch import match_plan
+from prebuttal.diffmatch import match_plan, match_weaknesses
 from prebuttal.models import Usage
 from prebuttal.providers import register_backend
 from prebuttal.providers.base import BaseProvider, ProviderError
@@ -38,7 +38,7 @@ def test_match_plan_parses_and_validates():
                     {"id": "A1", "still_raised": True, "matched_by": ["B1"]},
                     {"id": "A2", "still_raised": True, "matched_by": ["W1"]},
                 ],
-                "new_in_b": ["B2", "B9", "nonsense"],
+                "new_in_b": ["B2", "b2"],
             }
         )
     )
@@ -52,6 +52,23 @@ def test_match_plan_rejects_incomplete_or_failed_answers():
     assert match_plan(_Canned('{"a": [{"id": "A1", "still_raised": false}]}'), A, B, W) is None
     assert match_plan(_Canned("not json"), A, B, W) is None
     assert match_plan(_Canned(ProviderError("down")), A, B, W) is None
+    # one item that does not exist and the whole answer is not used
+    full = [{"id": "A1", "still_raised": True}, {"id": "A2", "still_raised": False}]
+    for bad in ({"a": full, "new_in_b": ["B9"]}, {"a": [*full, {"id": "A7"}], "new_in_b": []}):
+        assert match_plan(_Canned(json.dumps(bad)), A, B, W) is None
+
+
+def test_match_weaknesses_answers_each_reviewer_in_one_call():
+    groups = [(["Single seed only."], ["One random seed.", "No ablation."]),
+              (["Unclear writing.", "No code."], ["Code is missing."])]  # fmt: skip
+    answer = {"G1": {"A1": "B1"}, "G2": {"A1": None, "A2": "B1"}}
+    p = _Canned(json.dumps(answer))
+    assert match_weaknesses(p, groups) == [[0], [None, 0]]
+    assert len(p.prompts) == 1 and "Reviewer G2" in p.prompts[0]
+    # a reviewer whose answer is incomplete or names a missing item: None, the rest kept
+    partial = {"G1": {"A1": "B7"}, "G2": {"A2": "B1"}}
+    assert match_weaknesses(_Canned(json.dumps(partial)), groups) == [None, None]
+    assert match_weaknesses(_Canned(ProviderError("down")), groups) is None
 
 
 def _two_runs(latex_project, fake_config, monkeypatch):
@@ -61,8 +78,8 @@ def _two_runs(latex_project, fake_config, monkeypatch):
     return load_history()
 
 
-def test_cli_diff_llm_uses_the_model_match(
-    latex_project, fake_statuses, fake_config, monkeypatch, capsys
+def test_cli_diff_matches_by_meaning_by_default(
+    latex_project, fake_statuses, fake_config, model_diff, monkeypatch, capsys
 ):
     hist = _two_runs(latex_project, fake_config, monkeypatch)
     plan = json.loads((hist[1].dir_path / "report.json").read_text(encoding="utf-8"))["meta"]
@@ -74,24 +91,39 @@ def test_cli_diff_llm_uses_the_model_match(
     capsys.readouterr()
 
     monkeypatch.setenv("PREBUTTAL_BACKEND", "matcher")  # the AC backend, without a flag
-    rc = cli.main(["diff", "--llm"])
-    out = capsys.readouterr().out
+    rc = cli.main(["diff"])
+    captured = capsys.readouterr()
+    out = captured.out
     assert rc == cli.EXIT_OK
+    assert "by meaning via" in captured.err
     assert "matched by canned / m1" in out
     assert out.count("- still raised:") == 1
     assert f"{n - 1} of {n} plan items were not re-detected" in out
     assert "Matching is by wording" not in out
 
 
-def test_cli_diff_llm_falls_back_to_word_overlap(
-    latex_project, fake_statuses, fake_config, monkeypatch, capsys
+def test_cli_diff_falls_back_to_word_overlap(
+    latex_project, fake_statuses, fake_config, model_diff, monkeypatch, capsys
 ):
     _two_runs(latex_project, fake_config, monkeypatch)
     # the fake backend answers with a review, not a plan match
     register_backend("fake", lambda m, cfg, t: PersonaFakeProvider(model="fake-m"))
     capsys.readouterr()
     monkeypatch.setenv("PREBUTTAL_BACKEND", "fake")
-    rc = cli.main(["diff", "--llm"])
-    out = capsys.readouterr().out
+    rc = cli.main(["diff", "--llm"])  # the 0.6 flag still works, and says it is not needed
+    captured = capsys.readouterr()
     assert rc == cli.EXIT_OK
-    assert "model matching failed — fell back to word overlap" in out
+    assert "model matching failed — fell back to word overlap" in captured.out
+    assert "--llm is no longer needed" in captured.err
+
+
+def test_cli_diff_without_a_usable_backend_says_why(
+    latex_project, fake_statuses, fake_config, model_diff, monkeypatch, capsys
+):
+    _two_runs(latex_project, fake_config, monkeypatch)
+    capsys.readouterr()
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "relay")
+    assert cli.main(["diff"]) == cli.EXIT_OK
+    captured = capsys.readouterr()
+    assert "matching by word overlap: the AC's backend is relay" in captured.err
+    assert "heuristic: ≥35% word overlap" in captured.out

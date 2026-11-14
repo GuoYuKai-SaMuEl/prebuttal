@@ -229,7 +229,7 @@ def test_diff_keeps_reviewers_that_share_a_persona(latex_project):
             r["persona"] = "adversarial"
         p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     text = render_diff(rec_a, rec_b)
-    for key in ("- adversarial:", "- adversarial #2:", "- adversarial #3:"):
+    for key in ("- R1 · adversarial:", "- R2 · adversarial:", "- R3 · adversarial:"):
         assert key in text
 
 

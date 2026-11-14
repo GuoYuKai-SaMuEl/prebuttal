@@ -487,11 +487,10 @@ required_sections = ["Limitations"]   # these don't count toward the limit</pre>
 </table>
 <h3 id="cmd-diff"><code>prebuttal diff</code></h3>
 <p>compare two runs (default: latest vs the run before it, same project)</p>
-<pre class="term">prebuttal diff [--llm] [run_a] [run_b]</pre>
+<pre class="term">prebuttal diff [run_a] [run_b]</pre>
 <table class="ref">
 <tr><td><code>run_a</code></td><td>older run (default: the one before run_b, same project)</td></tr>
 <tr><td><code>run_b</code></td><td>a run: name#3, name~1 (one before the newest) or an id prefix (default: latest)</td></tr>
-<tr><td><code>--llm</code></td><td>match revision-plan items by meaning with one call to the AC's backend</td></tr>
 </table>
 <h3 id="cmd-note"><code>prebuttal note</code></h3>
 <p>attach a note to a run (shown in lists and overviews)</p>

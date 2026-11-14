@@ -29,16 +29,20 @@ class PlanMatch:
     label: str  # who matched, for the report header
 
 
+Pairs = list[int | None]  # for each old weakness, the new one it matches, or None
+
+
 class Matcher(Protocol):
     """Decides which texts in two runs name the same problem.
 
-    Either method may return None ("could not tell"); the diff then uses
-    word overlap for that question."""
+    Either method may return None ("could not tell"), and ``weaknesses`` may
+    return None for one reviewer; the diff then uses word overlap there."""
 
     label: str
 
-    def weaknesses(self, old: list[str], new: list[str]) -> list[int | None] | None:
-        """For each old weakness, the index of the new one it matches (one-to-one)."""
+    def weaknesses(self, groups: list[tuple[list[str], list[str]]]) -> list[Pairs | None] | None:
+        """For each reviewer's (old, new) weaknesses: for each old one, the index
+        of the new one it matches (one-to-one), or None."""
         ...
 
     def plan(self, a_plan: list[str], b_plan: list[str], b_weak: list[str]) -> PlanMatch | None:
@@ -59,7 +63,10 @@ class WordOverlap:
 
     label = "word overlap"
 
-    def weaknesses(self, old: list[str], new: list[str]) -> list[int | None]:
+    def weaknesses(self, groups: list[tuple[list[str], list[str]]]) -> list[Pairs | None]:
+        return [self.pairs(old, new) for old, new in groups]
+
+    def pairs(self, old: list[str], new: list[str]) -> Pairs:
         taken: set[int] = set()
         out: list[int | None] = []
         for ow in old:
@@ -93,17 +100,26 @@ WORD_OVERLAP = WordOverlap()
 
 @dataclass
 class RatingChange:
-    reviewer: str  # persona; a repeated persona is ``persona #2``, ...
-    a: float | None
+    reviewer: str  # ``R1 · senior_kind``
+    a: float | None  # with `repeats`: the mean of the reviewer's rounds
     b: float | None
+    rounds: tuple[int, int] = (1, 1)  # reviews of this reviewer in A, in B
+
+
+@dataclass
+class Weakness:
+    text: str
+    seen_a: int = 0  # rounds of A that raised it (with `repeats`, can be < rounds)
+    seen_b: int = 0
 
 
 @dataclass
 class WeaknessMovement:
     reviewer: str
-    gone: list[str] = field(default_factory=list)
-    persists: list[str] = field(default_factory=list)
-    new: list[str] = field(default_factory=list)
+    gone: list[Weakness] = field(default_factory=list)
+    persists: list[Weakness] = field(default_factory=list)
+    new: list[Weakness] = field(default_factory=list)
+    rounds: tuple[int, int] = (1, 1)
 
 
 @dataclass
@@ -161,46 +177,76 @@ class RevisionDiff:
         return check_noise(ma, mb, *self.round_means, scale)
 
 
-def _by_persona(reviewers: list[dict]) -> dict[str, dict]:
-    """Reviewers keyed by persona; a repeated persona gets ``persona #2``, ...
-    so two reviewers sharing one never overwrite each other."""
-    out: dict[str, dict] = {}
-    for r in reviewers:
-        base = str(r.get("persona") or "?")
-        key, n = base, 1
-        while key in out:
-            n += 1
-            key = f"{base} #{n}"
-        out[key] = r
+def _by_reviewer(reviewers: list[dict]) -> dict[str, list[dict]]:
+    """Reviews keyed ``R1 · senior_kind``: each reviewer's rounds (`repeats`)
+    together. A reviewer whose persona changed between runs is a different
+    one, so its ratings are never compared."""
+    out: dict[str, list[dict]] = {}
+    for i, r in enumerate(reviewers):
+        rid = str(r.get("reviewer_id") or f"#{i + 1}")
+        out.setdefault(f"{rid} · {r.get('persona') or '?'}", []).append(r)
     return out
 
 
+def _mean_rating(reviews: list[dict]) -> float | None:
+    got = [v for r in reviews if (v := _num(r.get("rating"))) is not None]
+    return round(sum(got) / len(got), 2) if got else None
+
+
 def _weaknesses_of(r: dict) -> list[str]:
-    return list((r.get("fields") or {}).get("weaknesses") or [])
+    return [str(w) for w in (r.get("fields") or {}).get("weaknesses") or []]
+
+
+def _merged_weaknesses(reviews: list[dict]) -> list[tuple[str, int]]:
+    """One reviewer's weaknesses over its rounds, each once (by wording), with
+    the number of rounds that raised it. A single review: each seen once."""
+    merged: list[tuple[str, set[int]]] = []
+    for k, r in enumerate(reviews):
+        for w in _weaknesses_of(r):
+            same = next((m for m in merged if k not in m[1] and word_sim(m[0], w) >= SAME), None)
+            if same is not None:
+                same[1].add(k)
+            else:
+                merged.append((w, {k}))
+    return [(text, len(rounds)) for text, rounds in merged]
 
 
 def _by_words(matcher: Matcher) -> bool:
     return isinstance(matcher, WordOverlap)
 
 
-def _valid_pairs(got: list[int | None] | None, old: list[str], new: list[str]) -> bool:
+def _valid_pairs(got: object, old: list[str], new: list[str]) -> bool:
     """One answer per old weakness, each a distinct index into ``new`` (or None)."""
-    if got is None or len(got) != len(old):
+    if not isinstance(got, list) or len(got) != len(old):
         return False
     picked = [j for j in got if j is not None]
-    return len(set(picked)) == len(picked) and all(
-        isinstance(j, int) and 0 <= j < len(new) for j in picked
-    )
+    return len(set(picked)) == len(picked) and all(_index_ok(j, len(new)) for j in picked)
 
 
 def _match_weaknesses(
-    matcher: Matcher, old: list[str], new: list[str]
-) -> tuple[list[int | None], bool]:
-    """The pairs, and whether word overlap produced them."""
-    got = matcher.weaknesses(old, new)
-    if got is not None and _valid_pairs(got, old, new):
-        return got, _by_words(matcher)
-    return WORD_OVERLAP.weaknesses(old, new), True
+    matcher: Matcher, groups: list[tuple[list[str], list[str]]]
+) -> list[tuple[Pairs, bool]]:
+    """Each reviewer's pairs, and whether word overlap produced them."""
+    got = matcher.weaknesses(groups) if any(o and n for o, n in groups) else None
+    if not isinstance(got, list) or len(got) != len(groups):
+        got = [None] * len(groups)
+    out: list[tuple[Pairs, bool]] = []
+    for (old, new), pairs in zip(groups, got, strict=True):
+        if not (old and new):  # nothing to pair: no matcher needed
+            out.append(([None] * len(old), _by_words(matcher)))
+        elif pairs is not None and _valid_pairs(pairs, old, new):
+            out.append((pairs, _by_words(matcher)))
+        else:
+            out.append((WORD_OVERLAP.pairs(old, new), True))
+    return out
+
+
+def _index_ok(j: object, n: int) -> bool:
+    return isinstance(j, int) and not isinstance(j, bool) and 0 <= j < n
+
+
+def _valid_plan(m: PlanMatch, n_a: int, n_b: int) -> bool:
+    return all(_index_ok(i, n_a) for i in m.still) and all(_index_ok(j, n_b) for j in m.new_b)
 
 
 def _check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
@@ -212,25 +258,18 @@ def _check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
     b_issues = [str(it.get("issue", "")) for it in plan_b]
     b_weak = [str(w) for r in db.get("reviewers", []) for w in _weaknesses_of(r)]
     match = matcher.plan(a_issues, b_issues, b_weak)
-    fell_back = match is None
-    if match is None:
+    # a Matcher is public API: an answer with an index it got wrong is not
+    # trusted at all, as for weaknesses
+    fell_back = match is None or not _valid_plan(match, len(a_issues), len(b_issues))
+    if fell_back or match is None:
         match = WORD_OVERLAP.plan(a_issues, b_issues, b_weak)
     by_words = fell_back or _by_words(matcher)
-    new_b: list[int] = []
-    for j in match.new_b:  # a Matcher is public API: drop indices it got wrong
-        if (
-            isinstance(j, int)
-            and not isinstance(j, bool)
-            and j not in new_b
-            and 0 <= j < len(b_issues)
-        ):
-            new_b.append(j)
     return PlanCheck(
         items=[
             PlanItemStatus(str(it.get("priority", "?")), issue, i in match.still)
             for i, (it, issue) in enumerate(zip(plan_a, a_issues, strict=True))
         ],
-        new_in_b=[b_issues[j] for j in new_b],
+        new_in_b=[b_issues[j] for j in sorted(set(match.new_b))],
         matched_by=match.label,
         by_words=by_words,
         fell_back=fell_back,
@@ -243,32 +282,39 @@ def compute_diff(a: RunRecord, b: RunRecord, *, matcher: Matcher | None = None) 
     da, db = _load_run_json(a), _load_run_json(b)
     aa, ab = da.get("aggregate", {}), db.get("aggregate", {})
     ea, eb = da.get("meta", {}), db.get("meta", {})
-    ra, rb = _by_persona(da.get("reviewers", [])), _by_persona(db.get("reviewers", []))
+    ra, rb = _by_reviewer(da.get("reviewers", [])), _by_reviewer(db.get("reviewers", []))
 
-    ratings = []
-    for persona in sorted(set(ra) | set(rb)):
-        x, y = ra.get(persona), rb.get(persona)
-        ratings.append(
-            RatingChange(
-                persona, _num(x.get("rating")) if x else None, _num(y.get("rating")) if y else None
-            )
+    ratings = [
+        RatingChange(
+            key,
+            _mean_rating(ra.get(key, [])),
+            _mean_rating(rb.get(key, [])),
+            (len(ra.get(key, [])), len(rb.get(key, []))),
         )
+        for key in sorted(set(ra) | set(rb))
+    ]
 
+    both = sorted(set(ra) & set(rb))
+    merged = {k: (_merged_weaknesses(ra[k]), _merged_weaknesses(rb[k])) for k in both}
+    keys = [k for k in both if merged[k][0] or merged[k][1]]
+    groups = [([t for t, _n in merged[k][0]], [t for t, _n in merged[k][1]]) for k in keys]
     movements: list[WeaknessMovement] = []
     used_words: list[bool] = []
-    for persona in sorted(set(ra) & set(rb)):
-        old, new = _weaknesses_of(ra[persona]), _weaknesses_of(rb[persona])
-        if not old and not new:
-            continue
-        pairs, words = _match_weaknesses(matcher, old, new)
+    for key, (pairs, words) in zip(keys, _match_weaknesses(matcher, groups), strict=True):
+        old, new = merged[key]
         used_words.append(words)
         matched = {j for j in pairs if j is not None}
         movements.append(
             WeaknessMovement(
-                persona,
-                gone=[w for w, j in zip(old, pairs, strict=True) if j is None],
-                persists=[w for w, j in zip(old, pairs, strict=True) if j is not None],
-                new=[w for j, w in enumerate(new) if j not in matched],
+                key,
+                gone=[Weakness(t, n) for (t, n), j in zip(old, pairs, strict=True) if j is None],
+                persists=[
+                    Weakness(t, n, new[j][1])
+                    for (t, n), j in zip(old, pairs, strict=True)
+                    if j is not None
+                ],
+                new=[Weakness(t, 0, n) for j, (t, n) in enumerate(new) if j not in matched],
+                rounds=(len(ra[key]), len(rb[key])),
             )
         )
 
@@ -330,7 +376,11 @@ def render_diff_markdown(d: RevisionDiff) -> str:
 
     out.append("## Reviewer ratings (A → B; single reviews — treat as anecdotes)")
     for rc in d.ratings:
-        out.append(f"- {rc.reviewer}: {_g(rc.a)} → {_g(rc.b)}{_delta(rc.a, rc.b) if same else ''}")
+        ka, kb = rc.rounds
+        of = f"  (mean of {ka} → {kb} rounds)" if max(ka, kb) > 1 else ""
+        out.append(
+            f"- {rc.reviewer}: {_g(rc.a)} → {_g(rc.b)}{_delta(rc.a, rc.b) if same else ''}{of}"
+        )
     out.append("")
 
     if d.weaknesses_by_words:
@@ -341,9 +391,17 @@ def render_diff_markdown(d: RevisionDiff) -> str:
         out.append(f"## Weakness movement (matched by {d.weaknesses_matched_by})")
     for mv in d.weaknesses:
         out.append(f"### {mv.reviewer}")
-        out.extend(f"- gone: {w[:220]}" for w in mv.gone)
-        out.extend(f"- persists: {w[:220]}" for w in mv.persists)
-        out.extend(f"- new: {w[:220]}" for w in mv.new)
+        ka, kb = mv.rounds
+        out.extend(f"- gone: {w.text[:220]}{_seen(w.seen_a, ka, 'A')}" for w in mv.gone)
+        out.extend(
+            f"- persists: {w.text[:220]}{_seen(w.seen_a, ka, 'A')}{_seen(w.seen_b, kb, 'B')}"
+            for w in mv.persists
+        )
+        out.extend(f"- new: {w.text[:220]}{_seen(w.seen_b, kb, 'B')}" for w in mv.new)
+        once = [w for w in mv.gone + mv.persists if ka > 1 and w.seen_a == 1]
+        once += [w for w in mv.persists + mv.new if kb > 1 and w.seen_b == 1]
+        if once:
+            out.append("(raised in 1 round only: may be chance, as a single review is)")
         out.append("")
     if not d.weaknesses:
         out.append("(no weaknesses reported in either run)")
@@ -357,6 +415,11 @@ def render_diff_markdown(d: RevisionDiff) -> str:
         "treat movements as signals, not measurements.*"
     )
     return "\n".join(out)
+
+
+def _seen(seen: int, rounds: int, side: str) -> str:
+    """`` (A: 2 of 3 rounds)`` for a side with several rounds, else empty."""
+    return f" ({side}: {seen} of {rounds} rounds)" if rounds > 1 else ""
 
 
 def _noise_lines(n: NoiseCheck) -> list[str]:
@@ -397,7 +460,8 @@ def _render_plan_check(out: list[str], pc: PlanCheck) -> None:
         out.append(
             "Matching is by wording: an issue B raises in other words counts as "
             "not re-detected *and* new — read the two lists side by side before "
-            "ticking anything off (`prebuttal diff --llm` matches by meaning). "
+            "ticking anything off (with a model backend for the AC, `prebuttal diff` "
+            "matches by meaning: `prebuttal backends`). "
             "Most reliable with the same backends and seed for both runs."
         )
     out.append("")
@@ -412,11 +476,13 @@ __all__ = [
     "SAME",
     "WORD_OVERLAP",
     "Matcher",
+    "Pairs",
     "PlanCheck",
     "PlanItemStatus",
     "PlanMatch",
     "RatingChange",
     "RevisionDiff",
+    "Weakness",
     "WeaknessMovement",
     "WordOverlap",
     "compute_diff",

@@ -10,6 +10,21 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+### Changed
+- `prebuttal diff` matches by meaning by default: one call to the AC's
+  backend pairs every reviewer's weaknesses, one checks the revision plan,
+  so an issue B raises in other words is no longer counted as gone *and*
+  new. Without a usable backend (none available, relay, an untrusted
+  `prebuttal.toml`) it falls back to word overlap and says why in one line.
+  An answer that is incomplete or names an item that does not exist is not
+  used at all, for plan items as for weaknesses (plan answers used to keep
+  their valid parts). `--llm` is no longer needed: it still works, says so,
+  and goes in 0.8.
+- `prebuttal diff` compares reviewers by id and persona (`R1 · senior_kind`)
+  rather than by persona. With `repeats`, a reviewer's rating is the mean of
+  its rounds, and each weakness, merged over the rounds, says in how many
+  rounds it was raised (`A: 2 of 3 rounds`): one raised once may be chance.
+
 ### Added
 - `prebuttal diff` says whether the predicted score's change can be told
   from run-to-run noise: "within run-to-run noise (±0.99, estimated — not

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from prebuttal.cli import _model_matcher as _REAL_MODEL_MATCHER
 from prebuttal.config import load_config
 from prebuttal.ingestion import ingest
 from prebuttal.models import Usage
@@ -27,6 +28,23 @@ def neutral_host_env(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     # an installed claude / codex would be asked for its sign-in on every scan
     monkeypatch.setattr("prebuttal.providers.detect.signed_out", lambda cli: False)
+
+
+@pytest.fixture(autouse=True)
+def offline_diff(monkeypatch):
+    """`prebuttal diff` matches by meaning with a real backend by default: in
+    tests it uses word overlap unless a test asks for `model_diff`."""
+    from prebuttal import cli
+
+    monkeypatch.setattr(cli, "_model_matcher", lambda: (None, "offline in tests"))
+
+
+@pytest.fixture
+def model_diff(monkeypatch):
+    """`prebuttal diff` picks its model matcher as in real use."""
+    from prebuttal import cli
+
+    monkeypatch.setattr(cli, "_model_matcher", _REAL_MODEL_MATCHER)
 
 
 def make_report(latex_project, *, venue_key: str = "iclr", rating_shift: int = 0):

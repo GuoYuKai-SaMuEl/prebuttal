@@ -231,11 +231,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="older run (default: the one before run_b, same project)",
     )
     diff_p.add_argument("run_b", nargs="?", default=None, help=RUN_REF + " (default: latest)")
-    diff_p.add_argument(
-        "--llm",
-        action="store_true",
-        help="match revision-plan items by meaning with one call to the AC's backend",
-    )
+    # gone in 0.8: matching by meaning is the default since 0.7
+    diff_p.add_argument("--llm", action="store_true", help=argparse.SUPPRESS)
 
     note_p = sub.add_parser("note", help="attach a note to a run (shown in lists and overviews)")
     note_p.add_argument("run", help=RUN_REF)
@@ -560,11 +557,12 @@ def cmd_diff(args) -> int:
         b = _resolve_run_or_exit(args.run_b)
         if b is None:
             return EXIT_USAGE
-    matcher = None
     if args.llm:
-        matcher = _model_matcher(args)
-        if matcher is None:
-            return EXIT_NO_BACKEND
+        _log("[prebuttal] note: --llm is no longer needed — diff matches by meaning by default "
+             "since 0.7 (the flag goes in 0.8)")  # fmt: skip
+    matcher, why_not = _model_matcher()
+    if matcher is None:
+        _log(f"[prebuttal] matching by word overlap: {why_not}")
     try:
         print(render_diff(a, b, matcher=matcher))
     except (FileNotFoundError, ValueError) as e:
@@ -572,31 +570,35 @@ def cmd_diff(args) -> int:
     return EXIT_OK
 
 
-def _model_matcher(args):
-    """`diff --llm`: the configured AC backend as the diff's matcher."""
+def _model_matcher():
+    """The configured AC backend as the diff's matcher, or (None, why not).
+
+    Never asks: a diff runs offline from the archive, so a backend it can't
+    use without a question (relay, an untrusted prebuttal.toml) means word
+    overlap, said in one line."""
+    from . import trust
     from .diffmatch import ModelMatcher
 
-    cfg = apply_overrides(load_config(None), backend=env_backend())
+    try:
+        cfg = apply_overrides(load_config(None), backend=env_backend())
+    except ConfigError as e:
+        return None, str(e)
     statuses = scan_backends(cfg)
     try:
         _resolved, ac = resolve_backends(cfg, statuses)
-    except NoBackendError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return None
+    except NoBackendError:
+        return None, "no model backend is available (`prebuttal backends`)"
     if ac[0] == "relay":
-        print("error: --llm needs an automatic backend, not relay", file=sys.stderr)
-        return None
-    from .trust import pinned_by_file
-
-    if not _config_trusted(cfg, [ac], pinned=pinned_by_file(None)):
-        return None
+        return None, "the AC's backend is relay, which needs someone to answer"
+    concerns = trust.concerns(cfg, [ac], pinned=trust.pinned_by_file(None), relay=False)
+    if concerns and not trust.is_trusted(cfg.config_path or ""):
+        return None, f"{cfg.config_path} is not trusted yet (`prebuttal run` asks once)"
     try:
         provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
     except ProviderError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return None
-    _log(f"[prebuttal] matching revision plans via {provider.describe()}")
-    return ModelMatcher(provider)
+        return None, str(e)
+    _log(f"[prebuttal] matching weaknesses and plan items by meaning via {provider.describe()}")
+    return ModelMatcher(provider), ""
 
 
 def cmd_note(args) -> int:
@@ -1338,7 +1340,7 @@ def main(argv=None) -> int:
     try:
         # stored keys → env, only for commands that reach a backend; the notice
         # only where a model is about to be called (backends/key show it anyway)
-        calls_model = args.cmd in ("run", "retry") or (args.cmd == "diff" and args.llm)
+        calls_model = args.cmd in ("run", "retry", "diff")
         if calls_model or args.cmd in ("backends", "key"):
             applied = key_store.apply_stored_keys()
             if applied and calls_model:
