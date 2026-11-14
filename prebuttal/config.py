@@ -52,6 +52,9 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
                         # APIs (anthropic, openai, gemini, openrouter); others
                         # keep captions only. Costs ~1.5k tokens per image.
 # max_figures = 6       # images per reviewer (PDF: pages that hold figures)
+# repeats = 3           # advanced: every reviewer reviews 3 times (1-5) to
+                        # measure how much the scores move by chance; costs
+                        # 3x the reviewer calls. The AC still runs once.
 # effort = "high"       # reasoning effort: low | medium | high (unset = each
                         # model's default). Thinking models only: Claude, codex,
                         # OpenAI gpt-5+/o-series, Gemini, OpenRouter, Ollama gpt-oss.
@@ -164,6 +167,7 @@ class RunConfig:
     compress: bool = False  # LLM-summarize elided sections instead of truncating
     figures: bool = False  # show figure images to vision-capable API reviewers
     max_figures: int = 6  # images per reviewer (PDF: pages holding figures)
+    repeats: int = 1  # rounds: each reviewer reviews this many times (noise check)
     max_tokens: int = 6000
     est_completion_tokens: int = 2500
     timeout_s: int = 900
@@ -270,6 +274,13 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
         setattr(cfg, key, bool(d.get(key, getattr(cfg, key))))
     cfg.effort = check_effort(d.get("effort", cfg.effort), f"{path} [default]")
     cfg.max_figures = max(1, min(int(d.get("max_figures", cfg.max_figures)), 20))
+    repeats = d.get("repeats", cfg.repeats)
+    if isinstance(repeats, bool) or not isinstance(repeats, int) or not 1 <= repeats <= MAX_REPEATS:
+        raise ConfigError(
+            f"repeats in {path} [default] must be a whole number from 1 to {MAX_REPEATS}, "
+            f"got {repeats!r}"
+        )
+    cfg.repeats = repeats
 
     reviewers: list[ReviewerConfig] = []
     seen_ids: set[str] = set()
@@ -337,8 +348,17 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
         cfg.repo_url = str(share["repo_url"])
 
 
-def reviewer_seed(cfg: RunConfig, rcfg: ReviewerConfig, index: int) -> int:
-    return rcfg.seed if rcfg.seed is not None else cfg.seed + index + 1
+MAX_REPEATS = 5
+ROUND_SEED_STEP = 1000  # round k reviews with seed + 1000·k
+
+
+def reviewer_seed(cfg: RunConfig, rcfg: ReviewerConfig, index: int, repeat: int = 0) -> int:
+    """The seed of reviewer ``rcfg`` (position ``index``) in round ``repeat``.
+
+    Round 0 is the seed of a single run; later rounds step it, also for a
+    reviewer's own seed, so a backend that honours seeds reviews afresh."""
+    base = rcfg.seed if rcfg.seed is not None else cfg.seed + index + 1
+    return base + ROUND_SEED_STEP * repeat
 
 
 BACKEND_ENV = "PREBUTTAL_BACKEND"

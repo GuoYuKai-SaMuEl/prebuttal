@@ -11,9 +11,18 @@ releases (0.2, 0.3, …) are substantial new features.
 ## [Unreleased]
 
 ### Added
+- `repeats` in `prebuttal.toml` (advanced, 1–5, default 1): every reviewer
+  reviews the paper that many times, to see how much its scores move by
+  chance. Round *k* adds 1000·*k* to the reviewer's seed, so backends that
+  honour seeds review afresh. The AC still runs once, reading every round
+  grouped by reviewer (only summaries and weaknesses when they would
+  outgrow `budget_chars`). `--dry-run` and the plan before a run multiply
+  the reviewer cost by the rounds. Reports label rounds `R1·2`, `R1·3`, …;
+  a single run is unchanged.
 - Each reviewer in `report.json` (and `resolved-config.json`) carries
-  `repeat`, the round its review belongs to — always `0` until repeated
-  reviews arrive. `retry` redoes a failed review in the same round.
+  `repeat`, the round its review belongs to (from 0); `resolved-config.json`
+  also records `repeats`. `retry` redoes a failed review in the same round,
+  with the seed it had.
 
 ### Removed
 - The names 0.6 kept as hidden aliases are gone, as their notices said. Each

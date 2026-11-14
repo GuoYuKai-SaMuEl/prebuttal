@@ -581,6 +581,14 @@ def config_docs() -> list[tuple[str, str, list[tuple[str, str, str]]]]:
                 ),
                 ("max_figures", _toml(run.max_figures), "Images per reviewer, 1–20."),
                 (
+                    "repeats",
+                    _toml(run.repeats),
+                    "Advanced: every reviewer reviews this many times, 1–5, to measure how "
+                    "much the scores move by chance. Round <em>k</em> adds 1000·<em>k</em> to "
+                    "the seed. Costs that many times the reviewer calls; the AC still runs "
+                    "once, over all rounds.",
+                ),
+                (
                     "compress",
                     _toml(run.compress),
                     "When the paper is over `budget_chars`, summarize the cut sections with the "

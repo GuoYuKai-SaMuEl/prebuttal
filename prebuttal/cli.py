@@ -1136,7 +1136,7 @@ def _deliver(
 
     failed = [r for r in report.reviews if not r.parse_ok]
     for r in failed:
-        _log(f"[prebuttal] {r.reviewer_id} failed: {(r.error or 'no usable review')[:160]}")
+        _log(f"[prebuttal] {r.label} failed: {(r.error or 'no usable review')[:160]}")
     if not report.meta.parse_ok:
         _log(f"[prebuttal] AC failed: {(report.meta.error or 'no usable meta-review')[:160]}")
     if failed and len(failed) < len(report.reviews):

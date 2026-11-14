@@ -196,6 +196,8 @@ def save_run(
         "prebuttal_version": __version__,
         "venue": venue.key,
         "seed": cfg.seed,
+        # from the reviews, not cfg: a retry redoes slots of the run it completes
+        "repeats": max((r.repeat for r in report.reviews), default=0) + 1,
         "config_path": cfg.config_path,
         "pack_sha256": report.run.pack_sha256,
         "reviewers": [

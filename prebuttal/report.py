@@ -77,7 +77,7 @@ def _bar(value: float, maximum: float) -> str:
 
 
 def _render_review(review: Review, venue: Venue, index: int) -> str:
-    out = [f"## Review {index}: {review.reviewer_id} — persona `{review.persona}`", ""]
+    out = [f"## Review {index}: {review.label} — persona `{review.persona}`", ""]
     model = review.model or "CLI default"
     temp, seed = _params(review.backend, review.model, review.temperature, review.seed)
     effort = f" · effort {review.effort}" if review.effort else ""
@@ -148,11 +148,10 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
             bar = _bar(rev.rating, max_rating)
             anchor = venue.rating_field.anchor_for(rev.rating)
             out.append(
-                f"- {rev.reviewer_id} `{bar}` **{rev.rating:g}** — {anchor} "
-                f"({persona}, {rev.backend})"
+                f"- {rev.label} `{bar}` **{rev.rating:g}** — {anchor} ({persona}, {rev.backend})"
             )
         else:
-            out.append(f"- {rev.reviewer_id} — no rating ({rev.error or 'unparseable output'})")
+            out.append(f"- {rev.label} — no rating ({rev.error or 'unparseable output'})")
     out.append("")
 
     if r.paper.warnings:
@@ -198,7 +197,7 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
     out.append("| Reviewer | Persona | Backend | Model | Effort | Temp | Seed |")
     out.append("|---|---|---|---|---|---|---|")
     rows: list[tuple[str, str, Review | MetaReview, int | None]] = [
-        (rev.reviewer_id, rev.persona, rev, rev.seed) for rev in r.reviews
+        (rev.label, rev.persona, rev, rev.seed) for rev in r.reviews
     ]
     rows.append(("AC", "area_chair", r.meta, r.run.seed))
     for rid, persona, role, role_seed in rows:

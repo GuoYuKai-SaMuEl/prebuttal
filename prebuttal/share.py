@@ -171,7 +171,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
             f"""
     <div class="card">
       <div class="card-head">
-        <span class="rid">{_e(rev.reviewer_id)}</span>
+        <span class="rid">{_e(rev.label)}</span>
         <span class="persona">{_e(rev.persona)}</span>
         {chip}
       </div>
@@ -215,7 +215,9 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
     <ol>{lis}</ol>
   </section>"""
 
-    backends = " · ".join(f"{_e(rev.reviewer_id)}: {_e(rev.backend)}" for rev in r.reviews)
+    # one entry per reviewer, however many rounds it reviewed
+    by_reviewer = {rev.reviewer_id: rev.backend for rev in r.reviews}
+    backends = " · ".join(f"{_e(rid)}: {_e(b)}" for rid, b in by_reviewer.items())
 
     # hidden text first and loud: this page is what gets forwarded to co-authors
     hidden = [w for w in r.paper.warnings if _HIDDEN_RE.match(w)]

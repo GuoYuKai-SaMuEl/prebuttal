@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .config import RunConfig, reviewer_seed, role_effort
+from .config import ROUND_SEED_STEP, RunConfig, reviewer_seed, role_effort
 from .models import effort_support, param_support
 from .pack import estimate_tokens
 from .providers.detect import BackendStatus, default_model_for
@@ -49,7 +49,11 @@ def render_dry_run(
     lines.append("Prebuttal dry run — nothing will be called.")
     lines.append("=" * 62)
     lines.append("")
-    lines.append("Review plan")
+    rounds = cfg.repeats
+    lines.append(
+        "Review plan"
+        + (f" — each reviewer reviews {rounds} times, the AC once" if rounds > 1 else "")
+    )
     persona_by_id = {r.id: r.persona for r in cfg.reviewers}
 
     def _effort(rid: str, backend: str, model: str) -> str:
@@ -102,6 +106,12 @@ def render_dry_run(
         cost, note = _cost(
             model or default_model_for(backend, statuses), kind, in_tok, out_tok, cfg
         )
+        if rid != "AC" and rounds > 1:
+            if cost is not None:
+                cost *= rounds
+                note = f"~${cost:.4f} (× {rounds} repeats)"  # noqa: RUF001
+            else:
+                note += f" (× {rounds} repeats)"  # noqa: RUF001
         total += cost or 0.0
         lines.append(f"  {rid:<4} {backend:<14} {note}")
     if total > 0:
@@ -115,6 +125,7 @@ def render_dry_run(
             if any(rid == r.id for rid, _b, _m in resolved)
         )
         + f", AC={cfg.seed}"
+        + (f" (round k adds {ROUND_SEED_STEP}·k)" if rounds > 1 else "")
     )
     ignored = sorted({b for (_r, b, m) in entries if not param_support(b, m)[1]})
     if ignored:

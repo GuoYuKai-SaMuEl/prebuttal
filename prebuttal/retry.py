@@ -101,10 +101,10 @@ def retry_report(
                 backend=providers[r.reviewer_id].backend,
                 model=providers[r.reviewer_id].model,
                 temperature=r.temperature,
-                seed=r.seed,
             ),
             index=n,
             repeat=r.repeat,
+            seed=r.seed,  # as recorded: already stepped for its round
         )
         for n, r in enumerate(old.reviews[i] for i in targets)
     ]
