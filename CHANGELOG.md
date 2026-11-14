@@ -11,6 +11,16 @@ releases (0.2, 0.3, …) are substantial new features.
 ## [Unreleased]
 
 ### Added
+- `prebuttal diff` says whether the predicted score's change can be told
+  from run-to-run noise: "within run-to-run noise (±0.99, estimated — not
+  measured on this paper)", or "larger than …". A single run uses a default
+  noise of 3.5% of the rating scale, measured on real runs (see
+  `prebuttal/noise.py`), and suggests `repeats = 3` when the change is
+  within it; runs with `repeats` use the spread of their own round means,
+  so the band narrows. Individual reviewer ratings are marked as anecdotes
+  and the AC estimate as not noise-checked; across rating scales nothing
+  is compared, as before. The `Change:` line at the end of a run gives the
+  same verdict.
 - `repeats` in `prebuttal.toml` (advanced, 1–5, default 1): every reviewer
   reviews the paper that many times, to see how much its scores move by
   chance. Round *k* adds 1000·*k* to the reviewer's seed, so backends that

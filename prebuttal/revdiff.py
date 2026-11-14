@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from .noise import NoiseCheck, check_noise
 from .runs import RunRecord, _delta, _g, _load_run_json, _num, _scored
 
 SAME = 0.35  # word-overlap (Jaccard) at which two texts count as the same issue
@@ -141,11 +142,23 @@ class RevisionDiff:
     weaknesses_by_words: bool  # any reviewer's weaknesses matched by word overlap
     weaknesses_matched_by: str  # Matcher.label, when not by words
     plan: PlanCheck | None  # None when A has no plan
+    # the panel means of each round (`repeats`); one or none for a single run
+    round_means: tuple[list[float], list[float]] = ([], [])
 
     @property
     def same_scale(self) -> bool:
         """Raw scores compare only on one scale (unknown scales are given the benefit)."""
         return self.scale_a == self.scale_b or not (self.scale_a and self.scale_b)
+
+    @property
+    def noise(self) -> NoiseCheck | None:
+        """Whether the predicted score's change can be told from run-to-run noise;
+        None when there is nothing to compare (no score, or not one known scale)."""
+        ma, mb = self.mean
+        scale = self.scale_b or self.scale_a
+        if ma is None or mb is None or not scale or not self.same_scale:
+            return None
+        return check_noise(ma, mb, *self.round_means, scale)
 
 
 def _by_persona(reviewers: list[dict]) -> dict[str, dict]:
@@ -272,7 +285,15 @@ def compute_diff(a: RunRecord, b: RunRecord, *, matcher: Matcher | None = None) 
         weaknesses_by_words=not used_words or any(used_words),
         weaknesses_matched_by=matcher.label,
         plan=_check_plan(matcher, da, db),
+        round_means=(_round_means(aa), _round_means(ab)),
     )
+
+
+def _round_means(agg: dict) -> list[float]:
+    """The round means a report.json stores (none before 0.7)."""
+    got = agg.get("round_means")
+    vals = [_num(x) for x in got] if isinstance(got, list) else []
+    return [v for v in vals if v is not None]
 
 
 # ------------------------------------------------------------------ rendering
@@ -289,6 +310,8 @@ def render_diff_markdown(d: RevisionDiff) -> str:
     out.append("## Predicted outcome")
     delta = _delta(ma, mb) if same else "  (venue changed — raw means are not comparable)"
     out.append(f"- A {_scored(ma, d.scale_a)} → B {_scored(mb, d.scale_b)}{delta}")
+    if (noise := d.noise) is not None:
+        out.extend(_noise_lines(noise))
     sa, sb = d.std
     if sa is not None and sb is not None:
         out.append(f"- disagreement σ {sa:g} → {sb:g}")  # noqa: RUF001
@@ -298,12 +321,14 @@ def render_diff_markdown(d: RevisionDiff) -> str:
     if va is not None or vb is not None:
         out.append("## Area chair")
         ac_delta = _delta(va, vb) if same else ""
+        checked = "  (not noise-checked: one estimate per run)" if ac_delta else ""
         out.append(
-            f"- AC estimate A {_scored(va, d.scale_a)} → B {_scored(vb, d.scale_b)}{ac_delta}"
+            f"- AC estimate A {_scored(va, d.scale_a)} → B {_scored(vb, d.scale_b)}"
+            f"{ac_delta}{checked}"
         )
         out.append("")
 
-    out.append("## Reviewer ratings (A → B)")
+    out.append("## Reviewer ratings (A → B; single reviews — treat as anecdotes)")
     for rc in d.ratings:
         out.append(f"- {rc.reviewer}: {_g(rc.a)} → {_g(rc.b)}{_delta(rc.a, rc.b) if same else ''}")
     out.append("")
@@ -332,6 +357,21 @@ def render_diff_markdown(d: RevisionDiff) -> str:
         "treat movements as signals, not measurements.*"
     )
     return "\n".join(out)
+
+
+def _noise_lines(n: NoiseCheck) -> list[str]:
+    verdict = "within run-to-run noise" if n.within else "larger than run-to-run noise"
+    if n.measured:
+        source = f"measured: {n.rounds_a} and {n.rounds_b} rounds"
+    elif n.estimated:
+        source = "estimated — not measured on this paper"
+    else:
+        side, rounds = ("A", n.rounds_a) if n.rounds_a else ("B", n.rounds_b)
+        source = f"measured on {side} ({rounds} rounds), estimated for the other run"
+    lines = [f"  {verdict} (±{n.band:g}, {source})"]
+    if n.within and not n.measured:
+        lines.append("  `repeats = 3` in prebuttal.toml measures it for your paper")
+    return lines
 
 
 def _render_plan_check(out: list[str], pc: PlanCheck) -> None:

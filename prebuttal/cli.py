@@ -39,6 +39,7 @@ from .dashboard import dashboard_path, ensure_html, render_dashboard
 from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
 from .models import dataclass_to_dict
+from .noise import check_noise
 from .orchestrator import RunInterrupted, run_report
 from .outputs import FORMATS, write_local
 from .pack import render_pack
@@ -1120,9 +1121,20 @@ def _deliver(
             and agg.mean is not None
             and prev.scale == scale
         ):
+            noise = (
+                check_noise(prev.mean, agg.mean, prev.round_means or [], agg.round_means, scale)
+                if scale
+                else None
+            )
+            verdict = ""
+            if noise is not None:
+                verdict = (
+                    f" — {'within' if noise.within else 'larger than'} run-to-run noise "
+                    f"(±{noise.band:g})"
+                )
             print(
                 f"Change:   {agg.mean - prev.mean:+g} vs {prev.label} "
-                f"({prev.mean:g} → {agg.mean:g})"
+                f"({prev.mean:g} → {agg.mean:g}){verdict}"
             )
         print(f"Saved:    {rec.label}")
     for i, it in enumerate(report.meta.action_plan[:3]):
