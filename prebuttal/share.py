@@ -143,10 +143,11 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
 
     score_html = ""
     if agg.mean is not None:
+        rounds = f" · {_e(agg.rounds_note)}" if agg.rounds_note else ""
         score_html = f"""
     <div class="score">
       <div class="score-num">{agg.mean:g}<span class="score-max">/{max_rating:g}</span></div>
-      <div class="score-sub">estimated · σ {agg.std:g} · range {agg.min:g}–{agg.max:g} · n={agg.n}</div>
+      <div class="score-sub">estimated · σ {agg.std:g} · range {agg.min:g}–{agg.max:g} · n={agg.n}{rounds}</div>
     </div>"""
     else:
         score_html = '<div class="score"><div class="score-num">n/a</div></div>'

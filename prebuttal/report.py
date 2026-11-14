@@ -138,6 +138,7 @@ def render_markdown(report: ReviewReport, venue: Venue) -> str:
         out.append(
             f"**{agg.mean:g} / {max_rating:g}** — σ {agg.std:g}, "  # noqa: RUF001
             f"range {agg.min:g}–{agg.max:g} (n={agg.n}) · {_dispersion_label(agg, max_rating)}"  # noqa: RUF001
+            + (f" · {agg.rounds_note}" if agg.rounds_note else "")
         )
     else:
         out.append("**n/a** — no review produced a parseable rating")

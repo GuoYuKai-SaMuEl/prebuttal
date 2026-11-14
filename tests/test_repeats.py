@@ -7,7 +7,7 @@ from conftest import FAKE_TOML, PersonaFakeProvider, fake_toml, latest_json, lat
 
 from prebuttal import cli
 from prebuttal.config import ConfigError, load_config, reviewer_seed
-from prebuttal.models import Review
+from prebuttal.models import Review, make_aggregate
 from prebuttal.orchestrator import build_ac_user, review_slots
 from prebuttal.providers import register_backend
 from prebuttal.providers.base import ProviderError
@@ -57,8 +57,8 @@ def repeats_run(latex_project, fake_statuses, tmp_path, monkeypatch):
 def test_a_run_with_repeats(latex_project, repeats_run, tmp_path, capsys):
     cfg_path, calls = repeats_run
     assert cli.main(["run", str(latex_project), "--config", str(cfg_path)]) == cli.EXIT_OK
-    err = capsys.readouterr().err
-    assert "[R1·2] done" in err
+    captured = capsys.readouterr()
+    assert "[R1·2] done" in captured.err
 
     ac_calls = [c for c in calls if "estimated_rating" in c["system"]]
     reviewer_calls = [c for c in calls if "estimated_rating" not in c["system"]]
@@ -78,6 +78,37 @@ def test_a_run_with_repeats(latex_project, repeats_run, tmp_path, capsys):
     rec = load_history()[0]
     resolved = json.loads((rec.dir_path / "resolved-config.json").read_text(encoding="utf-8"))
     assert resolved["repeats"] == 2
+
+    # every round's panel mean: in report.json, the history and every display
+    means = data["aggregate"]["round_means"]
+    assert len(means) == 2 and data["aggregate"]["mean"] == means[0] == means[1]
+    note = f"2 rounds: {means[0]:g}–{means[1]:g}"  # noqa: RUF001
+    assert rec.round_means == means
+    assert note in md and note in captured.out
+    assert note in latest_report(tmp_path / "reports", "html").read_text(encoding="utf-8")
+
+
+def test_round_means_and_their_note():
+    def rev(rating, k):
+        return Review("R1", "senior_kind", **_ROLE, repeat=k, rating=rating, parse_ok=True)
+
+    agg = make_aggregate([rev(5, 0), rev(6, 0), rev(6, 1), rev(8, 1), rev(None, 2)])
+    assert agg.mean == 6.25 and agg.round_means == [5.5, 7.0]  # round 3 had no rating
+    assert agg.rounds_note == "2 rounds: 5.5–7"  # noqa: RUF001
+    single = make_aggregate([rev(5, 0), rev(6, 0)])
+    assert single.round_means == [5.5] and single.rounds_note == ""
+
+
+def test_a_single_run_keeps_one_round_mean_out_of_the_history(
+    latex_project, fake_statuses, fake_config, monkeypatch, capsys
+):
+    monkeypatch.chdir(fake_config.parent)
+    assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == cli.EXIT_OK
+    assert "rounds:" not in capsys.readouterr().out
+    rec = load_history()[0]
+    assert rec.round_means is None
+    data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+    assert data["aggregate"]["round_means"] == [data["aggregate"]["mean"]]
 
 
 def test_a_single_run_tells_the_ac_nothing_about_rounds():

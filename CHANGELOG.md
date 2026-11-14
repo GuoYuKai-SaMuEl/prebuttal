@@ -19,6 +19,10 @@ releases (0.2, 0.3, …) are substantial new features.
   outgrow `budget_chars`). `--dry-run` and the plan before a run multiply
   the reviewer cost by the rounds. Reports label rounds `R1·2`, `R1·3`, …;
   a single run is unchanged.
+- `aggregate.round_means` in `report.json`: the panel mean of each round,
+  in round order (one entry for a single run). With several rounds the
+  report, the HTML page and the end-of-run summary add their range, e.g.
+  `3 rounds: 5.33–6`, and the run history records them as `round_means`.
 - Each reviewer in `report.json` (and `resolved-config.json`) carries
   `repeat`, the round its review belongs to (from 0); `resolved-config.json`
   also records `repeats`. `retry` redoes a failed review in the same round,

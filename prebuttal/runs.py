@@ -118,6 +118,9 @@ class RunRecord:
     run_no: int = 0  # 1, 2, 3 ... within the project; stable after deletions
     note: str = ""
     scale: float | None = None  # venue rating maximum, for trend charts
+    # the panel mean of each round when the run had several (`repeats`), so
+    # diff and the dashboard need not reread report.json; None for one round
+    round_means: list[float] | None = None
 
     @property
     def dir_path(self) -> Path:
@@ -236,6 +239,7 @@ def save_run(
             run_no=run_no,
             note=note,
             scale=venue.rating_field.max,
+            round_means=list(rm) if len(rm := report.aggregate.round_means) > 1 else None,
         )
         with history_path().open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")

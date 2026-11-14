@@ -1107,7 +1107,9 @@ def _deliver(
     scale = venue.rating_field.max
     if agg.mean is not None:
         print(
-            f"\nPredicted: {agg.mean:g}/{scale:g} (σ {agg.std:g}, range {agg.min:g}–{agg.max:g})"  # noqa: RUF001
+            f"\nPredicted: {agg.mean:g}/{scale:g} (σ {agg.std:g}, range {agg.min:g}–{agg.max:g}"  # noqa: RUF001
+            + (f"; {agg.rounds_note}" if agg.rounds_note else "")
+            + ")"
         )
     else:
         print("\nPredicted: n/a (no parseable ratings)")

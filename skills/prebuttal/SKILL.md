@@ -122,6 +122,9 @@ After the user revises the paper:
 - `aggregate.mean / rating_scale` — predicted rating (e.g. `5.2 / 10`)
 - `aggregate.std`, `aggregate.min`/`max` — reviewer disagreement; high σ means
   the paper is polarizing: show both the positive and negative case to the user
+- `aggregate.round_means` — the panel mean of each round when `repeats` is set
+  in `prebuttal.toml` (one entry otherwise); their range is how much the score
+  moves by chance, so a change smaller than it is not a real change
 - `reviewers[].fields` — venue-form answers (summary, strengths, weaknesses,
   questions, limitations, ...); `rating`/`confidence` are scores
 - `reviewers[].backend` / `model` — which backend produced each review (always

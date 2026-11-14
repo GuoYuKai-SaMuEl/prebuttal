@@ -270,6 +270,9 @@ class Aggregate:
     min: float | None = None
     max: float | None = None
     n: int = 0
+    # the panel mean of each round (`repeats`), in round order; one entry for
+    # a single run, none in runs archived before 0.7
+    round_means: list[float] = field(default_factory=list)
 
     @property
     def spread(self) -> float | None:
@@ -277,9 +280,21 @@ class Aggregate:
             return None
         return round(self.max - self.min, 2)
 
+    @property
+    def rounds_note(self) -> str:
+        """``3 rounds: 5.33-6`` (an en dash) for a run of several rounds, else empty."""
+        rm = self.round_means
+        if len(rm) < 2:
+            return ""
+        return f"{len(rm)} rounds: {min(rm):g}–{max(rm):g}"  # noqa: RUF001
+
+
+def _ratings(reviews: list[Review]) -> list[float]:
+    return [float(r.rating) for r in reviews if r.parse_ok and r.rating is not None]
+
 
 def make_aggregate(reviews: list[Review]) -> Aggregate:
-    ratings = [float(r.rating) for r in reviews if r.parse_ok and r.rating is not None]
+    ratings = _ratings(reviews)
     agg = Aggregate(ratings=ratings, n=len(ratings))
     if ratings:
         mean = sum(ratings) / len(ratings)
@@ -288,6 +303,10 @@ def make_aggregate(reviews: list[Review]) -> Aggregate:
         agg.std = round(var**0.5, 2)
         agg.min = min(ratings)
         agg.max = max(ratings)
+    for k in sorted({r.repeat for r in reviews}):
+        in_round = _ratings([r for r in reviews if r.repeat == k])
+        if in_round:  # a round with no rating has no mean
+            agg.round_means.append(round(sum(in_round) / len(in_round), 2))
     return agg
 
 
