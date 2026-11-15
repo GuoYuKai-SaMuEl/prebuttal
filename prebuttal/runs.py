@@ -447,6 +447,13 @@ def retried(runs: Iterable[RunRecord], run_id: str | None) -> set[str]:
     return out
 
 
+def revisions(runs: list[RunRecord]) -> list[RunRecord]:
+    """``runs`` less those a later `prebuttal retry` completed: one entry per
+    version of the paper, for score trends."""
+    replaced = {x for r in runs if r.retry_of for x in retried(runs, r.retry_of)}
+    return [r for r in runs if r.id not in replaced]
+
+
 def previous_run(rec: RunRecord) -> RunRecord | None:
     """The run before ``rec`` in the same project, if any; for a retry, the
     one before the runs it completes (the same paper, not a revision)."""
@@ -507,12 +514,13 @@ def render_projects_table(projects: list[ProjectSummary]) -> str:
         return "No projects yet — `prebuttal run <paper>` creates one per paper."
     rows: list[tuple[str, ...]] = [("project", "runs", "latest", "trend", "last run", "title")]
     for p in projects:
-        first, last = p.runs[-1], p.latest
+        versions = revisions(p.runs)  # a retry and the run it completes: one version
+        first, last = versions[-1], p.latest
         trend = "-"
         # a raw-mean trend across different rating scales (iclr /10 vs
         # neurips /6) compares incomparable numbers — skip it
         if (
-            len(p.runs) > 1
+            len(versions) > 1
             and first.mean is not None
             and last.mean is not None
             and first.scale == last.scale

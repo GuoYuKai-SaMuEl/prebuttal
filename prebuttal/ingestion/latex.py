@@ -473,6 +473,9 @@ def _tabular_to_rows(body: str) -> list[list[str]]:
     return rows
 
 
+_PLACEMENT = re.compile(r"^\s*\[[^\]]*\]")
+
+
 def _table_blocks(body: str) -> list[tuple[int, int, str]]:
     """Every table in document order, as (start, end, block): ``table``,
     ``table*`` and ``sidewaystable`` floats (their body), and a ``longtable``
@@ -606,8 +609,9 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         raw = (
             "\n".join(" & ".join(r) for r in rows)
             if rows
-            # no tabular (a table set as an image): what text there is, once
-            else " ".join(_clean_inline(_drop_caption(blk)).split())
+            # no tabular (a table set as an image): what text there is, once,
+            # without the float's placement ([htbp] right after \begin{table})
+            else " ".join(_clean_inline(_drop_caption(_PLACEMENT.sub("", blk))).split())
         )
         tables.append(
             Table(

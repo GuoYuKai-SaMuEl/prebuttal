@@ -412,7 +412,7 @@ def test_starred_verbatim_ends_only_at_its_own_end_and_image_tables_are_clean(tm
         r"""\documentclass{article}
 \begin{document}
 \section{Results}
-\begin{table}
+\begin{table}[htbp]
 \centering
 \includegraphics[width=0.8\textwidth, clip]{table1.pdf}
 \caption{Main results}
@@ -424,3 +424,4 @@ def test_starred_verbatim_ends_only_at_its_own_end_and_image_tables_are_clean(tm
     (t,) = ingest(str(tmp_path)).tables
     assert t.caption == "Main results"
     assert "clip" not in t.raw and "table1" not in t.raw and "Main results" not in t.raw
+    assert "htbp" not in t.raw

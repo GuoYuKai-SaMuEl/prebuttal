@@ -339,3 +339,19 @@ def test_a_diff_against_a_run_without_an_ac_plan_is_not_kept(tmp_path):
     keep_diff_check(r1, r2, pc)
     assert not (r2.dir_path / TRACK_FILE).exists()  # the next diff warns again
     assert saved_check(r1, r2) is None
+
+
+def test_trends_count_a_retry_and_the_run_it_completes_once(tmp_path):
+    from dataclasses import replace
+
+    from prebuttal.runs import ProjectSummary, render_projects_table
+
+    r1 = _rec(tmp_path, 1, _plan(SEED), mean=4.0)  # a reviewer was down
+    r2 = replace(_rec(tmp_path, 2, _plan(SEED), mean=6.0), retry_of=r1.id)
+    one = ProjectSummary(key="p", title="P", runs=[r2, r1])
+    assert "4 → 6" not in render_projects_table([one])  # one version: no trend
+    assert "<polyline" not in render_dashboard([one], base=tmp_path)
+    r3 = _rec(tmp_path, 3, _plan(SEED, WRITE), mean=7.0)
+    two = ProjectSummary(key="p", title="P", runs=[r3, r2, r1])
+    assert "6 → 7 (+1)" in render_projects_table([two])  # from the completed run
+    assert render_dashboard([two], base=tmp_path).count("<circle") == 2

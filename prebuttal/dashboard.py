@@ -15,7 +15,7 @@ from . import __version__
 from .noise import check_noise
 from .plantrack import project_plan
 from .report import report_from_dict
-from .runs import ProjectSummary, RunRecord, retried, runs_root
+from .runs import ProjectSummary, RunRecord, retried, revisions, runs_root
 from .share import render_share_html
 from .venues import venue_from_report
 
@@ -58,8 +58,9 @@ def _fraction(r: RunRecord) -> float | None:
 
 
 def _sparkline(runs: list[RunRecord]) -> str:
-    """Score trend, oldest → newest, as a fraction of each venue's scale."""
-    pts = [(r, f) for r in reversed(runs) if (f := _fraction(r)) is not None]
+    """Score trend, oldest → newest, as a fraction of each venue's scale (one
+    point per version: not the run a retry completes)."""
+    pts = [(r, f) for r in reversed(revisions(runs)) if (f := _fraction(r)) is not None]
     if len(pts) < 2:
         return ""
     w, h, pad = 220, 48, 5
