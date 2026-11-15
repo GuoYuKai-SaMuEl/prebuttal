@@ -122,7 +122,9 @@ releases (0.2, 0.3, …) are substantial new features.
 - LaTeX: a `%` inside `verbatim`, `lstlisting` or `minted` was read as a
   comment (`95% (top-1)` became `95`); `\thanks{...}` ended up in the title;
   and the arguments of `\hspace`, `\includegraphics`, `\newcommand` and the
-  like stayed in the text (`2em`, `fig.png`, `\setlength\tabcolsep{4pt}`).
+  like stayed in the text (`2em`, `fig.png`, `\setlength\tabcolsep{4pt}`);
+  a table set as an image kept bits of `\includegraphics[...]` and its
+  caption twice.
 - A review that is valid JSON but has no rating is asked for once more,
   then counts as a failed review, so `prebuttal retry` redoes it, instead
   of a finished one left out of the mean.

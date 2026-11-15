@@ -142,8 +142,9 @@ def save_track(b: RunRecord, track: PlanTrack) -> None:
 
 def keep_diff_check(a: RunRecord, b: RunRecord, pc: PlanCheck | None) -> None:
     """`prebuttal diff` of two consecutive runs: its plan check, when a model
-    made it, is the track (no second call). Best effort."""
-    if pc is None or pc.by_words:
+    made it, is the track (no second call). Best effort. Not when B's AC wrote
+    no plan: the plan is never followed through such a run."""
+    if pc is None or pc.by_words or not pc.b_ac_plan:
         return
     try:
         da, db = _load_run_json(a), _load_run_json(b)
@@ -203,6 +204,7 @@ def saved_check(a: RunRecord, b: RunRecord) -> PlanCheck | None:
         a_ids=a_ids,
         b_ids=b_ids,
         match=match,
+        b_ac_plan=ac_wrote_plan(db),
     )
 
 

@@ -548,7 +548,7 @@ def run_one_reviewer(
 
     payload = parse_or_repair(
         provider, system, text, seed, cfg.max_tokens, review.usage,
-        want=scored, required=f'a valid "{venue.rating_key}"',
+        want=scored, required=f'valid "{venue.rating_key}"',
     )  # fmt: skip
     review.duration_s = time.monotonic() - t0
     review.raw_output = text[:_RAW_CAP]

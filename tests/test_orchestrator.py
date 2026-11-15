@@ -354,4 +354,4 @@ def test_a_review_without_a_rating_is_repaired_once(latex_project, shared_calls)
     )
     fixed = next(r for r in report.reviews if r.reviewer_id == first)
     assert fixed.parse_ok and fixed.rating is not None
-    assert any('had no a valid "rating"' in c["system"] for c in shared_calls)
+    assert any('had no valid "rating"' in c["system"] for c in shared_calls)

@@ -318,3 +318,24 @@ def test_dashboard_score_change_skips_the_run_a_retry_completes(tmp_path):
     r3 = replace(_rec(tmp_path, 3, _plan(SEED, WRITE), mean=7.0), retry_of=r2.id)
     page = render_dashboard([ProjectSummary(key="p", title="P", runs=[r3, r2, r1])], base=tmp_path)
     assert "+2 vs #1" in page and "vs #2" not in page
+
+
+def test_a_diff_against_a_run_without_an_ac_plan_is_not_kept(tmp_path):
+    from prebuttal.plantrack import keep_diff_check, saved_check
+    from prebuttal.revdiff import PlanMatch, check_plan
+
+    r1 = _rec(tmp_path, 1, _plan(SEED, BASE))
+    r2 = _rec(tmp_path, 2, {**_plan(), "meta": {"parse_ok": False, "action_plan": []}})
+
+    class _Model:
+        label = "fake / m1"
+
+        def plan(self, a_plan, b_plan, b_weak):
+            return PlanMatch(still=set(), new_b=[], label=self.label)
+
+    da, db = (json.loads((r.dir_path / "report.json").read_bytes()) for r in (r1, r2))
+    pc = check_plan(_Model(), da, db)
+    assert pc is not None and not pc.by_words and not pc.b_ac_plan
+    keep_diff_check(r1, r2, pc)
+    assert not (r2.dir_path / TRACK_FILE).exists()  # the next diff warns again
+    assert saved_check(r1, r2) is None

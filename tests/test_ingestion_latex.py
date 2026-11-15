@@ -393,3 +393,34 @@ Ours & 95.0 \\
     (t,) = ingest(str(tmp_path)).tables
     assert t.caption == "Results" and t.header == ["Model", "Score"]
     assert t.rows == [["Ours", "95.0"], ["Note", "end"]]
+
+
+def test_starred_verbatim_ends_only_at_its_own_end_and_image_tables_are_clean(tmp_path):
+    from prebuttal.ingestion.latex import _strip_comments
+
+    src = "\n".join(
+        [
+            r"\begin{Verbatim*}",
+            r"\end{Verbatim} 50% literal",  # not the end of Verbatim*
+            r"\end{Verbatim*} % gone",
+        ]
+    )
+    out = _strip_comments(src)
+    assert "50% literal" in out and "gone" not in out
+
+    (tmp_path / "main.tex").write_text(
+        r"""\documentclass{article}
+\begin{document}
+\section{Results}
+\begin{table}
+\centering
+\includegraphics[width=0.8\textwidth, clip]{table1.pdf}
+\caption{Main results}
+\end{table}
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    (t,) = ingest(str(tmp_path)).tables
+    assert t.caption == "Main results"
+    assert "clip" not in t.raw and "table1" not in t.raw and "Main results" not in t.raw

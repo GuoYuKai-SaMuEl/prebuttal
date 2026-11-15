@@ -35,7 +35,7 @@ _COMMENT = re.compile(r"(?<!\\)(?:\\\\)*%")
 
 
 # inside these a % is text (code listings: `95% (top-1)`, `5 % 3`)
-_VERBATIM_BEGIN = re.compile(r"\\begin\{(verbatim|Verbatim|lstlisting|minted)\*?\}")
+_VERBATIM_BEGIN = re.compile(r"\\begin\{((?:verbatim|Verbatim|lstlisting|minted)\*?)\}")
 
 
 def _strip_comments(tex: str) -> str:
@@ -45,7 +45,8 @@ def _strip_comments(tex: str) -> str:
         kept, pos = "", 0
         while True:  # left to right: an environment may open and close on one line
             if verbatim is not None:
-                e = re.compile(r"\\end\{" + verbatim + r"\*?\}").search(line, pos)
+                # the same name, star included: `Verbatim*` ends at \end{Verbatim*}
+                e = re.compile(r"\\end\{" + re.escape(verbatim) + r"\}").search(line, pos)
                 if e is None:
                     kept += line[pos:]
                     break
@@ -605,7 +606,8 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         raw = (
             "\n".join(" & ".join(r) for r in rows)
             if rows
-            else " ".join(_clean_inline(re.sub(r"\\includegraphics\S*", " ", blk)).split())
+            # no tabular (a table set as an image): what text there is, once
+            else " ".join(_clean_inline(_drop_caption(blk)).split())
         )
         tables.append(
             Table(

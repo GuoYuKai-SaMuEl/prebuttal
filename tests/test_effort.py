@@ -195,6 +195,8 @@ def test_report_and_dry_run_show_effort(latex_project):
         ("claude-haiku-4-5", False),
         ("claude-sonnet-4", False),
         ("claude-sonnet-4-5-latest", False),
+        ("claude-3-7-sonnet-20250219", False),  # the old naming
+        ("claude-3-5-haiku-latest", False),
         ("Claude-Haiku-4-5", False),
         ("claude-opus-4-6-latest", True),
     ],
