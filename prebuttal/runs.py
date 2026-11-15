@@ -15,7 +15,7 @@ import re
 import shutil
 import time
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -435,11 +435,27 @@ def find_run(
     return None, (pref or sub)[:10]
 
 
+def retried(runs: Iterable[RunRecord], run_id: str | None) -> set[str]:
+    """``run_id`` and every run it retried in turn (a retry of a retry whose
+    AC failed, ...): the runs a `prebuttal retry` of ``run_id`` completes."""
+    by_id = {r.id: r for r in runs}
+    out: set[str] = set()
+    while run_id and run_id not in out:
+        out.add(run_id)
+        rec = by_id.get(run_id)
+        run_id = rec.retry_of if rec is not None else None
+    return out
+
+
 def previous_run(rec: RunRecord) -> RunRecord | None:
-    """The run before ``rec`` in the same project, if any."""
+    """The run before ``rec`` in the same project, if any; for a retry, the
+    one before the runs it completes (the same paper, not a revision)."""
     runs = [r for r in load_history() if r.project == rec.project]
     idx = next((i for i, r in enumerate(runs) if r.id == rec.id), None)
-    return runs[idx + 1] if idx is not None and idx + 1 < len(runs) else None
+    if idx is None:
+        return None
+    done = retried(runs, rec.retry_of)
+    return next((r for r in runs[idx + 1 :] if r.id not in done), None)
 
 
 # ------------------------------------------------------------------ rendering

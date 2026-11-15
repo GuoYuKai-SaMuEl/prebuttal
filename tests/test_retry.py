@@ -8,7 +8,7 @@ from conftest import FAKE_TOML, PersonaFakeProvider
 from prebuttal import cli
 from prebuttal.providers import register_backend
 from prebuttal.providers.base import ProviderError
-from prebuttal.runs import load_history
+from prebuttal.runs import load_history, previous_run
 
 
 class _Flaky(PersonaFakeProvider):
@@ -58,6 +58,9 @@ def test_retry_reruns_only_the_failed_reviewer(latex_project, fake_statuses, fla
     hist = load_history()
     assert len(hist) == 2 and hist[0].project == first.project
     assert hist[0].note == f"retry of {first.label}"
+    # the same paper, not a revision: no score change against it, nothing to diff
+    assert "Change:" not in capsys.readouterr().out
+    assert previous_run(hist[0]) is None
     new = json.loads((hist[0].dir_path / "report.json").read_text(encoding="utf-8"))
     old = json.loads((first.dir_path / "report.json").read_text(encoding="utf-8"))
     assert all(r["parse_ok"] for r in new["reviewers"])

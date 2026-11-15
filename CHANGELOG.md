@@ -43,7 +43,8 @@ releases (0.2, 0.3, …) are substantial new features.
   so. Its score change reads "within noise" when chance alone could explain it.
   A run whose AC wrote no plan (cut short, or the AC failed) is stepped over
   rather than read as every earlier item fixed. A finished `prebuttal retry`
-  replaces the run it completes (the history records it as `retry_of`) and
+  replaces the run it completes (the history records it as `retry_of`; a
+  retry archived by 0.6 has no such record and counts as a revision) and
   is checked against the run before that one. `prebuttal diff` of a pair the
   run already checked shows that check without a second call.
 - `prebuttal diff` says whether the predicted score's change can be told
@@ -109,6 +110,25 @@ releases (0.2, 0.3, …) are substantial new features.
 - `prebuttal.toml` values of the wrong kind are config errors instead of
   silent surprises: `figures = "false"` read as true, `seed = true` as 1,
   `max_tokens = 2.5` as 2, and `retries = -1` made no attempt at all.
+- LaTeX: a `longtable` outside a `table` float (the usual multi-page
+  appendix table) was dropped without a warning, and a row with more cells
+  than the header lost the extra ones: reviewers never saw those numbers.
+  Both reach the pack now, as does `sidewaystable`.
+- LaTeX: a `%` inside `verbatim`, `lstlisting` or `minted` was read as a
+  comment (`95% (top-1)` became `95`); `\thanks{...}` ended up in the title;
+  and the arguments of `\hspace`, `\includegraphics`, `\newcommand` and the
+  like stayed in the text (`2em`, `fig.png`).
+- A review that is valid JSON but has no rating is a failed review, so
+  `prebuttal retry` redoes it, instead of a finished one left out of the
+  mean.
+- After `prebuttal retry`, the `Change:` line and `prebuttal diff` compared
+  the run with the incomplete one it completes (the same paper); they now
+  use the run before, as the plan does. A retry of a retry whose AC failed
+  replaces both, and a run whose AC left the plan empty is stepped over
+  like one whose AC failed.
+- relay: a responder that paused mid-answer for longer than one poll had
+  its half-written answer taken; a non-JSON answer now has to stay
+  unchanged for 5 s.
 
 ## [0.6.1] — 2026-11-09
 
@@ -195,9 +215,6 @@ run (9 flags, was 15).
   documented.
 
 ### Removed
-- `prebuttal key set --key KEY`: a key on the command line lands in shell
-  history. `key set` asks with hidden input, or reads one line from stdin
-  (`prebuttal key set gemini < keyfile`); environment variables still work.
 - The 0.4 aliases, as their notices said: `prebuttal open`, `export`,
   `dashboard`, `models`, `key status`, and `run --format` / `--stdout`.
   Each now fails with the command to use instead (`show --open`,
@@ -679,9 +696,6 @@ the tool must not leak your keys.
   reports and `--dry-run` show the effort each role actually used.
 
 ### Removed
-- `prebuttal key set --key KEY`: a key on the command line lands in shell
-  history. `key set` asks with hidden input, or reads one line from stdin
-  (`prebuttal key set gemini < keyfile`); environment variables still work.
 - `run --out` and `run --share`. Every run writes its own report folder
   (HTML included) instead; for a file at a fixed path use `--json PATH` or
   `prebuttal export -o PATH`. Passing either flag prints what replaces it.

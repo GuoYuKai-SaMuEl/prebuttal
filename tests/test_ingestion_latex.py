@@ -300,3 +300,36 @@ def test_strip_comments_counts_backslashes(line, kept):
     from prebuttal.ingestion.latex import _strip_comments
 
     assert _strip_comments(line) == kept
+
+
+def test_bare_longtable_wide_rows_verbatim_percent_and_thanks(tmp_path):
+    (tmp_path / "main.tex").write_text(
+        r"""\documentclass{article}
+\title{My Paper\thanks{Funded by Grant 123}}
+\begin{document}
+\section{Appendix tables}
+Before \hspace{2em}see Table~\ref{tab:long}.
+\begin{longtable}[c]{lcc}
+\caption{Per-task results}\label{tab:long}\\
+Task & A & B \\
+\endfirsthead
+x & 91.2 & 93.4 \\
+y & 1 & 2 & 3 \\
+\end{longtable}
+\begin{verbatim}
+accuracy = 95% (top-1)
+\end{verbatim}
+Done. % a comment
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    paper = ingest(str(tmp_path))
+    assert paper.title == "My Paper"  # the funding note is not part of it
+    (t,) = paper.tables  # a longtable outside any table float
+    assert t.caption == "Per-task results" and t.header == ["Task", "A", "B"]
+    md = t.to_markdown()
+    assert "93.4" in md and "| y | 1 | 2 | 3 |" in md  # the extra cell is kept
+    text = paper.sections[0].text
+    assert "Table 1" in text and "2em" not in text
+    assert "95% (top-1)" in text and "a comment" not in text

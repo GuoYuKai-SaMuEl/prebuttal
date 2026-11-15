@@ -75,6 +75,7 @@ from .runs import (
     render_projects_table,
     render_runs_table,
     resolve_ref,
+    retried,
     save_run,
     set_note,
 )
@@ -1130,11 +1131,12 @@ def _deliver(
     if save:
         try:
             earlier = [r for r in load_history() if r.project == project]
-            prev = earlier[0] if earlier else None
+            # a retry completes the same paper: compare with the run before
+            prev = next((r for r in earlier if r.id not in retried(earlier, retry_of)), None)
             # the plan is followed from the last run whose AC wrote one, and
             # only when this run's AC wrote one too: an empty plan would read
             # as every earlier item fixed
-            if report.meta.parse_ok:
+            if report.meta.parse_ok and report.meta.action_plan:
                 # a retry replaces the run it completes: follow the one before
                 plan_prev = plan_base(earlier, skip=retry_of)
             rec = save_run(
@@ -1348,6 +1350,11 @@ _REMOVED_CMD_FLAGS = {
         "0.7",
         "use `prebuttal runs <project>` (projects are named after the paper; "
         "`prebuttal projects` lists them)",
+    ),
+    ("key", "--key"): (
+        "0.7",
+        "a key on the command line lands in shell history: run `prebuttal key set "
+        "<backend>` (hidden prompt) or pipe it in (`prebuttal key set gemini < keyfile`)",
     ),
 }
 # commands (the first argv words): (removed in, what replaces it)

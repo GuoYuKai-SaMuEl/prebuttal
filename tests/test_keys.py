@@ -90,11 +90,10 @@ def test_cli_key_rejects_unknown(tmp_path, monkeypatch, capsys):
     assert "unknown key" in capsys.readouterr().err
 
 
-def test_key_is_never_a_command_line_argument():
-    import pytest
-
-    with pytest.raises(SystemExit):
-        cli.main(["key", "set", "gemini", "--key", "x"])
+def test_key_is_never_a_command_line_argument(capsys):
+    assert cli.main(["key", "set", "gemini", "--key", "x"]) == cli.EXIT_USAGE
+    err = capsys.readouterr().err
+    assert "shell history" in err and "< keyfile" in err and "x" not in err.split()
 
 
 def test_key_with_line_break_is_refused(isolated_prebuttal_home):

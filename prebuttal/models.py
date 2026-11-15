@@ -78,14 +78,16 @@ class Table:
         def esc(c: str) -> str:
             return c.replace("|", "\\|").replace("\n", " ").strip()
 
+        # a row with more cells than the header widens the table: no number is lost
+        width = max(len(header), *(len(r) for r in body)) if body else len(header)
+        header = header + [""] * (width - len(header))
         lines = [
             "| " + " | ".join(esc(c) for c in header) + " |",
-            "|" + "---|" * len(header),
+            "|" + "---|" * width,
         ]
         for row in body:
-            if len(row) < len(header):
-                row = row + [""] * (len(header) - len(row))
-            lines.append("| " + " | ".join(esc(c) for c in row[: len(header)]) + " |")
+            row = row + [""] * (width - len(row))
+            lines.append("| " + " | ".join(esc(c) for c in row) + " |")
         return "\n".join(lines)
 
 

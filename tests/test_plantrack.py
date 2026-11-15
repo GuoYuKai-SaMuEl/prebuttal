@@ -278,3 +278,31 @@ def test_a_finished_retry_replaces_the_run_it_completes(tmp_path):
     r3 = replace(_rec(tmp_path, 3, _plan(SEED, WRITE)), retry_of=r2.id)
     plan = project_plan([r3, r2, r1])
     assert plan is not None and plan.previous is r1  # not #2: the same paper
+
+
+def test_a_retry_of_a_retry_whose_ac_failed_replaces_both(tmp_path):
+    from dataclasses import replace
+
+    from prebuttal.plantrack import plan_base
+    from prebuttal.runs import retried
+
+    r1 = _rec(tmp_path, 1, _plan(SEED, BASE))
+    r2 = _rec(tmp_path, 2, _plan(SEED))  # a reviewer was down
+    no_ac = {**_plan(), "meta": {"parse_ok": False, "action_plan": []}}
+    r3 = replace(_rec(tmp_path, 3, no_ac), retry_of=r2.id)  # reviews done, the AC failed
+    r4 = replace(_rec(tmp_path, 4, _plan(SEED, WRITE)), retry_of=r3.id)
+    assert retried([r3, r2, r1], r3.id) == {r3.id, r2.id}
+    plan = project_plan([r4, r3, r2, r1])
+    assert plan is not None and plan.previous is r1
+    assert plan_base([r3, r2, r1], skip=r3.id) is r1  # what the run summary follows
+
+
+def test_a_run_whose_ac_left_the_plan_empty_is_stepped_over(tmp_path):
+    r1 = _rec(tmp_path, 1, _plan(SEED, BASE))
+    r2 = _rec(tmp_path, 2, _plan())  # the AC answered, with no plan
+    r3 = _rec(tmp_path, 3, _plan(SEED, WRITE))
+    plan = project_plan([r3, r2, r1])
+    assert plan is not None and plan.previous is r1
+    assert next(it for it in plan.items if it.id == "P1").since == 1
+    latest_empty = project_plan([r2, r1])
+    assert latest_empty is not None and latest_empty.run is r1

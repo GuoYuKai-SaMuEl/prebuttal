@@ -234,3 +234,26 @@ def test_relay_ignores_an_answer_left_from_an_earlier_run(tmp_path, monkeypatch)
     provider = RelayProvider(spool_dir=spool, timeout_s=0.3, poll_s=0.05)
     with pytest.raises(ProviderError):
         provider.complete(system="s", user="u", retries=0)
+
+
+def test_relay_does_not_take_an_answer_paused_mid_write(tmp_path, monkeypatch):
+    """A responder that stops for a moment mid-answer: two equal polls in a
+    row are not the end of it (a fake clock: no real waiting)."""
+    from prebuttal.providers import relay
+
+    spool = tmp_path / "s"
+    provider = RelayProvider(spool_dir=spool, timeout_s=60, poll_s=1.0)
+    clock = [0.0]
+    polls: list[int] = []
+
+    def tick(seconds):
+        clock[0] += seconds
+        req = next(iter(spool.glob("*.req.md")))
+        ans = req.with_name(req.name.replace(".req.md", ".ans.md"))
+        ans.write_text('{"summary": "partial' if len(polls) < 3 else ANSWER, encoding="utf-8")
+        polls.append(1)
+
+    monkeypatch.setattr(relay.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(relay.time, "sleep", tick)
+    comp = provider.complete(system="s", user="u", retries=0)
+    assert comp.text == ANSWER

@@ -25,7 +25,7 @@ from .revdiff import (
     check_plan,
     plan_items,
 )
-from .runs import RunRecord, _load_run_json
+from .runs import RunRecord, _load_run_json, retried
 
 TRACK_FILE = "plan-track.json"
 TRACK_SCHEMA = 1
@@ -48,30 +48,40 @@ class PlanTrack:
 
 
 def ac_finished(rec: RunRecord) -> bool:
-    """Whether the run's AC wrote its revision plan. A run cut short or whose
-    AC failed has none, and checked against it every earlier item would read
-    as fixed; such a run is skipped when following the plan."""
+    """Whether the run's AC wrote its revision plan. A run cut short, whose
+    AC failed or left the plan empty has none, and checked against it every
+    earlier item would read as fixed; such a run is skipped when following
+    the plan."""
     try:
-        meta = _load_run_json(rec).get("meta")
+        data = _load_run_json(rec)
     except (OSError, ValueError):
         return False
-    return isinstance(meta, dict) and meta.get("parse_ok", True) is not False
+    meta = data.get("meta")
+    return (
+        isinstance(meta, dict)
+        and meta.get("parse_ok", True) is not False
+        and bool(plan_items(data))
+    )
 
 
 def _followed(runs: Iterable[RunRecord]) -> list[RunRecord]:
     """The runs a plan is followed through (newest first): those whose AC
     finished, less any run a finished `prebuttal retry` completed: the retry
     has the same paper with the missing reviews, so it is not a revision of it."""
+    runs = list(runs)
     done = [r for r in runs if ac_finished(r)]
-    replaced = {r.retry_of for r in done if r.retry_of}
+    # a retry whose AC failed was retried again: the last one completes both
+    replaced = {x for r in done if r.retry_of for x in retried(runs, r.retry_of)}
     return [r for r in done if r.id not in replaced]
 
 
 def plan_base(earlier: Iterable[RunRecord], skip: str | None = None) -> RunRecord | None:
     """The run a plan is followed from: the newest of ``earlier`` (newest
     first, same project) that :func:`_followed` keeps, other than ``skip``
-    (the run a retry completes)."""
-    return next((r for r in _followed(earlier) if r.id != skip), None)
+    (the run a retry completes, and any run that one retried)."""
+    earlier = list(earlier)
+    gone = retried(earlier, skip)
+    return next((r for r in _followed(earlier) if r.id not in gone), None)
 
 
 def _plans_key(da: dict, db: dict) -> str:

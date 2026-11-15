@@ -550,6 +550,11 @@ def run_one_reviewer(
     review.fields = coerce_fields(payload, venue)
     review.rating = review.fields.get(venue.rating_key)
     review.confidence = review.fields.get(venue.confidence_key) if venue.confidence_key else None
+    if review.rating is None:  # a review without a score: failed, so `retry` redoes it
+        review.parse_ok = False
+        review.error = f"the review has no usable {venue.rating_key}"
+        log(f"[{tag}] completed but the review has no {venue.rating_key}")
+        return review
     review.parse_ok = True
     rating_str = f" rating {review.rating:g}" if review.rating is not None else ""
     log(f"[{tag}] done in {review.duration_s:.0f}s{rating_str} ({review.usage.describe()})")

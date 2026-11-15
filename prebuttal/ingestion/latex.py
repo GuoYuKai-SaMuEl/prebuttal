@@ -34,11 +34,27 @@ def _read_text(p: Path) -> str:
 _COMMENT = re.compile(r"(?<!\\)(?:\\\\)*%")
 
 
+# inside these a % is text (code listings: `95% (top-1)`, `5 % 3`)
+_VERBATIM_BEGIN = re.compile(r"\\begin\{(verbatim|Verbatim|lstlisting|minted)\*?\}")
+
+
 def _strip_comments(tex: str) -> str:
     out = []
+    verbatim: str | None = None  # the environment a line is inside
     for line in tex.splitlines():
+        if verbatim is not None:
+            out.append(line)
+            if re.search(r"\\end\{" + verbatim + r"\*?\}", line):
+                verbatim = None
+            continue
         m = _COMMENT.search(line)
-        out.append(line[: m.end() - 1] if m else line)
+        code = line[: m.end() - 1] if m else line
+        out.append(code)
+        if (b := _VERBATIM_BEGIN.search(code)) and not re.search(
+            r"\\end\{" + b.group(1) + r"\*?\}", code[b.end() :]
+        ):
+            verbatim = b.group(1)
+            out[-1] = line  # the rest of the opening line is listing text too
     return "\n".join(out)
 
 
@@ -177,12 +193,13 @@ _WRAPPERS = (
 )
 _DROP_WITH_ARGS = (
     "newcommand|renewcommand|providecommand|DeclareMathOperator|includegraphics|"
-    "graphicspath|setlength|addtolength|settowidth|hspace|vspace|phantom|hphantom|vphantom"
+    "graphicspath|setlength|addtolength|settowidth|hspace|vspace|phantom|hphantom|vphantom|"
+    "thanks"
 )
 _NOARG_DROP = (
     "label|index|bibliographystyle|nolinebreak|linebreak|smallskip|medskip|bigskip|"
     "quad|qquad|centering|raggedright|raggedleft|hfill|vfill|noindent|indent|"
-    "clearpage|newpage|protect|displaybreak|footnotemark| thanks"
+    "clearpage|newpage|protect|displaybreak|footnotemark"
 )
 
 
@@ -256,14 +273,28 @@ def _split_cells(row: str) -> list[str]:
     return cells
 
 
-def _drop_args(m: re.Match, text: str) -> str:
-    idx = m.end()
-    for _ in range(2):
-        g = _group_after(text, idx)
-        if g is None:
-            break
-        idx = g[1]
-    return " "
+_TWO_ARGS = {"newcommand", "renewcommand", "providecommand", "DeclareMathOperator",
+              "setlength", "addtolength", "settowidth"}  # fmt: skip
+_DROP_CMD = re.compile(r"\\(" + _DROP_WITH_ARGS + r")\b\*?")
+
+
+def _drop_with_args(s: str) -> str:
+    """Each ``_DROP_WITH_ARGS`` command removed with its ``[options]`` and
+    braced arguments (``\\includegraphics[w]{f.png}``, ``\\thanks{Grant}``)."""
+    out: list[str] = []
+    pos = 0
+    while m := _DROP_CMD.search(s, pos):
+        idx = m.end()
+        if opt := re.match(r"\s*\[[^\]]*\]", s[idx:]):
+            idx += opt.end()
+        for _ in range(2 if m.group(1) in _TWO_ARGS else 1):
+            g = _group_after(s, idx)
+            if g is None:
+                break
+            idx = g[1]
+        out.append(s[pos : m.start()] + " ")
+        pos = idx
+    return "".join(out) + s[pos:]
 
 
 # inline/display math, kept as LaTeX: reviewers read it, stripping it loses symbols
@@ -316,7 +347,7 @@ def _clean_inline(s: str, resolve_ref=None) -> str:
         s = re.sub(r"\\(?:ref|eqref|autoref|Cref|cref)\s*\{[^{}]*\}", "[ref]", s)
     s = re.sub(r"\\url\s*\{([^{}]*)\}", r"\1", s)
     s = re.sub(r"\\href\s*\{[^{}]*\}\s*\{([^{}]*)\}", r"\1", s)
-    s = re.sub(r"\\(?:" + _DROP_WITH_ARGS + r")\*?", lambda m: _drop_args(m, m.string), s)
+    s = _drop_with_args(s)
     s = re.sub(r"\\(?:" + _NOARG_DROP + r")\b", " ", s)
     s = re.sub(r"\\left\b|\\right\b|\\limits\b", " ", s)
     s = re.sub(r"\\[,;:!]", " ", s)
@@ -367,6 +398,8 @@ def _tabular_body(block: str) -> str | None:
             if not m:
                 break
             idx = m.end()
+            if opt := re.match(r"\s*\[[^\]]*\]", block[idx:]):  # [t], longtable's [c]
+                idx += opt.end()
             ok = True
             for _ in range(nargs):
                 g = _group_after(block, idx)
@@ -403,6 +436,28 @@ def _tabular_to_rows(body: str) -> list[list[str]]:
         if any(c.strip() for c in cells):
             rows.append([" ".join(c.split()) for c in cells])
     return rows
+
+
+def _table_blocks(body: str) -> list[tuple[int, int, str]]:
+    """Every table in document order, as (start, end, block): ``table``,
+    ``table*`` and ``sidewaystable`` floats (their body), and a ``longtable``
+    outside them (whole: the usual multi-page appendix table, not a float)."""
+    floats = [span for name in ("table", "sidewaystable") for span in _env_spans(body, name)]
+    inside = [(s, e) for s, e, _b in floats]
+    floats += [
+        (s, e, body[s:e])
+        for s, e, _b in _env_spans(body, "longtable")
+        if not any(fs <= s < fe for fs, fe in inside)
+    ]
+    return sorted(floats)
+
+
+def _drop_caption(text: str) -> str:
+    """``text`` without ``\\caption[..]{..}`` and ``\\label{..}``, arguments included."""
+    while m := re.search(r"\\(?:caption|label)\b\s*(?:\[[^\]]*\])?", text):
+        g = _group_after(text, m.end())
+        text = text[: m.start()] + (text[g[1] :] if g is not None else text[m.end() :])
+    return text
 
 
 def _caption_label(block: str) -> tuple[str, str]:
@@ -503,10 +558,12 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
     tables: list[Table] = []
     table_spans: list[tuple[int, int]] = []
     label_map: dict[str, str] = {}
-    for s, e, blk in _env_spans(body, "table"):
+    for s, e, blk in _table_blocks(body):
         table_spans.append((s, e))
         cap, label = _caption_label(blk)
         tab_text = _tabular_body(blk)
+        if tab_text:  # a longtable's caption sits among its rows
+            tab_text = _drop_caption(tab_text)
         rows = _tabular_to_rows(tab_text) if tab_text else []
         number = str(len(tables) + 1)
         if label:

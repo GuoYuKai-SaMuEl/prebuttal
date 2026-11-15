@@ -29,6 +29,7 @@ from ..models import Usage
 from .base import BaseProvider, ProviderError
 
 _SEQ = itertools.count(1)
+_SETTLE_POLLS = 5  # polls without a change before a non-JSON answer counts as done
 
 README_TXT = """\
 Prebuttal relay spool
@@ -119,14 +120,21 @@ class RelayProvider(BaseProvider):
         )
         deadline = time.monotonic() + self.timeout_s
         prev: str | None = None
+        changed_at = time.monotonic()
+        # a pause while writing is not the end of the answer: wait for several
+        # polls without a change (5 s at the default poll)
+        settle_s = _SETTLE_POLLS * self.poll_s
         while time.monotonic() < deadline:
             if ans.is_file():
                 text = ans.read_text(encoding="utf-8", errors="replace")
                 # A responder may still be writing: take the answer once it is a
-                # complete JSON object, or once it stopped changing between polls.
-                if text.strip() and (text == prev or _is_json_object(text)):
+                # complete JSON object, or once it stopped changing for settle_s.
+                if text != prev:
+                    prev, changed_at = text, time.monotonic()
+                if text.strip() and (
+                    _is_json_object(text) or time.monotonic() - changed_at >= settle_s
+                ):
                     return text, Usage()
-                prev = text
             time.sleep(self.poll_s)
         raise ProviderError(
             f"relay: no answer for {req.name} within {self.timeout_s:.0f}s — "

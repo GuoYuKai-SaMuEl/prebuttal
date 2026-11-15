@@ -303,3 +303,28 @@ def test_a_crashed_slot_keeps_its_round(latex_project):
         slots=[Slot(r2, 1, repeat=2)],
     )  # fmt: skip
     assert review.slot == ("R2", 2) and not review.parse_ok and "RuntimeError" in review.error
+
+
+class _NoRatingReviewer(PersonaFakeProvider):
+    """A review that is valid JSON but has no score."""
+
+    def _complete(self, *, system, user, temperature, seed, max_tokens):
+        _text, usage = super()._complete(
+            system=system, user=user, temperature=temperature, seed=seed, max_tokens=max_tokens
+        )
+        return '{"summary": "fine", "weaknesses": ["w"]}', usage
+
+
+def test_a_review_without_a_rating_is_a_failed_review(latex_project, shared_calls):
+    from prebuttal.ingestion import ingest
+
+    cfg = load_config(None)
+    providers, ac = _providers(cfg, shared_calls)
+    first = cfg.reviewers[0].id
+    providers[first] = _NoRatingReviewer(backend="fake-x", model="fake-1", calls=shared_calls)
+    report = run_report(
+        ingest(str(latex_project)), cfg, get_venue("iclr"), providers, ac, log=lambda m: None
+    )
+    bad = next(r for r in report.reviews if r.reviewer_id == first)
+    assert not bad.parse_ok and "rating" in bad.error  # so `prebuttal retry` redoes it
+    assert all(r.parse_ok for r in report.reviews if r.reviewer_id != first)
