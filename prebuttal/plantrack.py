@@ -13,6 +13,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 
@@ -58,10 +59,29 @@ def ac_finished(rec: RunRecord) -> bool:
     return isinstance(meta, dict) and meta.get("parse_ok", True) is not False
 
 
-def plan_base(earlier: Iterable[RunRecord]) -> RunRecord | None:
+def _followed(runs: Iterable[RunRecord]) -> list[RunRecord]:
+    """The runs a plan is followed through (newest first): those whose AC
+    finished, less any run a finished `prebuttal retry` completed: the retry
+    has the same paper with the missing reviews, so it is not a revision of it."""
+    done = [r for r in runs if ac_finished(r)]
+    by_label = {r.label: r.id for r in done}
+    replaced = set()
+    for r in done:
+        if r.retry_of:
+            replaced.add(r.retry_of)
+        elif (m := _RETRY_NOTE.match(r.note or "")) and m.group(1) in by_label:
+            replaced.add(by_label[m.group(1)])  # archived before retry_of
+    return [r for r in done if r.id not in replaced]
+
+
+_RETRY_NOTE = re.compile(r"retry of (\S+)$")
+
+
+def plan_base(earlier: Iterable[RunRecord], skip: str | None = None) -> RunRecord | None:
     """The run a plan is followed from: the newest of ``earlier`` (newest
-    first, same project) whose AC finished."""
-    return next((r for r in earlier if ac_finished(r)), None)
+    first, same project) that :func:`_followed` keeps, other than ``skip``
+    (the run a retry completes)."""
+    return next((r for r in _followed(earlier) if r.id != skip), None)
 
 
 def _plans_key(da: dict, db: dict) -> str:
@@ -139,6 +159,21 @@ def keep_diff_check(a: RunRecord, b: RunRecord, pc: PlanCheck | None) -> None:
         pass
 
 
+def _fits(t: PlanTrack, da: dict, db: dict) -> bool:
+    """The kept match is for these very plans: same hash, same ids (each
+    once), and every id it names is in them."""
+    if t.key != _plans_key(da, db):
+        return False
+    a_ids = [it["id"] for it in plan_items(da)]
+    b_ids = [it["id"] for it in plan_items(db)]
+    if a_ids != t.a_ids or b_ids != t.b_ids:
+        return False
+    if len(set(a_ids)) < len(a_ids) or len(set(b_ids)) < len(b_ids):
+        return False  # duplicate ids (a report edited by hand): not followable
+    b_refs = set(t.new_in_b) | {x for js in t.links.values() for x in js}
+    return (set(t.still) | set(t.links)) <= set(a_ids) and b_refs <= set(b_ids)
+
+
 def saved_check(a: RunRecord, b: RunRecord) -> PlanCheck | None:
     """The plan check a model made for this very pair (at the end of run
     ``b``, or by an earlier `diff`) while both plans are unchanged, so `diff`
@@ -148,16 +183,11 @@ def saved_check(a: RunRecord, b: RunRecord) -> PlanCheck | None:
     except (OSError, ValueError):
         return None
     t = _load(b)
-    if t is None or t.by_words or t.a != a.id or t.key != _plans_key(da, db):
+    if t is None or t.by_words or t.a != a.id or not _fits(t, da, db):
         return None
     plan_a, plan_b = plan_items(da), plan_items(db)
-    a_ids, b_ids = [it["id"] for it in plan_a], [it["id"] for it in plan_b]
-    if a_ids != t.a_ids or b_ids != t.b_ids:
-        return None
+    a_ids, b_ids = t.a_ids, t.b_ids
     ai, bi = {x: i for i, x in enumerate(a_ids)}, {x: j for j, x in enumerate(b_ids)}
-    b_refs = set(t.new_in_b) | {x for js in t.links.values() for x in js}
-    if not (set(t.still) | set(t.links)) <= set(ai) or not b_refs <= set(bi):
-        return None
     match = PlanMatch(
         still={ai[x] for x in t.still},
         new_b=sorted(bi[x] for x in set(t.new_in_b)),
@@ -192,7 +222,7 @@ def track_pair(a: RunRecord, b: RunRecord, matcher: Matcher | None = None) -> Pl
     if (
         cached is not None
         and cached.a == a.id
-        and cached.key == _plans_key(da, db)
+        and _fits(cached, da, db)
         and (not cached.by_words or matcher is None or matcher is WORD_OVERLAP)
     ):
         return cached
@@ -229,7 +259,7 @@ class ProjectPlan:
 def project_plan(runs: list[RunRecord]) -> ProjectPlan | None:
     """History of the latest plan of one project (``runs`` newest first).
     Runs whose AC wrote no plan (cut short, AC failed) are stepped over."""
-    runs = [r for r in runs if ac_finished(r)]
+    runs = _followed(runs)
     if not runs:
         return None
     latest = runs[0]
@@ -243,7 +273,9 @@ def project_plan(runs: list[RunRecord]) -> ProjectPlan | None:
                                   str(it.get("issue", "")), latest.run_no)
             for it in items}  # fmt: skip
     out = ProjectPlan(run=latest, items=list(hist.values()))
-    current = {lid: lid for lid in hist}  # latest id -> its id in the run being walked
+    # latest id -> the ids it goes back to in the run being walked (several
+    # when two earlier items merged into one: the oldest of them counts)
+    current = {lid: {lid} for lid in hist}
     for older, newer in zip(runs[1:], runs, strict=False):
         try:
             track = track_pair(older, newer)
@@ -261,11 +293,15 @@ def project_plan(runs: list[RunRecord]) -> ProjectPlan | None:
                 for it in older_plan
                 if it["id"] not in raised
             ]
-        back: dict[str, str] = {}
+        back: dict[str, set[str]] = {}
         for a_id, b_ids in track.links.items():
             for b_id in b_ids:
-                back.setdefault(b_id, a_id)
-        current = {lid: back[cid] for lid, cid in current.items() if cid in back}
+                back.setdefault(b_id, set()).add(a_id)
+        current = {
+            lid: olds
+            for lid, cids in current.items()
+            if (olds := {a for cid in cids for a in back.get(cid, ())})
+        }
         for lid in current:
             hist[lid].since = older.run_no
         if not current:

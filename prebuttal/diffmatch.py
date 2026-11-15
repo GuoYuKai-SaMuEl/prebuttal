@@ -11,6 +11,7 @@ diff then falls back to word overlap for that question.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 from .orchestrator import extract_json_object, wrap_submission
 from .providers.base import BaseProvider, ProviderError
@@ -63,12 +64,21 @@ def _label(provider: BaseProvider) -> str:
     return provider.backend + (f" / {provider.model}" if provider.model else "")
 
 
-def _ask(provider: BaseProvider, system: str, user: str) -> object:
+def _ask(provider: BaseProvider, system: str, user: str, want: Callable[[dict], bool]) -> object:
     try:
         comp = provider.complete(system=system, user=user, temperature=0.0, max_tokens=2000)
     except ProviderError:
         return None
-    return extract_json_object(comp.text)
+    return extract_json_object(comp.text, want)
+
+
+def _is_plan_answer(obj: dict) -> bool:
+    return isinstance(obj.get("a"), list)
+
+
+def _is_weak_answer(obj: dict) -> bool:
+    # {"G1": {...}}, not one reviewer's {"A1": "B2"} nested in a broken answer
+    return bool(obj) and all(str(k).strip().upper().startswith("G") for k in obj)
 
 
 def match_plan(
@@ -80,7 +90,7 @@ def match_plan(
         + "\n\nRound B revision plan:\n" + (_numbered("B", b_plan) or "(none)")
         + "\n\nRound B reviewer weaknesses:\n" + (_numbered("W", b_weaknesses) or "(none)")
     )  # fmt: skip
-    data = _ask(provider, SYSTEM, user)
+    data = _ask(provider, SYSTEM, user, _is_plan_answer)
     if not isinstance(data, dict) or not isinstance(data.get("a"), list):
         return None
     still: set[int] = set()
@@ -90,7 +100,7 @@ def match_plan(
         if not isinstance(entry, dict):
             return None
         i = _index(entry.get("id"), "A", len(a_plan))
-        if i is None:
+        if i is None or i in judged:  # judged twice: which answer holds?
             return None
         judged.add(i)
         raised = entry.get("still_raised")
@@ -105,7 +115,9 @@ def match_plan(
         same = [_index(r, "B", len(b_plan)) for r in refs if str(r).strip().upper()[:1] == "B"]
         if any(j is None for j in same):
             return None
-        if raised and same:
+        if same and not raised:  # "no longer raised", yet carried on by a B item
+            return None
+        if same:
             links[i] = sorted({j for j in same if j is not None})
     if len(judged) < len(a_plan):  # an incomplete answer is worse than the heuristic
         return None
@@ -135,7 +147,7 @@ def match_weaknesses(
             f"Reviewer G{g}\nA weaknesses:\n{_numbered('A', old) or '(none)'}\n"
             f"B weaknesses:\n{_numbered('B', new) or '(none)'}"
         )
-    data = _ask(provider, WEAK_SYSTEM, wrap_submission("\n\n".join(parts)))
+    data = _ask(provider, WEAK_SYSTEM, wrap_submission("\n\n".join(parts)), _is_weak_answer)
     if not isinstance(data, dict):
         return None
     out: list[Pairs | None] = []

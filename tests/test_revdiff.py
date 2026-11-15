@@ -194,3 +194,11 @@ def test_a_failed_round_is_not_a_round_that_raised_nothing(tmp_path):
     d = compute_diff(_rec(tmp_path, "a2", a), _rec(tmp_path, "b2", gone))
     assert d.weaknesses == [] and d.ratings[0].b is None
     assert "rounds)" not in render_diff_markdown(d)
+
+
+def test_a_reviewer_that_failed_throughout_still_has_a_row(tmp_path):
+    down = {"reviewer_id": "R2", "persona": "theorist", "parse_ok": False, "fields": {}}
+    a = {"reviewers": [*A_JSON["reviewers"][:1], down]}
+    b = {"reviewers": [*B_JSON["reviewers"][:1], down]}
+    d = compute_diff(_rec(tmp_path, "a", a), _rec(tmp_path, "b", b))
+    assert [(r.reviewer, r.a, r.b) for r in d.ratings][-1] == ("R2 · theorist", None, None)

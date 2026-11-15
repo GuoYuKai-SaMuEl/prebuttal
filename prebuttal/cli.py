@@ -560,20 +560,22 @@ def cmd_diff(args) -> int:
     if args.llm:
         _log("[prebuttal] note: --llm is no longer needed — diff matches by meaning by default "
              "since 0.7 (the flag goes in 0.8)")  # fmt: skip
-    matcher, why_not = _model_matcher()
-    if matcher is None:
-        _log(f"[prebuttal] matching by word overlap: {why_not}")
     from .plantrack import keep_diff_check, plan_base, saved_check
 
+    matcher, why_not = _model_matcher()
+    # the run already checked the previous plan with a model: no second call
+    kept = saved_check(a, b)
+    if matcher is None:
+        what = "weaknesses" if kept is not None else "weaknesses and the revision plan"
+        _log(f"[prebuttal] matching {what} by word overlap: {why_not}")
     try:
-        # the run already checked the previous plan with a model: no second call
-        d = compute_diff(a, b, matcher=matcher, plan=saved_check(a, b))
+        d = compute_diff(a, b, matcher=matcher, plan=kept)
     except (FileNotFoundError, ValueError) as e:
         return _fail(str(e))
     print(render_diff_markdown(d))
     runs = [r for r in load_history() if r.project == b.project]
     at = next((i for i, r in enumerate(runs) if r.id == b.id), len(runs))
-    base = plan_base(runs[at + 1 :])
+    base = plan_base(runs[at + 1 :], skip=b.retry_of)
     if base is not None and base.id == a.id:  # the pair the dashboard follows
         keep_diff_check(a, b, d.plan)
     return EXIT_OK
@@ -1114,6 +1116,7 @@ def _deliver(
     out_dir: str,
     save: bool,
     plan_matcher=None,
+    retry_of: str | None = None,
 ) -> int:
     """Render, archive and write a finished report; print the summary; exit code.
 
@@ -1136,10 +1139,11 @@ def _deliver(
             # only when this run's AC wrote one too: an empty plan would read
             # as every earlier item fixed
             if report.meta.parse_ok:
-                plan_prev = plan_base(earlier)
+                # a retry replaces the run it completes: follow the one before
+                plan_prev = plan_base(earlier, skip=retry_of)
             rec = save_run(
                 report, venue, cfg, md=md, json_str=json_str, html=html_str,
-                project=project, note=note,
+                project=project, note=note, retry_of=retry_of,
             )  # fmt: skip
         except OSError as e:
             _log(f"[prebuttal] warning: could not archive this run ({e})")
@@ -1302,10 +1306,9 @@ def cmd_retry(args) -> int:
         formats=cfg.output_formats,
         out_dir=cfg.output_dir,
         save=True,
-        # a retry that gives a run its first plan (its AC had failed or never
-        # ran): follow the earlier one. Redoing a reviewer of a run that has a
-        # plan is not a revision, so it is not checked against that run.
-        plan_matcher=None if old.meta.parse_ok else _plan_matcher(ac_provider, interrupted),
+        # follows the plan from the run before the one it completes
+        plan_matcher=_plan_matcher(ac_provider, interrupted),
+        retry_of=rec.id,
     )
     return 130 if interrupted else rc
 

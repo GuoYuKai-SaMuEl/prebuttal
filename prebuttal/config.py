@@ -230,6 +230,26 @@ def _as_list(x: Any) -> list[str]:
     return [str(v) for v in x]
 
 
+def _whole(value: Any, where: str, minimum: int | None = None) -> int:
+    """A TOML whole number (``"7"`` too, as before). ``true`` is not 1, 2.5 is
+    not 2, and a count below ``minimum`` is an error rather than a run that
+    fails later (``retries = -1`` would make no attempt at all)."""
+    if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{where} must be a whole number, got {value!r}")
+    if minimum is not None and value < minimum:
+        raise ValueError(f"{where} must be at least {minimum}, got {value}")
+    return value
+
+
+def _flag(value: Any, where: str) -> bool:
+    """A TOML true/false: ``"false"`` would otherwise read as True."""
+    if not isinstance(value, bool):
+        raise ValueError(f"{where} must be true or false, got {value!r}")
+    return value
+
+
 def load_config(path: str | Path | None = None) -> RunConfig:
     cfg = RunConfig(reviewers=default_reviewers(3))
     if path is None:
@@ -261,19 +281,22 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
         if venue_is_path(cfg.venue) and not Path(cfg.venue).expanduser().is_absolute():
             cfg.venue = str(path.parent / cfg.venue)  # relative to the config file
     check_venue(cfg.venue, f" (venue set in {path})")
-    for key in (
-        "seed",
-        "budget_chars",
-        "max_tokens",
-        "est_completion_tokens",
-        "timeout_s",
-        "retries",
+    for key, minimum in (
+        ("seed", None),
+        ("budget_chars", 1),
+        ("max_tokens", 1),
+        ("est_completion_tokens", 0),
+        ("timeout_s", 1),
+        ("retries", 0),
     ):
-        setattr(cfg, key, int(d.get(key, getattr(cfg, key))))
+        if key in d:
+            setattr(cfg, key, _whole(d[key], f"{key} in [default]", minimum))
     for key in ("compress", "figures"):
-        setattr(cfg, key, bool(d.get(key, getattr(cfg, key))))
+        if key in d:
+            setattr(cfg, key, _flag(d[key], f"{key} in [default]"))
     cfg.effort = check_effort(d.get("effort", cfg.effort), f"{path} [default]")
-    cfg.max_figures = max(1, min(int(d.get("max_figures", cfg.max_figures)), 20))
+    if "max_figures" in d:
+        cfg.max_figures = max(1, min(_whole(d["max_figures"], "max_figures in [default]"), 20))
     repeats = d.get("repeats", cfg.repeats)
     if isinstance(repeats, bool) or not isinstance(repeats, int) or not 1 <= repeats <= MAX_REPEATS:
         raise ConfigError(
@@ -296,7 +319,11 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
                 backend=str(entry.get("backend", "auto")),
                 model=str(entry.get("model", "") or ""),
                 temperature=float(entry.get("temperature", 0.4)),
-                seed=int(entry["seed"]) if entry.get("seed") is not None else None,
+                seed=(
+                    _whole(entry["seed"], f"seed of reviewer {rid}")
+                    if entry.get("seed") is not None
+                    else None
+                ),
                 effort=check_effort(entry.get("effort"), f"{path} reviewer {rid}"),
             )
         )
@@ -319,12 +346,14 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
         command = _as_list(spec.get("command"))
         if not command:
             raise ConfigError(f'[agents.{name}] in {path} needs command = ["program", ...]')
-        cfg.agents[str(name)] = AgentSpec(command=command, stdin=bool(spec.get("stdin", True)))
+        stdin = _flag(spec.get("stdin", True), f"stdin of [agents.{name}]")
+        cfg.agents[str(name)] = AgentSpec(command=command, stdin=stdin)
 
     relay = raw.get("relay", {})
     if relay:
         cfg.relay_dir = str(relay.get("dir", cfg.relay_dir))
-        cfg.relay_timeout_s = int(relay.get("timeout_s", cfg.relay_timeout_s))
+        if "timeout_s" in relay:
+            cfg.relay_timeout_s = _whole(relay["timeout_s"], "timeout_s in [relay]", 1)
 
     for model, prices in raw.get("pricing", {}).items():
         cfg.pricing[str(model)] = (

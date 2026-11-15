@@ -121,6 +121,9 @@ class RunRecord:
     # the panel mean of each round when the run had several (`repeats`), so
     # diff and the dashboard need not reread report.json; None for one round
     round_means: list[float] | None = None
+    # `prebuttal retry`: the id of the run this one completes (and replaces
+    # when following the revision plan)
+    retry_of: str | None = None
 
     @property
     def dir_path(self) -> Path:
@@ -173,6 +176,7 @@ def save_run(
     html: str | None,
     project: str = "",
     note: str = "",
+    retry_of: str | None = None,
 ) -> RunRecord:
     """Archive one run. Raises OSError on failure; the caller treats it as non-fatal."""
     run_id = new_run_id(report.paper.title)
@@ -242,6 +246,7 @@ def save_run(
             note=note,
             scale=venue.rating_field.max,
             round_means=list(rm) if len(rm := report.aggregate.round_means) > 1 else None,
+            retry_of=retry_of,
         )
         with history_path().open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")

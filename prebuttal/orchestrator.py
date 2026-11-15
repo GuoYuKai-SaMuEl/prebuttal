@@ -106,22 +106,49 @@ def _fix_escapes(text: str) -> str:
     return _ESCAPE.sub(lambda m: m.group(0) if m.group(1) else "\\\\", text)
 
 
-def extract_json_object(text: str) -> dict | None:
+def extract_json_object(text: str, want: Callable[[dict], bool] | None = None) -> dict | None:
     """Best-effort JSON object extraction from an LLM completion.
+
+    ``want``: whether a decoded object is the answer (has the keys the caller
+    asked for). An object it rejects is skipped, not returned: when the
+    answer's outer object is broken (cut off at max_tokens, an unescaped
+    quote, a trailing comma), the scan would otherwise settle for something
+    nested in it, such as one revision-plan item, and the caller would never
+    ask for a repair. Likewise for a small JSON example in prose before the
+    answer.
 
     Invalid backslash escapes are doubled first, so a LaTeX ``\\(`` in a string
     reads as itself.  This comes before the plain attempt, not after it: when
     the outer object fails on such an escape, the plain scan would settle for
     a nested object (one revision-plan item) and lose the rest.  Valid JSON
     has no invalid escapes, so doubling them never changes what it decodes to."""
+    ok = want or (lambda _obj: True)
+    obj = None
     if text and "\\" in text:
         fixed = _fix_escapes(text)
-        if fixed != text and (obj := _extract_json_object(fixed)) is not None:
-            return obj
-    return _extract_json_object(text)
+        if fixed != text:
+            obj = _extract_json_object(fixed, ok)
+    if obj is None:
+        obj = _extract_json_object(text, ok)
+    return None if obj is None else cast(dict, _no_lone_surrogates(obj))
 
 
-def _extract_json_object(text: str) -> dict | None:
+def _no_lone_surrogates(v: Any) -> Any:
+    """JSON accepts an escape such as ``\\ud800`` alone; UTF-8 cannot write it,
+    so every report file of a paid run would fail at the very end. It becomes
+    U+FFFD; a proper pair (an emoji) is kept."""
+    if isinstance(v, str):
+        if not any("\ud800" <= c <= "\udfff" for c in v):
+            return v
+        return v.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    if isinstance(v, list):
+        return [_no_lone_surrogates(x) for x in v]
+    if isinstance(v, dict):
+        return {_no_lone_surrogates(k): _no_lone_surrogates(x) for k, x in v.items()}
+    return v
+
+
+def _extract_json_object(text: str, ok: Callable[[dict], bool]) -> dict | None:
     if not text or "{" not in text or "}" not in text:
         return None
 
@@ -130,7 +157,7 @@ def _extract_json_object(text: str) -> dict | None:
         if m:
             try:
                 obj = json.loads(m.group(1))
-                if isinstance(obj, dict):
+                if isinstance(obj, dict) and ok(obj):
                     return obj
             except (ValueError, RecursionError):
                 pass
@@ -142,7 +169,7 @@ def _extract_json_object(text: str) -> dict | None:
             break
         try:
             obj, _ = _DECODER.raw_decode(text, start)
-            if isinstance(obj, dict):
+            if isinstance(obj, dict) and ok(obj):
                 return obj
         except (ValueError, RecursionError):
             pass
@@ -177,7 +204,7 @@ def _extract_json_object(text: str) -> dict | None:
             continue
         try:
             obj = json.loads(text[start:end])
-            if isinstance(obj, dict):
+            if isinstance(obj, dict) and ok(obj):
                 return obj
         except (ValueError, RecursionError):
             pass
@@ -191,10 +218,12 @@ def parse_or_repair(
     seed: int | None,
     max_tokens: int,
     usage: Usage,
+    want: Callable[[dict], bool] | None = None,
 ) -> dict | None:
     """The JSON object in ``text``, else one repair pass (models sometimes wrap
-    JSON in prose or fences, or break it); the repair's usage goes to ``usage``."""
-    payload = extract_json_object(text)
+    JSON in prose or fences, or break it); the repair's usage goes to ``usage``.
+    ``want`` as for :func:`extract_json_object`."""
+    payload = extract_json_object(text, want)
     if payload is not None:
         return payload
     try:
@@ -209,7 +238,7 @@ def parse_or_repair(
     except Exception:  # a failed repair only means there is no JSON
         return None
     usage.add(comp.usage)
-    return extract_json_object(comp.text)
+    return extract_json_object(comp.text, want)
 
 
 def _to_number(v) -> float | None:
@@ -504,7 +533,11 @@ def run_one_reviewer(
 
     review.usage = comp.usage
     text = comp.text
-    payload = parse_or_repair(provider, system, text, seed, cfg.max_tokens, review.usage)
+    keys = {f.key for f in venue.fields}
+    payload = parse_or_repair(
+        provider, system, text, seed, cfg.max_tokens, review.usage,
+        want=lambda o: not keys.isdisjoint(o),  # a review, not a weakness inside one
+    )  # fmt: skip
     review.duration_s = time.monotonic() - t0
     review.raw_output = text[:_RAW_CAP]
 
@@ -634,6 +667,9 @@ def run_reviews(
     return reviews
 
 
+_AC_KEYS = frozenset({"meta_review", "estimated_rating", "recommendation", "action_plan"})
+
+
 def run_meta(
     cfg: RunConfig,
     venue: Venue,
@@ -671,7 +707,10 @@ def run_meta(
         return meta
 
     meta.usage = comp.usage
-    payload = parse_or_repair(provider, system, comp.text, cfg.seed, max_tokens, meta.usage)
+    payload = parse_or_repair(
+        provider, system, comp.text, cfg.seed, max_tokens, meta.usage,
+        want=lambda o: not _AC_KEYS.isdisjoint(o),  # not one plan item of a broken answer
+    )  # fmt: skip
     meta.duration_s = time.monotonic() - t0
     meta.raw_output = comp.text[:_RAW_CAP]
     if payload is None:

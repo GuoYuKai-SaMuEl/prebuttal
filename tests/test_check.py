@@ -67,6 +67,12 @@ def test_clean_anonymous_pdf_passes():
     assert "main text 3 of 3 pages" in result.passed
 
 
+@pytest.mark.parametrize("heading", ["Limitations.", "5. Limitations:", "VI. Limitations"])
+def test_pdf_heading_with_a_closing_dot_or_roman_numbering(heading):
+    pdf = make_paper([page1(), body(30), [(80, heading, 12), *body(10, 100)]])
+    assert check_pdf_bytes(pdf, RULES).errors == []
+
+
 def test_page_limit_counts_to_the_references_heading():
     over = [page1(), body(30), body(30), [*body(10, 80), (300, "References", 12), *body(5, 320)]]
     result = check_pdf_bytes(make_paper(over), CheckRules(page_limit=3))
@@ -506,6 +512,10 @@ def test_annotation_messages_are_escaped():
             r"\subsection*{\texorpdfstring{\textbf{LLM Usage Statement}}{LLM Usage Statement}}",
             "cvpr",
         ),
+        # run-in and paragraph-level headings, as papers short of space write them
+        (r"\paragraph{Limitations.}", "acl"),
+        (r"\subsubsection*{Limitations:}", "acl"),
+        (r"\section{VI. Limitations}", "acl"),
     ],
 )
 def test_latex_sections_with_nested_braces_and_macros(tmp_path, heading, venue):

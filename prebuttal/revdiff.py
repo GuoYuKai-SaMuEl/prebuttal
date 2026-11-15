@@ -190,14 +190,15 @@ class RevisionDiff:
         return check_noise(ma, mb, *self.round_means, scale)
 
 
-def _by_reviewer(reviewers: list[dict]) -> dict[str, list[dict]]:
+def _by_reviewer(reviewers: list[dict], failed: bool = False) -> dict[str, list[dict]]:
     """Reviews keyed ``R1 · senior_kind``: each reviewer's rounds (`repeats`)
     together. A reviewer whose persona changed between runs is a different
     one, so its ratings are never compared.  A round that failed is left out:
-    it raised nothing, which would read as "not raised in that round"."""
+    it raised nothing, which would read as "not raised in that round"
+    (``failed``: kept, to list every reviewer)."""
     out: dict[str, list[dict]] = {}
     for i, r in enumerate(reviewers):
-        if r.get("parse_ok", True) is False:
+        if not failed and r.get("parse_ok", True) is False:
             continue
         rid = str(r.get("reviewer_id") or f"#{i + 1}")
         out.setdefault(f"{rid} · {r.get('persona') or '?'}", []).append(r)
@@ -333,7 +334,11 @@ def compute_diff(
             _mean_rating(rb.get(key, [])),
             (len(ra.get(key, [])), len(rb.get(key, []))),
         )
-        for key in sorted(set(ra) | set(rb))
+        # every reviewer, one that failed throughout included ("n/a")
+        for key in sorted(
+            set(_by_reviewer(da.get("reviewers", []), failed=True))
+            | set(_by_reviewer(db.get("reviewers", []), failed=True))
+        )
     ]
 
     both = sorted(set(ra) & set(rb))

@@ -191,3 +191,49 @@ def test_coerce_float_clamp_int():
     assert f2["overall_assessment"] == 2.5
     f3 = coerce_fields({"overall_assessment": 9}, arr)
     assert f3["overall_assessment"] == 5.0
+
+
+def test_extract_json_with_a_shape_skips_what_is_nested_or_an_example():
+    item = '{"priority": "must", "issue": "x", "action": "y"}'
+    is_ac = lambda o: "meta_review" in o or "action_plan" in o  # noqa: E731
+    broken = [  # the outer object cannot be read: never one plan item instead
+        '{"meta_review": "ok", "action_plan": [' + item + ', {"priority": "sho',
+        '{"meta_review": "a "selective" scan", "action_plan": [' + item + "]}",
+        '{"meta_review": "ok", "action_plan": [' + item + ",]}",
+    ]
+    for t in broken:
+        assert extract_json_object(t, is_ac) is None  # so the caller asks for a repair
+    # a JSON example in prose before the answer
+    for ex in ('{"term": "x"}', r'{"term": "\(O(n)\)"}'):
+        t = f'e.g. {ex} then {{"meta_review": "ok", "action_plan": []}}'
+        assert extract_json_object(t, is_ac) == {"meta_review": "ok", "action_plan": []}
+
+
+def test_a_broken_ac_answer_is_repaired_not_emptied():
+    from prebuttal.models import Usage
+    from prebuttal.orchestrator import parse_or_repair
+    from prebuttal.providers.base import BaseProvider
+
+    good = '{"meta_review": "fine", "estimated_rating": 5, "action_plan": []}'
+
+    class _Repair(BaseProvider):
+        def __init__(self):
+            super().__init__("r", "m")
+            self.calls = 0
+
+        def _complete(self, **kw):
+            self.calls += 1
+            return good, Usage()
+
+    p = _Repair()
+    cut = '{"meta_review": "fine", "action_plan": [{"priority": "must", "issue": "x"}, {"pri'
+    got = parse_or_repair(p, "sys", cut, None, 100, Usage(),
+                          want=lambda o: "meta_review" in o)  # fmt: skip
+    assert got is not None and got["meta_review"] == "fine" and p.calls == 1
+
+
+def test_a_lone_surrogate_escape_cannot_break_writing_the_report():
+    obj = extract_json_object('{"summary": "bad \ud800 here", "ok": "smile \ud83d\ude00"}')
+    assert obj is not None
+    obj["summary"].encode("utf-8")  # no UnicodeEncodeError
+    assert obj["summary"] == "bad � here" and obj["ok"] == "smile \U0001f600"

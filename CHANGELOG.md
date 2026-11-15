@@ -37,10 +37,10 @@ releases (0.2, 0.3, …) are substantial new features.
   calls a model: a pair with no kept match is matched by wording, and says
   so. Its score change reads "within noise" when chance alone could explain it.
   A run whose AC wrote no plan (cut short, or the AC failed) is stepped over
-  rather than read as every earlier item fixed; a `prebuttal retry` that
-  gives such a run its plan checks it against the run before. `prebuttal
-  diff` of a pair the run already checked shows that check without a
-  second call.
+  rather than read as every earlier item fixed. A finished `prebuttal retry`
+  replaces the run it completes (the history records it as `retry_of`) and
+  is checked against the run before that one. `prebuttal diff` of a pair the
+  run already checked shows that check without a second call.
 - `prebuttal diff` says whether the predicted score's change can be told
   from run-to-run noise: "within run-to-run noise (±0.99, estimated — not
   measured on this paper)", or "larger than …". A single run uses a default
@@ -85,8 +85,22 @@ releases (0.2, 0.3, …) are substantial new features.
   could lose the whole meta-review and revision plan while the run looked
   finished (and `prebuttal retry` saw nothing to redo): the JSON reader
   settled for the first revision-plan item. Since 0.6.1.
+- More generally, an answer whose outer JSON object is broken (cut off at
+  the token limit, an unescaped quote, a trailing comma) is no longer read
+  as an object nested in it, nor as a small JSON example in the prose
+  before it: the review or meta-review is repaired as intended instead of
+  coming out empty and marked finished.
+- A model answer with a lone `\ud800`-style escape no longer crashes the
+  run at the very end, when the report is written.
 - `prebuttal retry` started from another folder recorded that folder's seed
   in the run history and `resolved-config.json` instead of the run's own.
+- `prebuttal check` found a required section written as a run-in heading
+  (`Limitations.`, `Limitations:`), with roman numbering (`VI. Limitations`)
+  or as `\paragraph{}` / `\subsubsection{}` only by reporting it missing,
+  a desk-reject error.
+- `prebuttal.toml` values of the wrong kind are config errors instead of
+  silent surprises: `figures = "false"` read as true, `seed = true` as 1,
+  `max_tokens = 2.5` as 2, and `retries = -1` made no attempt at all.
 
 ## [0.6.1] — 2026-11-09
 

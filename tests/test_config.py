@@ -136,6 +136,13 @@ def _toml(tmp_path, text):
         '[default]\nseed = "abc"\n',
         'reviewer = "R1"\n',
         '[[reviewer]]\nid = "R1"\ntemperature = "hot"\n',
+        # a string where TOML wants true/false, a bool or fraction for a count,
+        # a count that would make the run fail later
+        '[default]\nfigures = "false"\n',
+        "[default]\nseed = true\n",
+        "[default]\nmax_tokens = 2.5\n",
+        "[default]\nretries = -1\n",
+        '[agents.mine]\ncommand = ["x"]\nstdin = "no"\n',
     ],
 )
 def test_wrong_value_types_are_config_errors(tmp_path, text):

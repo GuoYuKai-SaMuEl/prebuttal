@@ -66,6 +66,9 @@ def test_match_plan_rejects_incomplete_or_failed_answers():
         {"a": [{"id": "A1"}, full[1]], "new_in_b": []},
         {"a": [{"id": "A1", "still_raised": True, "matched_by": ["B1"]}, full[1]],
          "new_in_b": ["B1"]},
+        {"a": [{"id": "A1", "still_raised": False, "matched_by": ["B1"]}, full[1]],
+         "new_in_b": []},
+        {"a": [full[0], full[0], full[1]], "new_in_b": []},
     ):  # fmt: skip
         assert match_plan(_Canned(json.dumps(bad)), A, B, W) is None
 
@@ -90,6 +93,9 @@ def test_match_weaknesses_answers_each_reviewer_in_one_call():
     assert match_weaknesses(_Canned(json.dumps(partial)), groups) == [None, None]
     odd = {"G1": {"A1": "B²"}, "G2": {"A1": None, "A2": "B1"}}
     assert match_weaknesses(_Canned(json.dumps(odd)), groups) == [None, [None, 0]]
+    # cut off after the first reviewer: not G1's pairs read as the whole answer
+    cut = '{"G1": {"A1": "B1"}, "G2": {"A1": null, "A2": "B'
+    assert match_weaknesses(_Canned(cut), groups) is None
     assert match_weaknesses(_Canned(ProviderError("down")), groups) is None
 
 
@@ -147,5 +153,5 @@ def test_cli_diff_without_a_usable_backend_says_why(
     monkeypatch.setenv("PREBUTTAL_BACKEND", "relay")
     assert cli.main(["diff"]) == cli.EXIT_OK
     captured = capsys.readouterr()
-    assert "matching by word overlap: the AC's backend is relay" in captured.err
+    assert "by word overlap: the AC's backend is relay" in captured.err
     assert "heuristic: ≥35% word overlap" in captured.out

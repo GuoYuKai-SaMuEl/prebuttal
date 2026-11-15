@@ -236,3 +236,51 @@ def test_diff_shows_the_runs_plan_check_without_asking_again(
     assert cli.main(["diff"]) == cli.EXIT_OK
     assert sum("A item" in s for s in asked) == 0 < plan_calls  # the kept check
     assert "matcher" in capsys.readouterr().out
+
+
+def test_a_merged_item_goes_back_to_the_oldest_of_its_parts(tmp_path):
+    from prebuttal.plantrack import PlanTrack, save_track
+    from prebuttal.revdiff import plan_items
+
+    r1 = _rec(tmp_path, 1, _plan(BASE))
+    r2 = _rec(tmp_path, 2, _plan(WRITE, BASE))  # P1 new in #2, P2 from #1
+    r3 = _rec(tmp_path, 3, _plan("Baselines and writing are both weak."))
+    from prebuttal.plantrack import _load_run_json, _plans_key
+
+    def keep(a, b, links):
+        da, db = _load_run_json(a), _load_run_json(b)
+        ids = lambda d: [it["id"] for it in plan_items(d)]  # noqa: E731
+        save_track(b, PlanTrack(a.id, b.id, _plans_key(da, db), "m", False, ids(da), ids(db),
+                                list(links), links, []))  # fmt: skip
+
+    keep(r1, r2, {"P1": ["P2"]})
+    keep(r2, r3, {"P1": ["P1"], "P2": ["P1"]})  # both of #2 merged into #3's P1
+    plan = project_plan([r3, r2, r1])
+    assert plan is not None and [it.since for it in plan.items] == [1]
+
+
+def test_a_kept_match_naming_ids_the_plans_lack_is_not_used(tmp_path):
+    r1 = _rec(tmp_path, 1, _plan(SEED, BASE))
+    r2 = _rec(tmp_path, 2, _plan(SEED))
+    track_pair(r1, r2, _Matcher())
+    saved = json.loads((r2.dir_path / TRACK_FILE).read_text(encoding="utf-8"))
+    bad = {**saved, "still": ["P99"]}
+    (r2.dir_path / TRACK_FILE).write_text(json.dumps(bad), encoding="utf-8")
+    plan = project_plan([r2, r1])
+    assert plan is not None and plan.by_words  # computed again, not the edited file
+    assert plan.dropped == [("must", BASE)]
+
+
+def test_a_finished_retry_replaces_the_run_it_completes(tmp_path):
+    from dataclasses import replace
+
+    r1 = _rec(tmp_path, 1, _plan(SEED, BASE))
+    r2 = _rec(tmp_path, 2, _plan(SEED))  # a reviewer was down
+    r3 = replace(_rec(tmp_path, 3, _plan(SEED, WRITE)), retry_of=r2.id)
+    plan = project_plan([r3, r2, r1])
+    assert plan is not None and plan.previous is r1  # not #2: the same paper
+    # runs archived before retry_of: the note says it
+    r3n = replace(_rec(tmp_path, 4, _plan(SEED, WRITE)), note="retry of p#2")
+    r2.project = r3n.project = r1.project
+    plan = project_plan([r3n, r2, r1])
+    assert plan is not None and plan.previous is r1

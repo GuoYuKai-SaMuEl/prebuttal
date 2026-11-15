@@ -88,11 +88,13 @@ _UNRESOLVED_REF = re.compile(
 )
 _UNRESOLVED_CITE = re.compile(r"\[\?(?:,\s*\?)*\]|\(\?\)|\(author\?\)|\(\?, \?\)")
 _TODO = re.compile(r"\b(?:TODO|FIXME|TBD)\b")
-_NUMBERING = re.compile(r"^(?:[A-Z]|\d+)(?:\.\d+)*\.?\s+")
+# "5", "5.2", "A", "A.1" or a roman "VI", with an optional dot
+_NUMBERING = re.compile(r"^(?:[IVXL]+|[A-Z]|\d+)(?:\.\d+)*\.?\s+")
 
 
 def _norm_heading(text: str) -> str:
-    s = _NUMBERING.sub("", " ".join(text.split())).strip().casefold()
+    """Numbering, case and a closing "." or ":" (run-in headings) aside."""
+    s = _NUMBERING.sub("", " ".join(text.split())).strip().rstrip(".:").strip().casefold()
     return s.replace("acknowledgement", "acknowledgment")
 
 
@@ -313,7 +315,11 @@ def _leftovers_text(result: CheckResult, texts: list[str]) -> None:
 
 # ------------------------------------------------------------------ LaTeX
 
-_SECTION = re.compile(r"\\(?:section|subsection|chapter)\*?\s*(?:\[[^\]]*\])?")
+# \paragraph{Limitations} and \subsubsection* too: papers short of space
+# write their required statements that way
+_SECTION = re.compile(
+    r"\\(?:section|subsection|subsubsection|paragraph|chapter)\*?\s*(?:\[[^\]]*\])?"
+)
 _HEAD_DROP = re.compile(r"\\(?:label|footnote|thanks)\*?\s*(?=\{)")
 _HEAD_STYLE = re.compile(
     r"\\(?:textbf|textit|emph|texttt|textrm|textsf|textsc|text|underline|mbox|"
