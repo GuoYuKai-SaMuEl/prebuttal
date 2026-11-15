@@ -38,7 +38,7 @@ from .config import (
 from .dashboard import dashboard_path, ensure_html, render_dashboard
 from .dryrun import render_dry_run
 from .ingestion import IngestError, ingest
-from .models import dataclass_to_dict
+from .models import CHECK, dataclass_to_dict
 from .noise import check_noise
 from .orchestrator import RunInterrupted, run_report
 from .outputs import FORMATS, write_local
@@ -1136,7 +1136,9 @@ def _deliver(
             # the plan is followed from the last run whose AC wrote one, and
             # only when this run's AC wrote one too: an empty plan would read
             # as every earlier item fixed
-            if report.meta.parse_ok and report.meta.action_plan:
+            if report.meta.parse_ok and any(
+                it.raised_by != [CHECK] for it in report.meta.action_plan
+            ):
                 # a retry replaces the run it completes: follow the one before
                 plan_prev = plan_base(earlier, skip=retry_of)
             rec = save_run(
@@ -1206,7 +1208,7 @@ def _deliver(
         print(f"{'Report:' if i == 0 else '':<10}{path}")
     if rec is not None:
         nxt = "prebuttal show --open · prebuttal show --plan · prebuttal projects --open"
-        if rec.run_no > 1:
+        if prev is not None:  # what `prebuttal diff` compares with
             nxt = "prebuttal diff · " + nxt
         print(f"Next:     {nxt}")
 

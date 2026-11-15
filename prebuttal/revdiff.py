@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from .models import CHECK
 from .noise import NoiseCheck, check_noise
 from .runs import RunRecord, _delta, _g, _load_run_json, _num, _scored
 
@@ -162,6 +163,7 @@ class PlanCheck:
     a_ids: list[str] = field(default_factory=list)
     b_ids: list[str] = field(default_factory=list)
     match: PlanMatch | None = None
+    b_ac_plan: bool = True  # B's area chair wrote a plan (else: B's reviews only)
 
     @property
     def not_redetected(self) -> int:
@@ -267,6 +269,17 @@ def plan_items(data: dict) -> list[dict]:
     return [{**it, "id": str(it.get("id") or f"P{n}")} for n, it in enumerate(items, 1)]
 
 
+def ac_wrote_plan(data: dict) -> bool:
+    """Whether a report.json's area chair finished and wrote a revision plan
+    (the items `prebuttal check` adds are not the AC's)."""
+    meta = data.get("meta")
+    return (
+        isinstance(meta, dict)
+        and meta.get("parse_ok", True) is not False
+        and any(it.get("raised_by") != [CHECK] for it in plan_items(data))
+    )
+
+
 def check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
     """A's revision plan (report.json ``da``) checked against B; None when A has none."""
     plan_a = plan_items(da)
@@ -293,6 +306,7 @@ def check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
         a_ids=[it["id"] for it in plan_a],
         b_ids=[it["id"] for it in plan_b],
         match=match,
+        b_ac_plan=ac_wrote_plan(db),
     )
 
 
@@ -487,6 +501,12 @@ def _render_plan_check(out: list[str], pc: PlanCheck) -> None:
     out.append("")
     n_gone = pc.not_redetected
     out.append(f"{n_gone} of {len(pc.items)} plan items were not re-detected in B.")
+    if not pc.b_ac_plan:
+        out.append(
+            "B's area chair wrote no revision plan (it failed, or the run was cut short): "
+            "A's items are checked against B's reviews only, so more read as not "
+            "re-detected — `prebuttal retry` on B completes it."
+        )
     out.append("")
 
 
@@ -507,6 +527,7 @@ __all__ = [
     "Weakness",
     "WeaknessMovement",
     "WordOverlap",
+    "ac_wrote_plan",
     "check_plan",
     "compute_diff",
     "plan_items",

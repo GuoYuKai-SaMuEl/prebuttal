@@ -15,7 +15,7 @@ from . import __version__
 from .noise import check_noise
 from .plantrack import project_plan
 from .report import report_from_dict
-from .runs import ProjectSummary, RunRecord, runs_root
+from .runs import ProjectSummary, RunRecord, retried, runs_root
 from .share import render_share_html
 from .venues import venue_from_report
 
@@ -92,9 +92,11 @@ def _score(r: RunRecord) -> str:
 
 
 def _delta(p: ProjectSummary) -> str:
-    if len(p.runs) < 2:
+    b = p.runs[0] if p.runs else None
+    # a retry completes the same paper: compare with the run before it
+    a = b and next((r for r in p.runs[1:] if r.id not in retried(p.runs, b.retry_of)), None)
+    if a is None or b is None:
         return ""
-    a, b = p.runs[1], p.runs[0]
     fa, fb = _fraction(a), _fraction(b)
     if fa is None or fb is None or a.mean is None or b.mean is None:
         return ""

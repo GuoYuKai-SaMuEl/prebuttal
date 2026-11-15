@@ -113,19 +113,23 @@ releases (0.2, 0.3, …) are substantial new features.
 - LaTeX: a `longtable` outside a `table` float (the usual multi-page
   appendix table) was dropped without a warning, and a row with more cells
   than the header lost the extra ones: reviewers never saw those numbers.
-  Both reach the pack now, as does `sidewaystable`.
+  Both reach the pack now, as does `sidewaystable`; a longtable's head and
+  foot repeated on every page count once.
 - LaTeX: a `%` inside `verbatim`, `lstlisting` or `minted` was read as a
   comment (`95% (top-1)` became `95`); `\thanks{...}` ended up in the title;
   and the arguments of `\hspace`, `\includegraphics`, `\newcommand` and the
-  like stayed in the text (`2em`, `fig.png`).
-- A review that is valid JSON but has no rating is a failed review, so
-  `prebuttal retry` redoes it, instead of a finished one left out of the
-  mean.
+  like stayed in the text (`2em`, `fig.png`, `\setlength\tabcolsep{4pt}`).
+- A review that is valid JSON but has no rating is asked for once more,
+  then counts as a failed review, so `prebuttal retry` redoes it, instead
+  of a finished one left out of the mean.
 - After `prebuttal retry`, the `Change:` line and `prebuttal diff` compared
   the run with the incomplete one it completes (the same paper); they now
   use the run before, as the plan does. A retry of a retry whose AC failed
   replaces both, and a run whose AC left the plan empty is stepped over
-  like one whose AC failed.
+  like one whose AC failed (the items `prebuttal check` adds do not count
+  as the AC's plan). The dashboard's score change and the `Next:` hint
+  skip the completed run too. `prebuttal diff` against a run whose AC wrote
+  no plan says so, rather than reading every earlier item as fixed.
 - relay: a responder that paused mid-answer for longer than one poll had
   its half-written answer taken; a non-JSON answer now has to stay
   unchanged for 5 s.

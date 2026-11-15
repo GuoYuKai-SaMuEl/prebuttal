@@ -233,6 +233,9 @@ def slot_label(reviewer_id: str, repeat: int = 0) -> str:
 PRIORITIES = ("must", "should", "could")
 
 
+CHECK = "check"  # raised_by of the plan items `prebuttal check` adds, not the AC
+
+
 @dataclass
 class ActionItem:
     """One entry of the AC's revision plan: what to fix before submitting."""

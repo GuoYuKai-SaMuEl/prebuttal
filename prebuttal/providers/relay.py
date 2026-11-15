@@ -59,7 +59,7 @@ JSON object the instructions above ask for — to the file: {ans_name}
 def _is_json_object(text: str) -> bool:
     try:
         return isinstance(json.loads(text), dict)
-    except ValueError:
+    except (ValueError, RecursionError):  # half-written, or nested past Python's limit
         return False
 
 

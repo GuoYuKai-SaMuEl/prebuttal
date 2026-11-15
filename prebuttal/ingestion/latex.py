@@ -40,21 +40,30 @@ _VERBATIM_BEGIN = re.compile(r"\\begin\{(verbatim|Verbatim|lstlisting|minted)\*?
 
 def _strip_comments(tex: str) -> str:
     out = []
-    verbatim: str | None = None  # the environment a line is inside
+    verbatim: str | None = None  # the environment the scan is inside
     for line in tex.splitlines():
-        if verbatim is not None:
-            out.append(line)
-            if re.search(r"\\end\{" + verbatim + r"\*?\}", line):
-                verbatim = None
-            continue
-        m = _COMMENT.search(line)
-        code = line[: m.end() - 1] if m else line
-        out.append(code)
-        if (b := _VERBATIM_BEGIN.search(code)) and not re.search(
-            r"\\end\{" + b.group(1) + r"\*?\}", code[b.end() :]
-        ):
-            verbatim = b.group(1)
-            out[-1] = line  # the rest of the opening line is listing text too
+        kept, pos = "", 0
+        while True:  # left to right: an environment may open and close on one line
+            if verbatim is not None:
+                e = re.compile(r"\\end\{" + verbatim + r"\*?\}").search(line, pos)
+                if e is None:
+                    kept += line[pos:]
+                    break
+                kept += line[pos : e.end()]
+                pos, verbatim = e.end(), None
+                continue
+            m = _COMMENT.search(line, pos)
+            b = _VERBATIM_BEGIN.search(line, pos)
+            if b is not None and (m is None or b.start() < m.start()):
+                kept += line[pos : b.end()]
+                pos, verbatim = b.end(), b.group(1)
+            elif m is not None:
+                kept += line[pos : m.end() - 1]
+                break
+            else:
+                kept += line[pos:]
+                break
+        out.append(kept)
     return "\n".join(out)
 
 
@@ -275,6 +284,7 @@ def _split_cells(row: str) -> list[str]:
 
 _TWO_ARGS = {"newcommand", "renewcommand", "providecommand", "DeclareMathOperator",
               "setlength", "addtolength", "settowidth"}  # fmt: skip
+_BARE_CS = re.compile(r"\s*\\[a-zA-Z@]+\*?")
 _DROP_CMD = re.compile(r"\\(" + _DROP_WITH_ARGS + r")\b\*?")
 
 
@@ -285,13 +295,17 @@ def _drop_with_args(s: str) -> str:
     pos = 0
     while m := _DROP_CMD.search(s, pos):
         idx = m.end()
-        if opt := re.match(r"\s*\[[^\]]*\]", s[idx:]):
-            idx += opt.end()
-        for _ in range(2 if m.group(1) in _TWO_ARGS else 1):
+        for k in range(2 if m.group(1) in _TWO_ARGS else 1):
+            # [options] before any argument: \includegraphics[w]{..}, \newcommand{\f}[1]{..}
+            while opt := re.match(r"\s*\[[^\]]*\]", s[idx:]):
+                idx += opt.end()
             g = _group_after(s, idx)
-            if g is None:
+            if g is not None:
+                idx = g[1]
+            elif k == 0 and m.group(1) in _TWO_ARGS and (cs := _BARE_CS.match(s, idx)):
+                idx = cs.end()  # \setlength\tabcolsep{4pt}: the first argument unbraced
+            else:
                 break
-            idx = g[1]
         out.append(s[pos : m.start()] + " ")
         pos = idx
     return "".join(out) + s[pos:]
@@ -419,7 +433,27 @@ def _tabular_body(block: str) -> str | None:
     return best
 
 
+_LT_MARK = re.compile(r"\\(endfirsthead|endhead|endfoot|endlastfoot)(?![a-zA-Z])")
+
+
+def _longtable_once(body: str) -> str:
+    """A longtable's rows as printed once: its first head, body and last foot,
+    without the head and foot repeated on every page."""
+    parts = _LT_MARK.split(body)
+    if len(parts) == 1:
+        return body
+    keep, last_foot = [], []
+    first_head = "endfirsthead" in parts[1::2]
+    for seg, mark in zip(parts[0::2], [*parts[1::2], ""], strict=True):
+        if mark in ("endfirsthead", "") or (mark == "endhead" and not first_head):
+            keep.append(seg)
+        elif mark == "endlastfoot":
+            last_foot.append(seg)
+    return r" \\ ".join([*keep, *last_foot])
+
+
 def _tabular_to_rows(body: str) -> list[list[str]]:
+    body = _longtable_once(body)
     body = re.sub(
         r"\\(?:toprule|midrule|bottomrule|hdashline|hline|endhead|endfirsthead|"
         r"endfoot|endlastfoot|caption|label)\b"
@@ -454,7 +488,7 @@ def _table_blocks(body: str) -> list[tuple[int, int, str]]:
 
 def _drop_caption(text: str) -> str:
     """``text`` without ``\\caption[..]{..}`` and ``\\label{..}``, arguments included."""
-    while m := re.search(r"\\(?:caption|label)\b\s*(?:\[[^\]]*\])?", text):
+    while m := re.search(r"\\(?:caption\*?|label)(?![a-zA-Z])\s*(?:\[[^\]]*\])?", text):
         g = _group_after(text, m.end())
         text = text[: m.start()] + (text[g[1] :] if g is not None else text[m.end() :])
     return text
@@ -462,7 +496,7 @@ def _drop_caption(text: str) -> str:
 
 def _caption_label(block: str) -> tuple[str, str]:
     cap = ""
-    m = re.search(r"\\caption\b\s*(?:\[[^\]]*\])?", block)
+    m = re.search(r"\\caption(?![a-zA-Z*])\s*(?:\[[^\]]*\])?", block)
     if m:
         g = _group_after(block, m.end())
         if g is not None:

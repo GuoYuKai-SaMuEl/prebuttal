@@ -328,3 +328,30 @@ def test_a_review_without_a_rating_is_a_failed_review(latex_project, shared_call
     bad = next(r for r in report.reviews if r.reviewer_id == first)
     assert not bad.parse_ok and "rating" in bad.error  # so `prebuttal retry` redoes it
     assert all(r.parse_ok for r in report.reviews if r.reviewer_id != first)
+
+
+class _ScoreOnRepair(PersonaFakeProvider):
+    """Leaves the rating out, and puts it in when asked to repair the answer."""
+
+    def _complete(self, *, system, user, temperature, seed, max_tokens):
+        text, usage = super()._complete(
+            system=system, user=user, temperature=temperature, seed=seed, max_tokens=max_tokens
+        )
+        if "had no" in system:
+            return text, usage
+        return '{"summary": "fine", "weaknesses": ["w"]}', usage
+
+
+def test_a_review_without_a_rating_is_repaired_once(latex_project, shared_calls):
+    from prebuttal.ingestion import ingest
+
+    cfg = load_config(None)
+    providers, ac = _providers(cfg, shared_calls)
+    first = cfg.reviewers[0].id
+    providers[first] = _ScoreOnRepair(backend="fake-x", model="fake-1", calls=shared_calls)
+    report = run_report(
+        ingest(str(latex_project)), cfg, get_venue("iclr"), providers, ac, log=lambda m: None
+    )
+    fixed = next(r for r in report.reviews if r.reviewer_id == first)
+    assert fixed.parse_ok and fixed.rating is not None
+    assert any('had no a valid "rating"' in c["system"] for c in shared_calls)

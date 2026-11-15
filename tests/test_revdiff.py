@@ -189,3 +189,25 @@ def test_a_reviewer_that_failed_throughout_still_has_a_row(tmp_path):
     b = {"reviewers": [*B_JSON["reviewers"][:1], down]}
     d = compute_diff(_rec(tmp_path, "a", a), _rec(tmp_path, "b", b))
     assert [(r.reviewer, r.a, r.b) for r in d.ratings][-1] == ("R2 · theorist", None, None)
+
+
+def test_diff_says_when_bs_area_chair_wrote_no_plan(tmp_path):
+    b = json.loads(json.dumps(B_JSON))
+    b["meta"] = {"parse_ok": False, "action_plan": []}
+    d = compute_diff(_rec(tmp_path, "a", A_JSON), _rec(tmp_path, "b", b))
+    assert not d.plan.b_ac_plan
+    assert "B's area chair wrote no revision plan" in render_diff_markdown(d)
+    assert "wrote no revision plan" not in render_diff_markdown(
+        compute_diff(_rec(tmp_path, "a2", A_JSON), _rec(tmp_path, "b2", B_JSON))
+    )
+
+
+def test_check_items_alone_are_not_an_ac_plan():
+    from prebuttal.revdiff import ac_wrote_plan
+
+    check_only = {"meta": {"action_plan": [
+        {"priority": "must", "issue": "No checklist.", "raised_by": ["check"]}]}}  # fmt: skip
+    assert not ac_wrote_plan(check_only)
+    ac_item = {"priority": "must", "issue": "x", "raised_by": ["R1"]}
+    check_only["meta"]["action_plan"].append(ac_item)
+    assert ac_wrote_plan(check_only)

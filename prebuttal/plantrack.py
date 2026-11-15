@@ -22,6 +22,7 @@ from .revdiff import (
     PlanCheck,
     PlanItemStatus,
     PlanMatch,
+    ac_wrote_plan,
     check_plan,
     plan_items,
 )
@@ -53,15 +54,9 @@ def ac_finished(rec: RunRecord) -> bool:
     earlier item would read as fixed; such a run is skipped when following
     the plan."""
     try:
-        data = _load_run_json(rec)
+        return ac_wrote_plan(_load_run_json(rec))
     except (OSError, ValueError):
         return False
-    meta = data.get("meta")
-    return (
-        isinstance(meta, dict)
-        and meta.get("parse_ok", True) is not False
-        and bool(plan_items(data))
-    )
 
 
 def _followed(runs: Iterable[RunRecord]) -> list[RunRecord]:

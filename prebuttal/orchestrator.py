@@ -20,6 +20,7 @@ from typing import Any, cast
 from .check import ERROR, preflight_findings
 from .config import ReviewerConfig, RunConfig, reviewer_seed
 from .models import (
+    CHECK,
     PRIORITIES,
     ActionItem,
     FigureImage,
@@ -219,16 +220,20 @@ def parse_or_repair(
     max_tokens: int,
     usage: Usage,
     want: Callable[[dict], bool] | None = None,
+    required: str = "",
 ) -> dict | None:
     """The JSON object in ``text``, else one repair pass (models sometimes wrap
     JSON in prose or fences, or break it); the repair's usage goes to ``usage``.
-    ``want`` as for :func:`extract_json_object`."""
+    ``want`` as for :func:`extract_json_object`; ``required``: what it checks
+    for besides valid JSON, named in the repair request."""
     payload = extract_json_object(text, want)
     if payload is not None:
         return payload
     try:
         comp = provider.complete(
-            system=system + "\nYour previous answer was not valid JSON.",
+            system=system
+            + "\nYour previous answer was not valid JSON"
+            + (f" or had no {required}." if required else "."),
             user=text[:8000] + "\n\nReturn ONLY the corrected JSON object.",
             temperature=0.0,
             seed=seed,
@@ -534,27 +539,33 @@ def run_one_reviewer(
     review.usage = comp.usage
     text = comp.text
     keys = {f.key for f in venue.fields}
+
+    def is_review(o: dict) -> bool:  # a review, not a weakness inside one
+        return not keys.isdisjoint(o)
+
+    def scored(o: dict) -> bool:  # and with a rating: else it is repaired once
+        return is_review(o) and coerce_fields(o, venue).get(venue.rating_key) is not None
+
     payload = parse_or_repair(
         provider, system, text, seed, cfg.max_tokens, review.usage,
-        want=lambda o: not keys.isdisjoint(o),  # a review, not a weakness inside one
+        want=scored, required=f'a valid "{venue.rating_key}"',
     )  # fmt: skip
     review.duration_s = time.monotonic() - t0
     review.raw_output = text[:_RAW_CAP]
 
-    if payload is None:
+    if payload is None:  # a review without a score fails too, so `retry` redoes it
         review.parse_ok = False
-        review.error = "could not parse a JSON review from the model output"
-        log(f"[{tag}] completed but output was not valid JSON")
+        if extract_json_object(text, is_review) is not None:
+            review.error = f"the review has no usable {venue.rating_key}"
+            log(f"[{tag}] completed but the review has no {venue.rating_key}")
+        else:
+            review.error = "could not parse a JSON review from the model output"
+            log(f"[{tag}] completed but output was not valid JSON")
         return review
 
     review.fields = coerce_fields(payload, venue)
     review.rating = review.fields.get(venue.rating_key)
     review.confidence = review.fields.get(venue.confidence_key) if venue.confidence_key else None
-    if review.rating is None:  # a review without a score: failed, so `retry` redoes it
-        review.parse_ok = False
-        review.error = f"the review has no usable {venue.rating_key}"
-        log(f"[{tag}] completed but the review has no {venue.rating_key}")
-        return review
     review.parse_ok = True
     rating_str = f" rating {review.rating:g}" if review.rating is not None else ""
     log(f"[{tag}] done in {review.duration_s:.0f}s{rating_str} ({review.usage.describe()})")
@@ -788,9 +799,6 @@ def number_plan(items: list[ActionItem]) -> list[ActionItem]:
     for i, it in enumerate(items, 1):
         it.id = f"P{i}"
     return items
-
-
-CHECK = "check"  # raised_by of the plan items `prebuttal check` adds
 
 
 def check_action_items(checks: Sequence[tuple[str, str]]) -> list[ActionItem]:

@@ -333,3 +333,63 @@ Done. % a comment
     text = paper.sections[0].text
     assert "Table 1" in text and "2em" not in text
     assert "95% (top-1)" in text and "a comment" not in text
+
+
+def test_comment_stripping_around_verbatim_on_one_line():
+    from prebuttal.ingestion.latex import _strip_comments
+
+    src = "\n".join(
+        [
+            r"a \begin{verbatim}x = 50% y\end{verbatim} b % gone1",
+            r"c % gone2",
+            r"\begin{lstlisting}[caption={Acc (%)}]",
+            r"z = 5 % 3",
+            r"\end{lstlisting} % gone3",
+        ]
+    )
+    out = _strip_comments(src)
+    assert "50% y" in out and "5 % 3" in out and "Acc (%)" in out
+    assert not any(g in out for g in ("gone1", "gone2", "gone3"))
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        r"\newcommand{\foo}[1]{bar #1}Hello",
+        r"\newcommand{\foo}[2][d]{bar}Hello",
+        r"\setlength\tabcolsep{4pt}Hello",
+        r"\renewcommand\arraystretch{1.2}Hello",
+        r"\includegraphics[width=1cm]{fig.png}Hello",
+    ],
+)
+def test_dropped_commands_take_all_their_arguments(src):
+    from prebuttal.ingestion.latex import _clean_inline
+
+    assert _clean_inline(src).strip() == "Hello"
+
+
+def test_longtable_head_and_foot_count_once(tmp_path):
+    (tmp_path / "main.tex").write_text(
+        r"""\documentclass{article}
+\begin{document}
+\section{Appendix}
+\begin{longtable}{lc}
+\caption{Results}\label{tab:r}\\
+Model & Score \\
+\endfirsthead
+\caption*{Results (continued)}\\
+Model & Score \\
+\endhead
+\multicolumn{2}{r}{continued on next page} \\
+\endfoot
+Note & end \\
+\endlastfoot
+Ours & 95.0 \\
+\end{longtable}
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    (t,) = ingest(str(tmp_path)).tables
+    assert t.caption == "Results" and t.header == ["Model", "Score"]
+    assert t.rows == [["Ours", "95.0"], ["Note", "end"]]

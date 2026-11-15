@@ -306,3 +306,15 @@ def test_a_run_whose_ac_left_the_plan_empty_is_stepped_over(tmp_path):
     assert next(it for it in plan.items if it.id == "P1").since == 1
     latest_empty = project_plan([r2, r1])
     assert latest_empty is not None and latest_empty.run is r1
+
+
+def test_dashboard_score_change_skips_the_run_a_retry_completes(tmp_path):
+    from dataclasses import replace
+
+    from prebuttal.runs import ProjectSummary
+
+    r1 = _rec(tmp_path, 1, _plan(SEED, BASE), mean=5.0)
+    r2 = _rec(tmp_path, 2, _plan(SEED), mean=3.0)  # a reviewer was down
+    r3 = replace(_rec(tmp_path, 3, _plan(SEED, WRITE), mean=7.0), retry_of=r2.id)
+    page = render_dashboard([ProjectSummary(key="p", title="P", runs=[r3, r2, r1])], base=tmp_path)
+    assert "+2 vs #1" in page and "vs #2" not in page
