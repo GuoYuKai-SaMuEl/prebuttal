@@ -39,13 +39,13 @@ def test_auto_prefers_cross_model_agents(monkeypatch):
     statuses = [
         BackendStatus("agent-claude", "agent", True, ""),
         BackendStatus("agent-codex", "agent", True, ""),
-        BackendStatus("api-gemini", "api", True, "", "gemini-2.5-flash"),
+        BackendStatus("api-gemini", "api", True, "", "gemini-3.5-flash-lite"),
         BackendStatus("api-openai", "api", False, ""),
     ]
     resolved, ac = resolve_backends(cfg, statuses)
     backends = [b for (_r, b, _m) in resolved]
     assert backends == ["agent-claude", "agent-codex", "api-gemini"]
-    assert resolved[2][2] == "gemini-2.5-flash"  # model default filled in
+    assert resolved[2][2] == "gemini-3.5-flash-lite"  # model default filled in
     assert ac[0] == "agent-claude"
 
 
@@ -161,7 +161,7 @@ def test_gemini_provider_request_shape(monkeypatch):
     calls = _install_mock_http(monkeypatch, handler)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
 
-    provider = GeminiProvider(model="gemini-2.5-flash")
+    provider = GeminiProvider(model="gemini-3.5-flash-lite")
     comp = provider.complete(
         system="SYS", user="USR", temperature=0.7, seed=123, max_tokens=1000, retries=0
     )
@@ -171,7 +171,7 @@ def test_gemini_provider_request_shape(monkeypatch):
     assert captured["generationConfig"]["temperature"] == 0.7
     assert captured["generationConfig"]["responseMimeType"] == "application/json"
     assert captured["systemInstruction"]["parts"][0]["text"] == "SYS"
-    assert "gemini-2.5-flash:generateContent" in str(calls[0].url)
+    assert "gemini-3.5-flash-lite:generateContent" in str(calls[0].url)
 
 
 def test_openai_provider_request_shape(monkeypatch):
@@ -374,7 +374,7 @@ def test_anthropic_provider_request_shape(monkeypatch):
     _install_mock_http(monkeypatch, handler)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "ak-test")
 
-    provider = AnthropicProvider(model="claude-sonnet-4-5")
+    provider = AnthropicProvider(model="claude-sonnet-5-5")
     comp = provider.complete(
         system="S", user="U", temperature=0.3, seed=5, max_tokens=900, retries=0
     )

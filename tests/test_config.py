@@ -69,7 +69,7 @@ out = 10.0
     assert cfg.ac.backend == "api-gemini"
     assert cfg.agents["myagent"].command == ["myagent", "--headless"]
     assert cfg.pricing["gemini-9-pro"] == (1.25, 10.0)
-    assert cfg.pricing["gemini-2.5-flash"][0] == 0.30  # defaults retained
+    assert cfg.pricing["gemini-3.5-flash-lite"][0] == 0.10  # defaults retained
 
 
 def test_invalid_venue_rejected(tmp_path):

@@ -7,12 +7,12 @@ def test_dry_run_matrix_and_costs():
     cfg = load_config(None)
     statuses = [
         BackendStatus("agent-claude", "agent", True, "claude CLI"),
-        BackendStatus("api-gemini", "api", True, "key", "gemini-2.5-flash"),
+        BackendStatus("api-gemini", "api", True, "key", "gemini-3.5-flash-lite"),
         BackendStatus("ollama", "ollama", True, "up", "llama3.1"),
     ]
     resolved = [
         ("R1", "agent-claude", ""),
-        ("R2", "api-gemini", "gemini-2.5-flash"),
+        ("R2", "api-gemini", "gemini-3.5-flash-lite"),
         ("R3", "ollama", "llama3.1"),
     ]
     text = render_dry_run(cfg, resolved, ("agent-claude", ""), 40_000, statuses)

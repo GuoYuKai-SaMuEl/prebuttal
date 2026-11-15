@@ -117,7 +117,7 @@ def test_anthropic_effort(monkeypatch):
     ("model", "expected"),
     [
         ("gemini-3.5-flash-lite", {"thinkingLevel": "medium"}),
-        ("gemini-2.5-flash", {"thinkingBudget": 8192}),
+        ("gemini-2.5-flash-lite", {"thinkingBudget": 8192}),
     ],
 )
 def test_gemini_effort(monkeypatch, model, expected):
@@ -194,7 +194,6 @@ def test_report_and_dry_run_show_effort(latex_project):
         ("claude-sonnet-4-5", False),
         ("claude-haiku-4-5", False),
         ("claude-sonnet-4", False),
-        ("claude-3-7-sonnet-latest", False),
         ("claude-sonnet-4-5-latest", False),
         ("Claude-Haiku-4-5", False),
         ("claude-opus-4-6-latest", True),

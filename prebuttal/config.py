@@ -22,13 +22,8 @@ CONFIG_FILENAME = "prebuttal.toml"
 # override per-model in prebuttal.toml with [pricing."model-id"] in=.. out=..
 DEFAULT_PRICING: dict[str, tuple[float, float]] = {
     "gemini-3.5-flash-lite": (0.10, 0.40),
-    "gemini-2.5-flash": (0.30, 2.50),
-    "gemini-2.0-flash": (0.10, 0.40),
-    "gpt-4.1-mini": (0.40, 1.60),
-    "gpt-4o-mini": (0.15, 0.60),
     "gpt-5.6-terra": (2.00, 12.00),
     "gpt-5.6-luna": (0.20, 1.20),
-    "claude-sonnet-4-5": (3.00, 15.00),
     "claude-sonnet-5-5": (2.00, 10.00),
     "claude-haiku-4-5": (1.00, 5.00),
     # launched 2026-10-07 with a price cut; prompts over 100k tokens cost 5x

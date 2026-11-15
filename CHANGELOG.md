@@ -29,6 +29,10 @@ releases (0.2, 0.3, …) are substantial new features.
   back, a weakness raised in one round only, ratings not noise-checked);
   section headers just say how items were matched.
 - `revdiff.Matcher` is no longer exported: the matchers are internal.
+- The built-in price table drops models that are shut down or retire
+  within weeks: `gemini-2.0-flash`, `gemini-2.5-flash`, `claude-sonnet-4-5`,
+  `gpt-4.1-mini` and `gpt-4o-mini`. A run on one of them shows "unknown
+  price" in `--dry-run`, with the `[pricing."model-id"]` line that sets it.
 
 ### Added
 - The revision plan is followed across runs. After a run, its plan is

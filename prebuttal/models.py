@@ -171,10 +171,7 @@ _CLAUDE_VERSION = re.compile(r"claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-(?:\d{8}|
 def anthropic_effort_model(model: str) -> bool:
     """The Messages API takes ``output_config.effort`` from Claude 4.6 on, and
     on Opus 4.5; older models answer it with a 400. Unknown ids get it."""
-    model = model.lower()
-    if model.startswith("claude-3"):
-        return False
-    m = _CLAUDE_VERSION.match(model)
+    m = _CLAUDE_VERSION.match(model.lower())
     if not m:
         return True
     version = (int(m[2]), int(m[3] or 0))

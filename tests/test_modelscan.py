@@ -24,11 +24,11 @@ def test_gemini_models_filters_to_generate_content(monkeypatch):
             "https://generativelanguage.googleapis.com/v1beta/models": {
                 "models": [
                     {
-                        "name": "models/gemini-2.5-flash",
+                        "name": "models/gemini-3.5-flash-lite",
                         "supportedGenerationMethods": ["generateContent"],
                     },
                     {
-                        "name": "models/gemini-2.5-pro",
+                        "name": "models/gemini-3.8-flash",
                         "supportedGenerationMethods": ["generateContent", "countTokens"],
                     },
                     {
@@ -36,14 +36,14 @@ def test_gemini_models_filters_to_generate_content(monkeypatch):
                         "supportedGenerationMethods": ["embedContent"],
                     },
                     {
-                        "name": "models/gemini-2.5-flash-image",
+                        "name": "models/gemini-3.5-flash-lite-image",
                         "supportedGenerationMethods": ["generateContent"],
                     },
                 ]
             }
         },
     )
-    assert gemini_models("k") == ["gemini-2.5-flash", "gemini-2.5-pro"]
+    assert gemini_models("k") == ["gemini-3.5-flash-lite", "gemini-3.8-flash"]
 
 
 def test_openai_models_filters_noise(monkeypatch):
@@ -68,9 +68,9 @@ def test_openai_models_filters_noise(monkeypatch):
 def test_anthropic_models(monkeypatch):
     _patch_get(
         monkeypatch,
-        {"https://api.anthropic.com/v1/models": {"data": [{"id": "claude-sonnet-4-5"}]}},
+        {"https://api.anthropic.com/v1/models": {"data": [{"id": "claude-sonnet-5-5"}]}},
     )
-    assert anthropic_models("k") == ["claude-sonnet-4-5"]
+    assert anthropic_models("k") == ["claude-sonnet-5-5"]
 
 
 def test_scan_without_keys_is_graceful(monkeypatch):
@@ -95,11 +95,11 @@ def test_scan_without_keys_is_graceful(monkeypatch):
 
 def test_listing_marks_the_default():
     text = ModelListing(
-        "api-gemini", ["gemini-2.5-flash", "gemini-2.5-pro"], "gemini-2.5-flash"
+        "api-gemini", ["gemini-3.5-flash-lite", "gemini-3.8-flash"], "gemini-3.5-flash-lite"
     ).render()
     assert "api-gemini" in text
-    assert "- gemini-2.5-flash *" in text
-    assert "- gemini-2.5-pro" in text
+    assert "- gemini-3.5-flash-lite *" in text
+    assert "- gemini-3.8-flash" in text
 
 
 def test_openrouter_catalog_filters_and_prices(monkeypatch):
