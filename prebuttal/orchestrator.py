@@ -109,14 +109,16 @@ def _fix_escapes(text: str) -> str:
 def extract_json_object(text: str) -> dict | None:
     """Best-effort JSON object extraction from an LLM completion.
 
-    If nothing decodes, try once more with invalid backslash escapes doubled,
-    so a LaTeX ``\\(`` in a string reads as itself instead of losing the review."""
-    obj = _extract_json_object(text)
-    if obj is None and text and "\\" in text:
+    Invalid backslash escapes are doubled first, so a LaTeX ``\\(`` in a string
+    reads as itself.  This comes before the plain attempt, not after it: when
+    the outer object fails on such an escape, the plain scan would settle for
+    a nested object (one revision-plan item) and lose the rest.  Valid JSON
+    has no invalid escapes, so doubling them never changes what it decodes to."""
+    if text and "\\" in text:
         fixed = _fix_escapes(text)
-        if fixed != text:
-            obj = _extract_json_object(fixed)
-    return obj
+        if fixed != text and (obj := _extract_json_object(fixed)) is not None:
+            return obj
+    return _extract_json_object(text)
 
 
 def _extract_json_object(text: str) -> dict | None:

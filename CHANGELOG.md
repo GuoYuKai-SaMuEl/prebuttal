@@ -36,6 +36,11 @@ releases (0.2, 0.3, …) are substantial new features.
   #1", "new in #3") and the previous run's items no longer raised. It never
   calls a model: a pair with no kept match is matched by wording, and says
   so. Its score change reads "within noise" when chance alone could explain it.
+  A run whose AC wrote no plan (cut short, or the AC failed) is stepped over
+  rather than read as every earlier item fixed; a `prebuttal retry` that
+  gives such a run its plan checks it against the run before. `prebuttal
+  diff` of a pair the run already checked shows that check without a
+  second call.
 - `prebuttal diff` says whether the predicted score's change can be told
   from run-to-run noise: "within run-to-run noise (±0.99, estimated — not
   measured on this paper)", or "larger than …". A single run uses a default
@@ -74,6 +79,14 @@ releases (0.2, 0.3, …) are substantial new features.
   - `prebuttal plan`: `prebuttal show --plan`;
   - `prebuttal venues show <name>`: `prebuttal venues <name>`;
   - `prebuttal runs --paper`: `prebuttal runs <project>`.
+
+### Fixed
+- An area chair that wrote LaTeX such as `\(O(n)\)` in its meta-review
+  could lose the whole meta-review and revision plan while the run looked
+  finished (and `prebuttal retry` saw nothing to redo): the JSON reader
+  settled for the first revision-plan item. Since 0.6.1.
+- `prebuttal retry` started from another folder recorded that folder's seed
+  in the run history and `resolved-config.json` instead of the run's own.
 
 ## [0.6.1] — 2026-11-09
 

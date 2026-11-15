@@ -56,6 +56,26 @@ def test_match_plan_rejects_incomplete_or_failed_answers():
     full = [{"id": "A1", "still_raised": True}, {"id": "A2", "still_raised": False}]
     for bad in ({"a": full, "new_in_b": ["B9"]}, {"a": [*full, {"id": "A7"}], "new_in_b": []}):
         assert match_plan(_Canned(json.dumps(bad)), A, B, W) is None
+    # ids int() can't read, a still_raised that is not a bool, an item both
+    # carried on and new: not used (and never an exception)
+    for odd in ("A²", "A" + "9" * 5000):
+        ans = {"a": [{"id": odd, "still_raised": True}, full[1]], "new_in_b": []}
+        assert match_plan(_Canned(json.dumps(ans)), A, B, W) is None
+    for bad in (
+        {"a": [{"id": "A1", "still_raised": "true"}, full[1]], "new_in_b": []},
+        {"a": [{"id": "A1"}, full[1]], "new_in_b": []},
+        {"a": [{"id": "A1", "still_raised": True, "matched_by": ["B1"]}, full[1]],
+         "new_in_b": ["B1"]},
+    ):  # fmt: skip
+        assert match_plan(_Canned(json.dumps(bad)), A, B, W) is None
+
+
+def test_match_plan_new_items_are_the_ones_nothing_carries_on():
+    # new_in_b left out: B2 is still new, as on the dashboard (which reads links)
+    ans = {"a": [{"id": "A1", "still_raised": True, "matched_by": ["B1"]},
+                 {"id": "A2", "still_raised": False}], "new_in_b": []}  # fmt: skip
+    m = match_plan(_Canned(json.dumps(ans)), A, B, W)
+    assert m is not None and m.links == {0: [0]} and m.new_b == [1]
 
 
 def test_match_weaknesses_answers_each_reviewer_in_one_call():
@@ -68,6 +88,8 @@ def test_match_weaknesses_answers_each_reviewer_in_one_call():
     # a reviewer whose answer is incomplete or names a missing item: None, the rest kept
     partial = {"G1": {"A1": "B7"}, "G2": {"A2": "B1"}}
     assert match_weaknesses(_Canned(json.dumps(partial)), groups) == [None, None]
+    odd = {"G1": {"A1": "B²"}, "G2": {"A1": None, "A2": "B1"}}
+    assert match_weaknesses(_Canned(json.dumps(odd)), groups) == [None, [None, 0]]
     assert match_weaknesses(_Canned(ProviderError("down")), groups) is None
 
 

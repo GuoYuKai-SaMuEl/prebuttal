@@ -129,6 +129,17 @@ def test_extract_json_keeps_latex_backslashes():
     assert extract_json_object("\\(x\\) and {no json}") is None
 
 
+def test_extract_json_latex_in_outer_object_does_not_yield_a_nested_one():
+    # an AC answer: the outer object fails on \( while each plan item alone is
+    # valid JSON — taking the first item would empty the whole meta-review
+    text = ('{"meta_review": "cost is \\(O(nm)\\)", "estimated_rating": 5, '
+            '"action_plan": [{"priority": "must", "issue": "x", "action": "y"}]}')  # fmt: skip
+    for t in (text, f"```json\n{text}\n```", f"Here it is:\n{text}"):
+        obj = extract_json_object(t)
+        assert obj is not None and obj["meta_review"] == "cost is \\(O(nm)\\)"
+        assert obj["action_plan"][0]["issue"] == "x"
+
+
 def test_extract_json_survives_unclosed_prose_brace_and_pathological_braces():
     import time
 

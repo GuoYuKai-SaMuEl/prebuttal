@@ -162,3 +162,77 @@ def test_diff_of_consecutive_runs_keeps_its_model_match(
     (b.dir_path / TRACK_FILE).unlink()
     assert cli.main(["diff", b.label, a.label]) == cli.EXIT_OK
     assert not (a.dir_path / TRACK_FILE).exists() and not (b.dir_path / TRACK_FILE).exists()
+
+
+def _failed_ac(data: dict) -> dict:
+    return {**data, "meta": {"parse_ok": False, "action_plan": []}}
+
+
+def test_a_run_without_an_ac_plan_is_stepped_over(tmp_path):
+    r1 = _rec(tmp_path, 1, _plan(SEED, BASE))
+    r2 = _rec(tmp_path, 2, _failed_ac(_plan()))  # cut short / AC failed
+    r3 = _rec(tmp_path, 3, _plan(SEED, WRITE))
+    plan = project_plan([r3, r2, r1])
+    assert plan is not None and plan.previous is r1
+    assert [it.since for it in plan.items] == [1, 3]
+    assert plan.dropped == [("must", BASE)]  # not every item of #1
+    # the latest run has no plan: the last one that has is shown
+    r4 = _rec(tmp_path, 4, _failed_ac(_plan()))
+    plan = project_plan([r4, r3, r2, r1])
+    assert plan is not None and plan.run is r3
+
+
+def test_a_damaged_track_file_is_computed_again(tmp_path):
+    r1 = _rec(tmp_path, 1, _plan(BASE))
+    r2 = _rec(tmp_path, 2, _plan(BASE, WRITE))
+    t = track_pair(r1, r2, _Matcher())
+    assert t is not None
+    saved = json.loads((r2.dir_path / TRACK_FILE).read_text(encoding="utf-8"))
+    (r2.dir_path / TRACK_FILE).write_text(json.dumps({**saved, "links": None}), encoding="utf-8")
+    plan = project_plan([r2, r1])  # no AttributeError: by wording instead
+    assert plan is not None and plan.by_words
+
+
+def test_no_plan_line_when_the_ac_wrote_no_plan(
+    latex_project, fake_statuses, fake_config, monkeypatch, capsys
+):
+    from prebuttal import orchestrator
+    from prebuttal.models import MetaReview
+
+    monkeypatch.chdir(fake_config.parent)
+    assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == 0
+    monkeypatch.setattr(orchestrator, "run_meta",
+                        lambda *a, **k: MetaReview("fake", "m", 0.0, error="down"))  # fmt: skip
+    capsys.readouterr()
+    cli.main(["run", str(latex_project), "--config", str(fake_config)])
+    out = capsys.readouterr()
+    assert "Plan:" not in out.out and "following the revision plan" not in out.err
+
+
+def test_diff_shows_the_runs_plan_check_without_asking_again(
+    latex_project, fake_statuses, fake_config, model_diff, monkeypatch, capsys
+):
+    monkeypatch.chdir(fake_config.parent)
+    for _ in range(2):
+        assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == 0
+    a = load_history()[1]
+    n = len(json.loads((a.dir_path / "report.json").read_text(encoding="utf-8"))["meta"]
+            ["action_plan"])  # fmt: skip
+    answer = {"a": [{"id": f"A{i}", "still_raised": True, "matched_by": [f"B{i}"]}
+                    for i in range(1, n + 1)], "new_in_b": []}  # fmt: skip
+    asked: list[str] = []
+
+    class _Canned(PersonaFakeProvider):
+        def _complete(self, **kw):
+            asked.append(kw["system"])
+            return json.dumps(answer), Usage()
+
+    register_backend("matcher", lambda m, cfg, t: _Canned(backend="matcher"))
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "matcher")
+    assert cli.main(["diff"]) == cli.EXIT_OK  # asks, and keeps the answer
+    plan_calls = sum("A item" in s for s in asked)  # the plan check's prompt
+    asked.clear()
+    capsys.readouterr()
+    assert cli.main(["diff"]) == cli.EXIT_OK
+    assert sum("A item" in s for s in asked) == 0 < plan_calls  # the kept check
+    assert "matcher" in capsys.readouterr().out

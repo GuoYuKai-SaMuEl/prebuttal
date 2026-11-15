@@ -199,3 +199,18 @@ def test_retry_of_a_custom_venue_whose_name_is_now_built_in():
     data = {"venue": {"key": "cvpr", "custom": True, "definition": venue_to_spec(VENUES["icml"])}}
     with pytest.raises(RetryError, match="now a built-in venue"):
         venue_for_retry(data)
+
+
+def test_retry_from_another_folder_keeps_the_runs_seed(
+    latex_project, fake_statuses, flaky_config, tmp_path, monkeypatch
+):
+    cfg_path, _calls = flaky_config  # seed = 7
+    assert cli.main(["run", str(latex_project), "--config", str(cfg_path)]) == cli.EXIT_PARTIAL
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)  # no prebuttal.toml here: the default seed
+    _Flaky.down = False
+    assert cli.main(["retry"]) == cli.EXIT_OK
+    rec = load_history()[0]
+    resolved = json.loads((rec.dir_path / "resolved-config.json").read_text(encoding="utf-8"))
+    assert rec.seed == resolved["seed"] == 7

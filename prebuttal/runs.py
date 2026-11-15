@@ -198,7 +198,9 @@ def save_run(
     resolved = {
         "prebuttal_version": __version__,
         "venue": venue.key,
-        "seed": cfg.seed,
+        # the run's own seed: a retry keeps the one of the run it completes,
+        # whatever prebuttal.toml in the folder it is started from says
+        "seed": report.run.seed,
         # from the reviews, not cfg: a retry redoes slots of the run it completes
         "repeats": max((r.repeat for r in report.reviews), default=0) + 1,
         "config_path": cfg.config_path,
@@ -230,7 +232,7 @@ def save_run(
             paper_title=report.paper.title,
             source=report.run.source,
             venue=venue.key,
-            seed=cfg.seed,
+            seed=report.run.seed,
             mean=report.aggregate.mean,
             std=report.aggregate.std,
             n=report.aggregate.n,

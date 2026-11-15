@@ -170,7 +170,9 @@ def test_retry_keeps_each_rounds_seed(latex_project, repeats_run, tmp_path):
     down["on"] = False
     calls.clear()
     assert cli.main(["retry"]) == cli.EXIT_OK
-    redone = [c for c in calls if "estimated_rating" not in c["system"]]
+    # the reviewers (not the AC, nor the plan check against the run before)
+    redone = [c for c in calls if not any(
+        s in c["system"] for s in ("estimated_rating", "two rounds"))]  # fmt: skip
     assert sorted(c["seed"] for c in redone) == [9, 1009]
     new = json.loads((load_history()[0].dir_path / "report.json").read_text(encoding="utf-8"))
     assert all(r["parse_ok"] for r in new["reviewers"])

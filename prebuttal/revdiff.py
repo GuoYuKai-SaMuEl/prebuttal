@@ -193,9 +193,12 @@ class RevisionDiff:
 def _by_reviewer(reviewers: list[dict]) -> dict[str, list[dict]]:
     """Reviews keyed ``R1 · senior_kind``: each reviewer's rounds (`repeats`)
     together. A reviewer whose persona changed between runs is a different
-    one, so its ratings are never compared."""
+    one, so its ratings are never compared.  A round that failed is left out:
+    it raised nothing, which would read as "not raised in that round"."""
     out: dict[str, list[dict]] = {}
     for i, r in enumerate(reviewers):
+        if r.get("parse_ok", True) is False:
+            continue
         rid = str(r.get("reviewer_id") or f"#{i + 1}")
         out.setdefault(f"{rid} · {r.get('persona') or '?'}", []).append(r)
     return out
@@ -310,8 +313,13 @@ def check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
     )
 
 
-def compute_diff(a: RunRecord, b: RunRecord, *, matcher: Matcher | None = None) -> RevisionDiff:
-    """Compare run A with run B.  Raises FileNotFoundError if an archive is gone."""
+def compute_diff(
+    a: RunRecord, b: RunRecord, *, matcher: Matcher | None = None, plan: PlanCheck | None = None
+) -> RevisionDiff:
+    """Compare run A with run B.  Raises FileNotFoundError if an archive is gone.
+
+    ``plan``: a plan check already made for this pair (kept by plantrack), used
+    instead of asking ``matcher`` again."""
     matcher = matcher or WORD_OVERLAP
     da, db = _load_run_json(a), _load_run_json(b)
     aa, ab = da.get("aggregate", {}), db.get("aggregate", {})
@@ -364,7 +372,7 @@ def compute_diff(a: RunRecord, b: RunRecord, *, matcher: Matcher | None = None) 
         weaknesses=movements,
         weaknesses_by_words=not used_words or any(used_words),
         weaknesses_matched_by=matcher.label,
-        plan=check_plan(matcher, da, db),
+        plan=plan if plan is not None else check_plan(matcher, da, db),
         round_means=(_round_means(aa), _round_means(ab)),
     )
 
@@ -411,7 +419,7 @@ def render_diff_markdown(d: RevisionDiff) -> str:
     out.append("## Reviewer ratings (A → B; single reviews — treat as anecdotes)")
     for rc in d.ratings:
         ka, kb = rc.rounds
-        of = f"  (mean of {ka} → {kb} rounds)" if max(ka, kb) > 1 else ""
+        of = f"  (mean of {ka} → {kb} rounds)" if max(ka, kb) > 1 and ka and kb else ""
         out.append(
             f"- {rc.reviewer}: {_g(rc.a)} → {_g(rc.b)}{_delta(rc.a, rc.b) if same else ''}{of}"
         )

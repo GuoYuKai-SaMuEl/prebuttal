@@ -173,3 +173,24 @@ def test_rounds_of_one_reviewer_are_grouped(tmp_path):
     assert "- R1 · methodologist: 4.5 → 6  (Δ +1.5)  (mean of 2 → 2 rounds)" in text
     assert "- persists: Single seed only. (A: 2 of 2 rounds) (B: 1 of 2 rounds)" in text
     assert "raised in 1 round only" in text
+
+
+def test_a_failed_round_is_not_a_round_that_raised_nothing(tmp_path):
+    def review(k, weak, ok=True):
+        return {"reviewer_id": "R1", "repeat": k, "persona": "methodologist",
+                "parse_ok": ok, "rating": 5 if ok else None,
+                "fields": {"weaknesses": weak} if ok else {}}  # fmt: skip
+
+    a = {"reviewers": [review(0, ["Single seed only."]), review(1, [], ok=False)]}
+    b = {"reviewers": [review(0, ["Single seed only."]), review(1, ["Single seed only."])]}
+    d = compute_diff(_rec(tmp_path, "a", a), _rec(tmp_path, "b", b))
+    (rc,) = d.ratings
+    assert rc.rounds == (1, 2)
+    (mv,) = d.weaknesses
+    assert mv.rounds == (1, 2) and [(w.seen_a, w.seen_b) for w in mv.persists] == [(1, 2)]
+    assert "raised in 1 round only" not in render_diff_markdown(d)
+    # a reviewer that failed every round of B: its weaknesses are not "gone"
+    gone = {"reviewers": [review(0, [], ok=False)]}
+    d = compute_diff(_rec(tmp_path, "a2", a), _rec(tmp_path, "b2", gone))
+    assert d.weaknesses == [] and d.ratings[0].b is None
+    assert "rounds)" not in render_diff_markdown(d)

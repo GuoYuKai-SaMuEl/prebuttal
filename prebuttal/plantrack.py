@@ -13,9 +13,18 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 
-from .revdiff import WORD_OVERLAP, Matcher, PlanCheck, check_plan, plan_items
+from .revdiff import (
+    WORD_OVERLAP,
+    Matcher,
+    PlanCheck,
+    PlanItemStatus,
+    PlanMatch,
+    check_plan,
+    plan_items,
+)
 from .runs import RunRecord, _load_run_json
 
 TRACK_FILE = "plan-track.json"
@@ -36,6 +45,23 @@ class PlanTrack:
     still: list[str] = field(default_factory=list)  # A items B still raises
     links: dict[str, list[str]] = field(default_factory=dict)  # A item -> same B items
     new_in_b: list[str] = field(default_factory=list)
+
+
+def ac_finished(rec: RunRecord) -> bool:
+    """Whether the run's AC wrote its revision plan. A run cut short or whose
+    AC failed has none, and checked against it every earlier item would read
+    as fixed; such a run is skipped when following the plan."""
+    try:
+        meta = _load_run_json(rec).get("meta")
+    except (OSError, ValueError):
+        return False
+    return isinstance(meta, dict) and meta.get("parse_ok", True) is not False
+
+
+def plan_base(earlier: Iterable[RunRecord]) -> RunRecord | None:
+    """The run a plan is followed from: the newest of ``earlier`` (newest
+    first, same project) whose AC finished."""
+    return next((r for r in earlier if ac_finished(r)), None)
 
 
 def _plans_key(da: dict, db: dict) -> str:
@@ -70,9 +96,25 @@ def _load(b: RunRecord) -> PlanTrack | None:
     try:
         data = json.loads((b.dir_path / TRACK_FILE).read_text(encoding="utf-8"))
         data.pop("schema", None)
-        return PlanTrack(**data)
+        track = PlanTrack(**data)
     except (OSError, ValueError, TypeError):
         return None
+    return track if _well_formed(track) else None
+
+
+def _strs(v: object) -> bool:
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
+
+
+def _well_formed(t: PlanTrack) -> bool:
+    """A file edited by hand or cut short is computed again, not trusted."""
+    return (
+        all(isinstance(v, str) for v in (t.a, t.b, t.key, t.matched_by))
+        and isinstance(t.by_words, bool)
+        and all(_strs(v) for v in (t.a_ids, t.b_ids, t.still, t.new_in_b))
+        and isinstance(t.links, dict)
+        and all(isinstance(k, str) and _strs(v) for k, v in t.links.items())
+    )
 
 
 def save_track(b: RunRecord, track: PlanTrack) -> None:
@@ -95,6 +137,48 @@ def keep_diff_check(a: RunRecord, b: RunRecord, pc: PlanCheck | None) -> None:
             save_track(b, track)
     except (OSError, ValueError):
         pass
+
+
+def saved_check(a: RunRecord, b: RunRecord) -> PlanCheck | None:
+    """The plan check a model made for this very pair (at the end of run
+    ``b``, or by an earlier `diff`) while both plans are unchanged, so `diff`
+    shows it instead of asking again. None when there is none."""
+    try:
+        da, db = _load_run_json(a), _load_run_json(b)
+    except (OSError, ValueError):
+        return None
+    t = _load(b)
+    if t is None or t.by_words or t.a != a.id or t.key != _plans_key(da, db):
+        return None
+    plan_a, plan_b = plan_items(da), plan_items(db)
+    a_ids, b_ids = [it["id"] for it in plan_a], [it["id"] for it in plan_b]
+    if a_ids != t.a_ids or b_ids != t.b_ids:
+        return None
+    ai, bi = {x: i for i, x in enumerate(a_ids)}, {x: j for j, x in enumerate(b_ids)}
+    b_refs = set(t.new_in_b) | {x for js in t.links.values() for x in js}
+    if not (set(t.still) | set(t.links)) <= set(ai) or not b_refs <= set(bi):
+        return None
+    match = PlanMatch(
+        still={ai[x] for x in t.still},
+        new_b=sorted(bi[x] for x in set(t.new_in_b)),
+        label=t.matched_by,
+        links={ai[k]: sorted(bi[x] for x in v) for k, v in t.links.items()},
+    )
+    return PlanCheck(
+        items=[
+            PlanItemStatus(
+                str(it.get("priority", "?")), str(it.get("issue", "")), it["id"] in t.still
+            )
+            for it in plan_a
+        ],
+        new_in_b=[str(plan_b[j].get("issue", "")) for j in match.new_b],
+        matched_by=t.matched_by,
+        by_words=False,
+        fell_back=False,
+        a_ids=a_ids,
+        b_ids=b_ids,
+        match=match,
+    )
 
 
 def track_pair(a: RunRecord, b: RunRecord, matcher: Matcher | None = None) -> PlanTrack | None:
@@ -143,7 +227,9 @@ class ProjectPlan:
 
 
 def project_plan(runs: list[RunRecord]) -> ProjectPlan | None:
-    """History of the latest plan of one project (``runs`` newest first)."""
+    """History of the latest plan of one project (``runs`` newest first).
+    Runs whose AC wrote no plan (cut short, AC failed) are stepped over."""
+    runs = [r for r in runs if ac_finished(r)]
     if not runs:
         return None
     latest = runs[0]

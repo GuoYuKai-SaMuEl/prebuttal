@@ -563,15 +563,18 @@ def cmd_diff(args) -> int:
     matcher, why_not = _model_matcher()
     if matcher is None:
         _log(f"[prebuttal] matching by word overlap: {why_not}")
+    from .plantrack import keep_diff_check, plan_base, saved_check
+
     try:
-        d = compute_diff(a, b, matcher=matcher)
+        # the run already checked the previous plan with a model: no second call
+        d = compute_diff(a, b, matcher=matcher, plan=saved_check(a, b))
     except (FileNotFoundError, ValueError) as e:
         return _fail(str(e))
     print(render_diff_markdown(d))
-    before = previous_run(b)
-    if before is not None and before.id == a.id:  # consecutive: the dashboard can reuse it
-        from .plantrack import keep_diff_check
-
+    runs = [r for r in load_history() if r.project == b.project]
+    at = next((i for i, r in enumerate(runs) if r.id == b.id), len(runs))
+    base = plan_base(runs[at + 1 :])
+    if base is not None and base.id == a.id:  # the pair the dashboard follows
         keep_diff_check(a, b, d.plan)
     return EXIT_OK
 
@@ -1114,25 +1117,33 @@ def _deliver(
 ) -> int:
     """Render, archive and write a finished report; print the summary; exit code.
 
-    ``plan_matcher``: follow the revision plan from the project's previous run
-    (`run`; a retry completes a run rather than revising the paper)."""
+    ``plan_matcher``: follow the revision plan from the project's last run
+    whose AC wrote one (skipped when this run's AC wrote none)."""
     md = render_markdown(report, venue)
     json_str = dumps_json(report, venue)
     html_str = render_share_html(report, venue, cfg.repo_url)
     texts = {"md": md, "html": html_str, "json": json_str}
 
+    from .plantrack import plan_base
+
     rec = None
-    prev = None
+    prev = plan_prev = None
     if save:
         try:
-            prev = next((r for r in load_history() if r.project == project), None)
+            earlier = [r for r in load_history() if r.project == project]
+            prev = earlier[0] if earlier else None
+            # the plan is followed from the last run whose AC wrote one, and
+            # only when this run's AC wrote one too: an empty plan would read
+            # as every earlier item fixed
+            if report.meta.parse_ok:
+                plan_prev = plan_base(earlier)
             rec = save_run(
                 report, venue, cfg, md=md, json_str=json_str, html=html_str,
                 project=project, note=note,
             )  # fmt: skip
         except OSError as e:
             _log(f"[prebuttal] warning: could not archive this run ({e})")
-    track = _track_plan(prev, rec, plan_matcher) if plan_matcher is not None else None
+    track = _track_plan(plan_prev, rec, plan_matcher) if plan_matcher is not None else None
 
     written: list[Path] = []
     try:
@@ -1178,11 +1189,11 @@ def _deliver(
                 f"Change:   {agg.mean - prev.mean:+g} vs {prev.label} "
                 f"({prev.mean:g} → {agg.mean:g}){verdict}"
             )
-        if track is not None and prev is not None:
+        if track is not None and plan_prev is not None:
             gone = len(track.a_ids) - len(track.still)
             how = " (by wording)" if track.by_words else ""
             print(
-                f"Plan:     {gone} of {len(track.a_ids)} items of {prev.label} no longer "
+                f"Plan:     {gone} of {len(track.a_ids)} items of {plan_prev.label} no longer "
                 f"raised · {len(track.new_in_b)} new{how}"
             )
         print(f"Saved:    {rec.label}")
@@ -1291,6 +1302,10 @@ def cmd_retry(args) -> int:
         formats=cfg.output_formats,
         out_dir=cfg.output_dir,
         save=True,
+        # a retry that gives a run its first plan (its AC had failed or never
+        # ran): follow the earlier one. Redoing a reviewer of a run that has a
+        # plan is not a revision, so it is not checked against that run.
+        plan_matcher=None if old.meta.parse_ok else _plan_matcher(ac_provider, interrupted),
     )
     return 130 if interrupted else rc
 
