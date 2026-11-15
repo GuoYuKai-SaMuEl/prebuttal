@@ -38,7 +38,6 @@ def test_match_plan_parses_and_validates():
                     {"id": "A1", "still_raised": True, "matched_by": ["B1"]},
                     {"id": "A2", "still_raised": True, "matched_by": ["W1"]},
                 ],
-                "new_in_b": ["B2", "b2"],
             }
         )
     )
@@ -54,29 +53,27 @@ def test_match_plan_rejects_incomplete_or_failed_answers():
     assert match_plan(_Canned(ProviderError("down")), A, B, W) is None
     # one item that does not exist and the whole answer is not used
     full = [{"id": "A1", "still_raised": True}, {"id": "A2", "still_raised": False}]
-    for bad in ({"a": full, "new_in_b": ["B9"]}, {"a": [*full, {"id": "A7"}], "new_in_b": []}):
+    b9 = [{"id": "A1", "still_raised": True, "matched_by": ["B9"]}, full[1]]
+    for bad in ({"a": b9}, {"a": [*full, {"id": "A7"}]}):
         assert match_plan(_Canned(json.dumps(bad)), A, B, W) is None
-    # ids int() can't read, a still_raised that is not a bool, an item both
-    # carried on and new: not used (and never an exception)
+    # ids int() can't read, a still_raised that is not a bool, an item
+    # no longer raised yet carried on: not used (and never an exception)
     for odd in ("A²", "A" + "9" * 5000):
-        ans = {"a": [{"id": odd, "still_raised": True}, full[1]], "new_in_b": []}
+        ans = {"a": [{"id": odd, "still_raised": True}, full[1]]}
         assert match_plan(_Canned(json.dumps(ans)), A, B, W) is None
     for bad in (
-        {"a": [{"id": "A1", "still_raised": "true"}, full[1]], "new_in_b": []},
-        {"a": [{"id": "A1"}, full[1]], "new_in_b": []},
-        {"a": [{"id": "A1", "still_raised": True, "matched_by": ["B1"]}, full[1]],
-         "new_in_b": ["B1"]},
-        {"a": [{"id": "A1", "still_raised": False, "matched_by": ["B1"]}, full[1]],
-         "new_in_b": []},
-        {"a": [full[0], full[0], full[1]], "new_in_b": []},
+        {"a": [{"id": "A1", "still_raised": "true"}, full[1]]},
+        {"a": [{"id": "A1"}, full[1]]},
+        {"a": [{"id": "A1", "still_raised": False, "matched_by": ["B1"]}, full[1]]},
+        {"a": [full[0], full[0], full[1]]},
     ):  # fmt: skip
         assert match_plan(_Canned(json.dumps(bad)), A, B, W) is None
 
 
 def test_match_plan_new_items_are_the_ones_nothing_carries_on():
-    # new_in_b left out: B2 is still new, as on the dashboard (which reads links)
+    # B2: no A item carries it on, so it is new, as on the dashboard (which reads links)
     ans = {"a": [{"id": "A1", "still_raised": True, "matched_by": ["B1"]},
-                 {"id": "A2", "still_raised": False}], "new_in_b": []}  # fmt: skip
+                 {"id": "A2", "still_raised": False}]}  # fmt: skip
     m = match_plan(_Canned(json.dumps(ans)), A, B, W)
     assert m is not None and m.links == {0: [0]} and m.new_b == [1]
 
@@ -91,6 +88,8 @@ def test_match_weaknesses_answers_each_reviewer_in_one_call():
     # a reviewer whose answer is incomplete or names a missing item: None, the rest kept
     partial = {"G1": {"A1": "B7"}, "G2": {"A2": "B1"}}
     assert match_weaknesses(_Canned(json.dumps(partial)), groups) == [None, None]
+    twice = {"G1": {"A1": "B1"}, "G2": {"A1": "B1", "A2": "B1"}}  # not one-to-one
+    assert match_weaknesses(_Canned(json.dumps(twice)), groups) == [[0], None]
     odd = {"G1": {"A1": "B²"}, "G2": {"A1": None, "A2": "B1"}}
     assert match_weaknesses(_Canned(json.dumps(odd)), groups) == [None, [None, 0]]
     # cut off after the first reviewer: not G1's pairs read as the whole answer
@@ -112,9 +111,7 @@ def test_cli_diff_matches_by_meaning_by_default(
     hist = _two_runs(latex_project, fake_config, monkeypatch)
     plan = json.loads((hist[1].dir_path / "report.json").read_text(encoding="utf-8"))["meta"]
     n = len(plan["action_plan"])
-    answer = json.dumps(
-        {"a": [{"id": f"A{i}", "still_raised": i == 1} for i in range(1, n + 1)], "new_in_b": []}
-    )
+    answer = json.dumps({"a": [{"id": f"A{i}", "still_raised": i == 1} for i in range(1, n + 1)]})
     register_backend("matcher", lambda m, cfg, t: _Canned(answer))
     capsys.readouterr()
 
@@ -127,7 +124,10 @@ def test_cli_diff_matches_by_meaning_by_default(
     assert "matched by canned / m1" in out
     assert out.count("- still raised:") == 1
     assert f"{n - 1} of {n} plan items were not re-detected" in out
-    assert "Matching is by wording" not in out
+    assert "checked against B (matched by canned / m1)" in out
+    # its answer has no weakness pairs: those are matched by wording, and said so
+    assert "## Weakness movement (matched by word overlap)" in out
+    assert "Matching is by wording" in out
 
 
 def test_cli_diff_falls_back_to_word_overlap(
@@ -154,4 +154,4 @@ def test_cli_diff_without_a_usable_backend_says_why(
     assert cli.main(["diff"]) == cli.EXIT_OK
     captured = capsys.readouterr()
     assert "by word overlap: the AC's backend is relay" in captured.err
-    assert "heuristic: ≥35% word overlap" in captured.out
+    assert "matched by word overlap" in captured.out

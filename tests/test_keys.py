@@ -62,7 +62,8 @@ def test_cli_key_flow(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    rc = cli.main(["key", "set", "gemini", "--key", "AIzaSyCli9876543210"])
+    monkeypatch.setattr("sys.stdin", io.StringIO("AIzaSyCli9876543210\n"))
+    rc = cli.main(["key", "set", "gemini"])
     assert rc == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "stored GEMINI_API_KEY" in out
@@ -84,9 +85,16 @@ def test_cli_key_flow(tmp_path, monkeypatch, capsys):
 
 def test_cli_key_rejects_unknown(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
-    rc = cli.main(["key", "set", "groq", "--key", "x"])
+    rc = cli.main(["key", "set", "groq"])
     assert rc == cli.EXIT_USAGE
     assert "unknown key" in capsys.readouterr().err
+
+
+def test_key_is_never_a_command_line_argument():
+    import pytest
+
+    with pytest.raises(SystemExit):
+        cli.main(["key", "set", "gemini", "--key", "x"])
 
 
 def test_key_with_line_break_is_refused(isolated_prebuttal_home):

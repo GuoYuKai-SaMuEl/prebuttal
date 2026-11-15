@@ -1,12 +1,18 @@
 """The default run-to-run noise (prebuttal/noise.py)."""
 
 import json
+import math
 
 import pytest
 
-from prebuttal.noise import DEFAULT_SIGMA_RUN, check_noise, default_sigma, single_run_threshold
+from prebuttal.noise import DEFAULT_SIGMA_RUN, check_noise, default_sigma
 from prebuttal.revdiff import compute_diff, render_diff
 from prebuttal.runs import RunRecord
+
+
+def single_run_threshold(scale: float) -> float:
+    # two single runs differ by chance with SD sqrt(2)*sigma_run; 2 SD ~ 95%
+    return 2 * math.sqrt(2) * default_sigma(scale)
 
 
 def test_default_noise_scales_with_the_venue():
@@ -69,7 +75,7 @@ def test_diff_of_single_runs_says_within_noise_and_how_to_measure(tmp_path):
     out = render_diff(a, b)
     assert "within run-to-run noise (±0.99, estimated — not measured on this paper)" in out
     assert "`repeats = 3` in prebuttal.toml" in out
-    assert "not noise-checked" in out and "single reviews — treat as anecdotes" in out
+    assert "Reviewer ratings and the AC estimate are not noise-checked" in out
 
 
 def test_diff_with_repeats_on_both_sides(tmp_path):

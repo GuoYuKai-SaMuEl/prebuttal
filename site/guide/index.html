@@ -435,7 +435,7 @@ required_sections = ["Limitations"]   # these don't count toward the limit</pre>
 <tr><td><code>--backend BACKEND</code></td><td>force a backend for all roles</td></tr>
 <tr><td><code>--model MODEL</code></td><td>force a model id for all roles</td></tr>
 <tr><td><code>--dry-run</code></td><td>show cost + backends, call nothing</td></tr>
-<tr><td><code>-y, --yes</code></td><td>skip the plan confirmation prompt (auto mode; non-interactive never prompts). A prebuttal.toml found in this folder still asks once — pass it with -c to skip</td></tr>
+<tr><td><code>-y, --yes</code></td><td>skip the plan confirmation prompt</td></tr>
 <tr><td><code>--project PROJECT</code></td><td>project name (default: one per paper — the same path / arXiv id lands in the same project, named after the title)</td></tr>
 <tr><td><code>--note NOTE</code></td><td>what changed in this revision, e.g. "added ablation"</td></tr>
 <tr><td><code>--no-save</code></td><td>do not archive this run to the run history (~/.prebuttal, or $PREBUTTAL_HOME)</td></tr>
@@ -519,8 +519,7 @@ required_sections = ["Limitations"]   # these don't count toward the limit</pre>
 <p>store or remove an API key (status: prebuttal backends)</p>
 <pre class="term">prebuttal key {set | unset}</pre>
 <table class="ref">
-<tr><td><code>prebuttal key set [--key KEY] backend</code></td><td>store a key (prompted, hidden input)</td></tr>
-<tr><td><code>set --key KEY</code></td><td>non-interactive: pass the key directly</td></tr>
+<tr><td><code>prebuttal key set backend</code></td><td>store a key (hidden prompt, or one line on stdin)</td></tr>
 <tr><td><code>prebuttal key unset backend</code></td><td>remove a stored key</td></tr>
 </table>
 <h3 id="cmd-venues"><code>prebuttal venues</code></h3>

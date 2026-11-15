@@ -95,7 +95,7 @@ def test_render_diff_ratings_and_weakness_movement(latex_project):
     assert "persists:" in text  # Perceiver weakness survives
     assert "gone:" in text  # std reporting weakness fixed
     assert "new:" in text  # LongBench-only flaw appeared
-    assert "Comparison of two simulated runs" in text  # honesty label
+    assert "Two simulated runs: same persona ≠ same reviewer" in text  # honesty label
     assert "Heuristic" not in text  # wrong under `diff --llm`
 
 

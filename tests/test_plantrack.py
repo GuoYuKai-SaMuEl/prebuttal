@@ -100,12 +100,11 @@ def test_match_plan_links_by_plan_items_only():
             return json.dumps(self.answer), Usage()
 
     good = {"a": [{"id": "A1", "still_raised": True, "matched_by": ["W1", "B2"]},
-                  {"id": "A2", "still_raised": False, "matched_by": []}],
-            "new_in_b": ["B1"]}  # fmt: skip
+                  {"id": "A2", "still_raised": False, "matched_by": []}]}  # fmt: skip
     m = match_plan(_Canned(good), ["x", "y"], ["p", "q"], ["w"])
     assert m is not None and m.links == {0: [1]}
     bad = {"a": [{"id": "A1", "still_raised": True, "matched_by": ["B9"]},
-                 {"id": "A2", "still_raised": False}], "new_in_b": []}  # fmt: skip
+                 {"id": "A2", "still_raised": False}]}  # fmt: skip
     assert match_plan(_Canned(bad), ["x", "y"], ["p", "q"], ["w"]) is None
 
 
@@ -147,7 +146,7 @@ def test_diff_of_consecutive_runs_keeps_its_model_match(
     n = len(json.loads((a.dir_path / "report.json").read_text(encoding="utf-8"))["meta"]
             ["action_plan"])  # fmt: skip
     answer = {"a": [{"id": f"A{i}", "still_raised": True, "matched_by": [f"B{i}"]}
-                    for i in range(1, n + 1)], "new_in_b": []}  # fmt: skip
+                    for i in range(1, n + 1)]}  # fmt: skip
 
     class _Canned(PersonaFakeProvider):
         def _complete(self, **kw):
@@ -219,7 +218,7 @@ def test_diff_shows_the_runs_plan_check_without_asking_again(
     n = len(json.loads((a.dir_path / "report.json").read_text(encoding="utf-8"))["meta"]
             ["action_plan"])  # fmt: skip
     answer = {"a": [{"id": f"A{i}", "still_raised": True, "matched_by": [f"B{i}"]}
-                    for i in range(1, n + 1)], "new_in_b": []}  # fmt: skip
+                    for i in range(1, n + 1)]}  # fmt: skip
     asked: list[str] = []
 
     class _Canned(PersonaFakeProvider):
@@ -279,8 +278,3 @@ def test_a_finished_retry_replaces_the_run_it_completes(tmp_path):
     r3 = replace(_rec(tmp_path, 3, _plan(SEED, WRITE)), retry_of=r2.id)
     plan = project_plan([r3, r2, r1])
     assert plan is not None and plan.previous is r1  # not #2: the same paper
-    # runs archived before retry_of: the note says it
-    r3n = replace(_rec(tmp_path, 4, _plan(SEED, WRITE)), note="retry of p#2")
-    r2.project = r3n.project = r1.project
-    plan = project_plan([r3n, r2, r1])
-    assert plan is not None and plan.previous is r1

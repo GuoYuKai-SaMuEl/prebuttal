@@ -13,7 +13,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import re
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 
@@ -64,17 +63,8 @@ def _followed(runs: Iterable[RunRecord]) -> list[RunRecord]:
     finished, less any run a finished `prebuttal retry` completed: the retry
     has the same paper with the missing reviews, so it is not a revision of it."""
     done = [r for r in runs if ac_finished(r)]
-    by_label = {r.label: r.id for r in done}
-    replaced = set()
-    for r in done:
-        if r.retry_of:
-            replaced.add(r.retry_of)
-        elif (m := _RETRY_NOTE.match(r.note or "")) and m.group(1) in by_label:
-            replaced.add(by_label[m.group(1)])  # archived before retry_of
+    replaced = {r.retry_of for r in done if r.retry_of}
     return [r for r in done if r.id not in replaced]
-
-
-_RETRY_NOTE = re.compile(r"retry of (\S+)$")
 
 
 def plan_base(earlier: Iterable[RunRecord], skip: str | None = None) -> RunRecord | None:

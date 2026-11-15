@@ -134,8 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-y",
         "--yes",
         action="store_true",
-        help="skip the plan confirmation prompt (auto mode; non-interactive never prompts). "
-        "A prebuttal.toml found in this folder still asks once — pass it with -c to skip",
+        help="skip the plan confirmation prompt",
     )
     run.add_argument(
         "--project",
@@ -244,9 +243,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     key_p = sub.add_parser("key", help="store or remove an API key (status: prebuttal backends)")
     key_sub = key_p.add_subparsers(dest="key_cmd", required=True, metavar="{set,unset}")
-    key_set = key_sub.add_parser("set", help="store a key (prompted, hidden input)")
+    key_set = key_sub.add_parser("set", help="store a key (hidden prompt, or one line on stdin)")
     key_set.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
-    key_set.add_argument("--key", default=None, help="non-interactive: pass the key directly")
     key_unset = key_sub.add_parser("unset", help="remove a stored key")
     key_unset.add_argument("backend", help="gemini | openai | anthropic (or the env var name)")
 
@@ -859,9 +857,7 @@ def cmd_key(args) -> int:
         return _fail(str(e))
 
     if args.key_cmd == "set":
-        if args.key:
-            value = args.key
-        elif not _stdin_is_tty():
+        if not _stdin_is_tty():  # never on the command line: it would land in shell history
             value = sys.stdin.readline().strip()
             if not value:
                 return _fail(f"no key on stdin — set {var} in the environment or run in a terminal")

@@ -31,12 +31,24 @@ class PlanMatch:
     # across runs); an A item B raises only in a weakness has none
     links: dict[int, list[int]] = field(default_factory=dict)
 
+    @classmethod
+    def from_links(
+        cls, still: set[int], links: dict[int, list[int]], n_b: int, label: str
+    ) -> PlanMatch:
+        """New in B = the B items no A item links to, so the run summary, `diff`
+        and the dashboard count the same items as new."""
+        linked = {j for js in links.values() for j in js}
+        new_b = [j for j in range(n_b) if j not in linked]
+        return cls(still=still, new_b=new_b, label=label, links=links)
+
 
 Pairs = list[int | None]  # for each old weakness, the new one it matches, or None
 
 
 class Matcher(Protocol):
-    """Decides which texts in two runs name the same problem.
+    """Decides which texts in two runs name the same problem (internal:
+    :class:`WordOverlap` and ``diffmatch.ModelMatcher``, which checks a
+    model's answer before returning it).
 
     Either method may return None ("could not tell"), and ``weaknesses`` may
     return None for one reviewer; the diff then uses word overlap there."""
@@ -91,13 +103,12 @@ class WordOverlap:
         # an item is still open while B's plan or any B reviewer still raises it
         b_texts = b_plan + b_weak
         still = {i for i, x in enumerate(a_plan) if any(word_sim(x, t) >= SAME for t in b_texts)}
-        new_b = [j for j, x in enumerate(b_plan) if not any(word_sim(x, y) >= SAME for y in a_plan)]
         links = {
             i: same
             for i, x in enumerate(a_plan)
             if (same := [j for j, y in enumerate(b_plan) if word_sim(x, y) >= SAME])
         }
-        return PlanMatch(still=still, new_b=new_b, label=self.label, links=links)
+        return PlanMatch.from_links(still, links, len(b_plan), self.label)
 
 
 WORD_OVERLAP = WordOverlap()
@@ -232,48 +243,21 @@ def _by_words(matcher: Matcher) -> bool:
     return isinstance(matcher, WordOverlap)
 
 
-def _valid_pairs(got: object, old: list[str], new: list[str]) -> bool:
-    """One answer per old weakness, each a distinct index into ``new`` (or None)."""
-    if not isinstance(got, list) or len(got) != len(old):
-        return False
-    picked = [j for j in got if j is not None]
-    return len(set(picked)) == len(picked) and all(_index_ok(j, len(new)) for j in picked)
-
-
 def _match_weaknesses(
     matcher: Matcher, groups: list[tuple[list[str], list[str]]]
 ) -> list[tuple[Pairs, bool]]:
     """Each reviewer's pairs, and whether word overlap produced them."""
     got = matcher.weaknesses(groups) if any(o and n for o, n in groups) else None
-    if not isinstance(got, list) or len(got) != len(groups):
-        got = [None] * len(groups)
+    got = got or [None] * len(groups)
     out: list[tuple[Pairs, bool]] = []
     for (old, new), pairs in zip(groups, got, strict=True):
         if not (old and new):  # nothing to pair: no matcher needed
             out.append(([None] * len(old), _by_words(matcher)))
-        elif pairs is not None and _valid_pairs(pairs, old, new):
+        elif pairs is not None:
             out.append((pairs, _by_words(matcher)))
         else:
             out.append((WORD_OVERLAP.pairs(old, new), True))
     return out
-
-
-def _index_ok(j: object, n: int) -> bool:
-    return isinstance(j, int) and not isinstance(j, bool) and 0 <= j < n
-
-
-def _valid_plan(m: PlanMatch, n_a: int, n_b: int) -> bool:
-    if not isinstance(m.links, dict):
-        return False
-    linked_ok = all(
-        _index_ok(i, n_a) and isinstance(js, list) and all(_index_ok(j, n_b) for j in js)
-        for i, js in m.links.items()
-    )
-    return (
-        linked_ok
-        and all(_index_ok(i, n_a) for i in m.still)
-        and all(_index_ok(j, n_b) for j in m.new_b)
-    )
 
 
 def plan_items(data: dict) -> list[dict]:
@@ -293,10 +277,8 @@ def check_plan(matcher: Matcher, da: dict, db: dict) -> PlanCheck | None:
     b_issues = [str(it.get("issue", "")) for it in plan_b]
     b_weak = [str(w) for r in db.get("reviewers", []) for w in _weaknesses_of(r)]
     match = matcher.plan(a_issues, b_issues, b_weak)
-    # a Matcher is public API: an answer with an index it got wrong is not
-    # trusted at all, as for weaknesses
-    fell_back = match is None or not _valid_plan(match, len(a_issues), len(b_issues))
-    if fell_back or match is None:
+    fell_back = match is None
+    if match is None:
         match = WORD_OVERLAP.plan(a_issues, b_issues, b_weak)
     by_words = fell_back or _by_words(matcher)
     return PlanCheck(
@@ -414,14 +396,11 @@ def render_diff_markdown(d: RevisionDiff) -> str:
     if va is not None or vb is not None:
         out.append("## Area chair")
         ac_delta = _delta(va, vb) if same else ""
-        checked = "  (not noise-checked: one estimate per run)" if ac_delta else ""
-        out.append(
-            f"- AC estimate A {_scored(va, d.scale_a)} → B {_scored(vb, d.scale_b)}"
-            f"{ac_delta}{checked}"
-        )
+        scored = f"A {_scored(va, d.scale_a)} → B {_scored(vb, d.scale_b)}"
+        out.append(f"- AC estimate {scored}{ac_delta}")
         out.append("")
 
-    out.append("## Reviewer ratings (A → B; single reviews — treat as anecdotes)")
+    out.append("## Reviewer ratings (A → B)")
     for rc in d.ratings:
         ka, kb = rc.rounds
         of = f"  (mean of {ka} → {kb} rounds)" if max(ka, kb) > 1 and ka and kb else ""
@@ -430,12 +409,9 @@ def render_diff_markdown(d: RevisionDiff) -> str:
         )
     out.append("")
 
-    if d.weaknesses_by_words:
-        out.append(
-            "## Weakness movement (heuristic: ≥35% word overlap counts as the same weakness)"
-        )
-    else:
-        out.append(f"## Weakness movement (matched by {d.weaknesses_matched_by})")
+    weak_by = WORD_OVERLAP.label if d.weaknesses_by_words else d.weaknesses_matched_by
+    out.append(f"## Weakness movement (matched by {weak_by})")
+    once = False
     for mv in d.weaknesses:
         out.append(f"### {mv.reviewer}")
         ka, kb = mv.rounds
@@ -445,10 +421,8 @@ def render_diff_markdown(d: RevisionDiff) -> str:
             for w in mv.persists
         )
         out.extend(f"- new: {w.text[:220]}{_seen(w.seen_b, kb, 'B')}" for w in mv.new)
-        once = [w for w in mv.gone + mv.persists if ka > 1 and w.seen_a == 1]
-        once += [w for w in mv.persists + mv.new if kb > 1 and w.seen_b == 1]
-        if once:
-            out.append("(raised in 1 round only: may be chance, as a single review is)")
+        once = once or any(ka > 1 and w.seen_a == 1 for w in mv.gone + mv.persists)
+        once = once or any(kb > 1 and w.seen_b == 1 for w in mv.persists + mv.new)
         out.append("")
     if not d.weaknesses:
         out.append("(no weaknesses reported in either run)")
@@ -457,11 +431,30 @@ def render_diff_markdown(d: RevisionDiff) -> str:
     if d.plan is not None:
         _render_plan_check(out, d.plan)
 
-    out.append(
-        "*Comparison of two simulated runs — same persona ≠ same reviewer; "
-        "treat movements as signals, not measurements.*"
-    )
+    out.extend(_notes(d, once))
     return "\n".join(out)
+
+
+def _notes(d: RevisionDiff, once: bool) -> list[str]:
+    """The caveats, once, at the end (only those that apply)."""
+    notes: list[str] = []
+    if d.plan is not None and d.plan.fell_back:
+        notes.append("Revision plan: model matching failed — fell back to word overlap.")
+    if d.weaknesses_by_words or (d.plan is not None and d.plan.by_words):
+        notes.append(
+            "Matching is by wording (≥35% shared words): an issue B raises in other words "
+            "counts as gone *and* new — read the lists side by side. With a model backend "
+            "for the AC, `prebuttal diff` matches by meaning (`prebuttal backends`)."
+        )
+    if once:
+        notes.append("A weakness raised in 1 round only may be chance, as a single review is.")
+    ac = " and the AC estimate" if any(v is not None for v in d.ac_estimate) else ""
+    notes.append(f"Reviewer ratings{ac} are not noise-checked — treat their changes as anecdotes.")
+    notes.append(
+        "Two simulated runs: same persona ≠ same reviewer; treat movements as signals, not "
+        "measurements. Most reliable with the same backends and seed for both runs."
+    )
+    return ["## Notes", *(f"- {n}" for n in notes)]
 
 
 def _seen(seen: int, rounds: int, side: str) -> str:
@@ -485,15 +478,7 @@ def _noise_lines(n: NoiseCheck) -> list[str]:
 
 
 def _render_plan_check(out: list[str], pc: PlanCheck) -> None:
-    if not pc.by_words:
-        out.append(f"## Revision plan of A, checked against B (matched by {pc.matched_by})")
-    else:
-        out.append(
-            "## Revision plan of A, checked against B "
-            "(heuristic: ≥35% word overlap with any B plan item or weakness)"
-        )
-        if pc.fell_back:
-            out.append("(model matching failed — fell back to word overlap)")
+    out.append(f"## Revision plan of A, checked against B (matched by {pc.matched_by})")
     for it in pc.items:
         mark = "still raised" if it.still_raised else "not re-detected"
         out.append(f"- {mark}: [{it.priority}] {it.issue[:200]}")
@@ -502,15 +487,6 @@ def _render_plan_check(out: list[str], pc: PlanCheck) -> None:
     out.append("")
     n_gone = pc.not_redetected
     out.append(f"{n_gone} of {len(pc.items)} plan items were not re-detected in B.")
-    if n_gone and pc.new_in_b and pc.by_words:
-        # a reworded issue shows up twice: "not re-detected" and "new in B"
-        out.append(
-            "Matching is by wording: an issue B raises in other words counts as "
-            "not re-detected *and* new — read the two lists side by side before "
-            "ticking anything off (with a model backend for the AC, `prebuttal diff` "
-            "matches by meaning: `prebuttal backends`). "
-            "Most reliable with the same backends and seed for both runs."
-        )
     out.append("")
 
 
@@ -522,7 +498,6 @@ def render_diff(a: RunRecord, b: RunRecord, *, matcher: Matcher | None = None) -
 __all__ = [
     "SAME",
     "WORD_OVERLAP",
-    "Matcher",
     "Pairs",
     "PlanCheck",
     "PlanItemStatus",

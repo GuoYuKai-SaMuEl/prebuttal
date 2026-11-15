@@ -39,12 +39,6 @@ def default_sigma(scale: float) -> float:
     return DEFAULT_SIGMA_RUN * scale
 
 
-def single_run_threshold(scale: float) -> float:
-    """A difference below this between two single runs can't be told from chance (~95%):
-    the difference of two runs has SD sqrt(2)*sigma_run; 2 SD cover about 95%."""
-    return 2 * math.sqrt(2) * default_sigma(scale)
-
-
 @dataclass(frozen=True)
 class NoiseCheck:
     """Whether the change of the predicted score between two runs (A -> B)

@@ -24,6 +24,11 @@ releases (0.2, 0.3, …) are substantial new features.
   rather than by persona. With `repeats`, a reviewer's rating is the mean of
   its rounds, and each weakness, merged over the rounds, says in how many
   rounds it was raised (`A: 2 of 3 rounds`): one raised once may be chance.
+- `prebuttal diff` gathers its caveats in one closing `Notes` section, each
+  shown only when it applies (matching by wording, a model match that fell
+  back, a weakness raised in one round only, ratings not noise-checked);
+  section headers just say how items were matched.
+- `revdiff.Matcher` is no longer exported: the matchers are internal.
 
 ### Added
 - The revision plan is followed across runs. After a run, its plan is
@@ -69,6 +74,9 @@ releases (0.2, 0.3, …) are substantial new features.
   with the seed it had.
 
 ### Removed
+- `prebuttal key set --key KEY`: a key on the command line lands in shell
+  history. `key set` asks with hidden input, or reads one line from stdin
+  (`prebuttal key set gemini < keyfile`); environment variables still work.
 - The names 0.6 kept as hidden aliases are gone, as their notices said. Each
   now stops with an error that names its replacement:
   - `run --seed`, `--effort`, `--figures`, `--reviewers`, `--out-dir`: set
@@ -187,6 +195,9 @@ run (9 flags, was 15).
   documented.
 
 ### Removed
+- `prebuttal key set --key KEY`: a key on the command line lands in shell
+  history. `key set` asks with hidden input, or reads one line from stdin
+  (`prebuttal key set gemini < keyfile`); environment variables still work.
 - The 0.4 aliases, as their notices said: `prebuttal open`, `export`,
   `dashboard`, `models`, `key status`, and `run --format` / `--stdout`.
   Each now fails with the command to use instead (`show --open`,
@@ -668,6 +679,9 @@ the tool must not leak your keys.
   reports and `--dry-run` show the effort each role actually used.
 
 ### Removed
+- `prebuttal key set --key KEY`: a key on the command line lands in shell
+  history. `key set` asks with hidden input, or reads one line from stdin
+  (`prebuttal key set gemini < keyfile`); environment variables still work.
 - `run --out` and `run --share`. Every run writes its own report folder
   (HTML included) instead; for a file at a fixed path use `--json PATH` or
   `prebuttal export -o PATH`. Passing either flag prints what replaces it.

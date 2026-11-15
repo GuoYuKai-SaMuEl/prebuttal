@@ -109,8 +109,8 @@ After the user revises the paper:
    checked against the new run (not re-detected / still raised / new). It
    matches by meaning with two calls to the AC's backend; with no usable
    backend it falls back to word overlap, says why on stderr, and the
-   section headers say "heuristic" — then check that a "gone" item is not
-   simply reworded among the "new" ones before calling it fixed.
+   section headers say "matched by word overlap" — then check that a "gone"
+   item is not simply reworded among the "new" ones before calling it fixed.
    Relay the noise verdict as written: "within run-to-run noise" means the
    score change can't be told from chance, so don't present it as the
    revision's effect; "larger than run-to-run noise" can be. If the user
