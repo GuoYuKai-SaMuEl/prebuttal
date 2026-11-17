@@ -1,9 +1,9 @@
 """Agent-CLI backends: run reviewer prompts through a headless coding agent.
 
 This is the zero-API-key path for subscription users: ``claude -p`` (Claude
-Code) and ``codex exec`` (OpenAI Codex CLI) authenticate with the user's
-existing subscription.  Any other headless CLI can be registered in
-prebuttal.toml under ``[agents.<name>]``.
+Code), ``codex exec`` (OpenAI Codex CLI) and ``agy -p`` (Google Antigravity
+CLI) authenticate with the user's existing subscription.  Any other headless
+CLI can be registered in prebuttal.toml under ``[agents.<name>]``.
 
 The prompt is always delivered on stdin (papers far exceed argv limits).
 Temperature/seed are *recorded* in the report — agent CLIs do not expose them.
@@ -12,13 +12,16 @@ The paper is untrusted input (any arXiv id can be reviewed), so the built-in
 backends are locked down against prompt injection: ``claude`` runs with every
 tool disabled and no MCP servers, ``codex`` with its shell / code / browser
 tools switched off, in its read-only sandbox, without the user's config.toml
-(so no MCP servers) and without persisting the session, and both in an empty
-temporary working directory instead of the user's project.  Neither can read
-a file, so neither can read stored API keys (~/.prebuttal/keys.env).
+(so no MCP servers) and without persisting the session, ``agy`` with every
+file, shell, URL and MCP action denied (only its web search, which no
+permission rule covers, is left), and all three in an empty temporary
+working directory instead of the user's project.  None can read a file, so
+none can read stored API keys (~/.prebuttal/keys.env).
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -37,6 +40,9 @@ _BAD_MODEL = (
     "unrecognized_model",  # claude: [claude-code:unrecognized_model]
     "may not exist or you may not have access",  # claude
     "model_not_found",  # codex (OpenAI error code)
+    # agy: an unknown id, an effort level the model lacks or doesn't take, or a
+    # level-suffixed id (gemini-4-argon-high) that contradicts `effort`
+    "invalid model selection",
 )
 
 # Model ids and effort levels go on the command line, and through cmd.exe for
@@ -157,11 +163,21 @@ class AgentCLIProvider(BaseProvider):
                 shutil.rmtree(cwd, ignore_errors=True)
         return self._complete_in(system, user, None)
 
+    def _stdin_text(self, prompt: str) -> str:
+        """What goes on stdin for ``prompt`` (the raw text, for most CLIs)."""
+        return prompt
+
+    def _answer(self, proc: subprocess.CompletedProcess) -> tuple[str, Usage]:
+        """The review text and token usage from a run that exited 0."""
+        return strip_ansi(proc.stdout or ""), Usage()
+
     def _complete_in(self, system: str, user: str, cwd: str | None):
         prompt = f"{system}\n\n---\n\n{user}"
         cmd = self._build_command()
         if self.stdin:
-            proc = _run(cmd, prompt, stdin=True, timeout_s=self.timeout_s, cwd=cwd)
+            proc = _run(
+                cmd, self._stdin_text(prompt), stdin=True, timeout_s=self.timeout_s, cwd=cwd
+            )
         else:
             if len(prompt) > _MAX_ARGV_CHARS:
                 raise ProviderError(
@@ -177,27 +193,34 @@ class AgentCLIProvider(BaseProvider):
                 )
             proc = _run([*cmd, prompt], "", stdin=False, timeout_s=self.timeout_s, cwd=cwd)
         if proc.returncode != 0:
-            err = (proc.stderr or proc.stdout or "").strip()[-500:]
-            if "unknown feature flag" in err.lower():
+            full = (proc.stderr or proc.stdout or "").strip()
+            err = full[-500:]
+            low = full.lower()
+            if "unknown feature flag" in low:
                 # a codex that renamed one of the features prebuttal switches off
                 raise ProviderError(
                     f"{cmd[0]} no longer knows a feature prebuttal disables ({err}) — "
                     "update prebuttal, or report it if you already run the latest"
                 )
-            if "unknown option" in err.lower() or "unexpected argument" in err.lower():
+            if any(
+                m in low
+                for m in ("unknown option", "unexpected argument", "flag provided but not defined")
+            ):
                 # an outdated CLI that lacks the lock-down flags: retrying won't help
                 raise ProviderError(
                     f"{cmd[0]} rejected a flag prebuttal needs ({err}) — "
                     f"update {cmd[0]} to its latest version"
                 )
-            if any(m in err.lower() for m in _BAD_MODEL):
+            if any(m in low for m in _BAD_MODEL):
                 # a model id the CLI doesn't know: the same answer every attempt
+                # (agy follows its one-line error with every model it knows)
                 raise ProviderError(
-                    f"{cmd[0]} rejected the model name ({err}) — check the model id "
+                    f"{cmd[0]} rejected the model name ({full.splitlines()[0][:300]}) — "
+                    "check the model id "
                     f"against `{cmd[0]} --help` or its docs"
                 )
             raise TransientProviderError(f"{cmd[0]} exited {proc.returncode}: {err}")
-        return strip_ansi(proc.stdout or ""), Usage()
+        return self._answer(proc)
 
 
 def claude_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProvider:
@@ -254,4 +277,86 @@ def codex_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProv
         model_flag="before-last",
         isolate_cwd=True,
         effort_args=("-c", 'model_reasoning_effort="{effort}"'),
+    )
+
+
+# agy permission actions that reach outside the prompt (Antigravity docs,
+# "Agent permissions"; agy 1.4).  Deny beats every allow rule and every mode.
+_AGY_DENY = (
+    "read_file(*)",
+    "write_file(*)",
+    "command(*)",
+    "unsandboxed(*)",
+    "read_url(*)",
+    "execute_url(*)",
+    "mcp(*)",
+)
+_AGY_SETTINGS = json.dumps(
+    {"toolPermission": "strict", "permissions": {"deny": list(_AGY_DENY)}},
+    separators=(",", ":"),
+)
+
+
+class AgyProvider(AgentCLIProvider):
+    """Antigravity CLI (`agy`): the prompt goes in as one stream-json event
+    (plain `agy -p` takes it only as an argument, too short for a paper) and
+    the answer and token usage come from the closing `result` event."""
+
+    def _stdin_text(self, prompt: str) -> str:
+        return json.dumps({"event": "user", "message": {"content": prompt}}) + "\n"
+
+    def _answer(self, proc: subprocess.CompletedProcess) -> tuple[str, Usage]:
+        result = None
+        for line in (proc.stdout or "").splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("event") == "result":
+                result = event.get("result")
+        if not isinstance(result, dict):
+            err = (proc.stderr or "").strip()[-500:]
+            raise TransientProviderError(f"agy ended without a result event: {err}")
+        if result.get("status") != "SUCCESS":
+            raise TransientProviderError(
+                f"agy finished with status {result.get('status')}: {result.get('error') or ''}"
+            )
+        text = str(result.get("response") or "")
+        if not text.strip():
+            denied = ", ".join(str(d.get("action")) for d in result.get("denied_actions") or [])
+            raise TransientProviderError(
+                "agy gave no answer" + (f" (it tried a blocked tool: {denied})" if denied else "")
+            )
+        usage = result.get("usage") or {}
+        return text, Usage(
+            prompt_tokens=int(usage.get("input_tokens") or 0),
+            completion_tokens=int(usage.get("output_tokens") or 0)
+            + int(usage.get("thinking_tokens") or 0),
+        )
+
+
+def agy_provider(model: str = "", *, timeout_s: float = 900.0) -> AgentCLIProvider:
+    return AgyProvider(
+        "agent-agy",
+        # every file, shell, URL and MCP action denied (strict mode asks for
+        # the rest, and headless mode can't ask, so it refuses); no slash
+        # commands or skills expanded from the paper text; empty working dir
+        [
+            "agy",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
+            "--settings",
+            _AGY_SETTINGS,
+            "--sandbox",
+            "--disable-slash-commands",
+            "-p=",
+        ],
+        model=model,
+        timeout_s=timeout_s,
+        detail="Antigravity CLI headless (`agy -p`), subscription auth, zero API key",
+        model_flag="before-last",
+        isolate_cwd=True,
+        effort_args=("--effort", "{effort}"),
     )

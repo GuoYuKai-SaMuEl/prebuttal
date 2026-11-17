@@ -289,7 +289,7 @@ def _auth(s) -> str:
             return s.detail  # "not set (where to get one; `prebuttal key set ...`)"
         where = "env var" if src == "env" else "stored key"
         return f"{where} {var} ({key_store.mask(var)})"
-    if s.backend in ("agent-claude", "agent-codex"):
+    if s.backend in ("agent-claude", "agent-codex", "agent-agy"):
         return "CLI login (subscription)" if s.available else s.detail
     return s.detail
 
@@ -321,6 +321,7 @@ def cmd_backends(args) -> int:
     print("\nNo automatic backend available. Install one of:")
     print("  npm i -g @anthropic-ai/claude-code   -> agent-claude (subscription)")
     print("  npm i -g @openai/codex               -> agent-codex (subscription)")
+    print("  Antigravity CLI (agy)                -> agent-agy (subscription)")
     print("  set GEMINI_API_KEY                   -> api-gemini (free tier)")
     print("  set OPENAI_API_KEY / ANTHROPIC_API_KEY")
     print("  ollama pull llama3.1 && ollama serve -> ollama (local, private)")
@@ -808,7 +809,11 @@ def _model_options(backend: str) -> list[str]:
 
     if backend not in BACKENDS or backend in ("agent-codex", "relay"):
         return []
-    first = {"agent-claude": "(CLI decides)", "ollama": "(first installed)"}
+    first = {
+        "agent-claude": "(CLI decides)",
+        "agent-agy": "(CLI decides)",
+        "ollama": "(first installed)",
+    }
     (listing,) = scan(only=backend)
     return [first.get(backend, "(backend default)"), *listing.models]
 
@@ -893,11 +898,16 @@ def _config_trusted(
     It may come with someone else's paper repo or an unpacked arXiv source:
     running its commands, sending the paper to the provider it pins, or
     writing outside the project needs a yes — once per file content.  An
-    explicit ``--config`` counts as trust; non-interactive runs refuse.
+    explicit ``--config`` counts as trust, and is remembered like a yes, so
+    the commands without --config (`diff` matching by meaning) can use the
+    file from that folder later; non-interactive runs refuse.
     `-y` deliberately does not bypass this (scripts add -y routinely).
     """
     from . import trust
 
+    if cfg.config_path and not cfg.config_discovered:
+        trust.remember(cfg.config_path)
+        return True
     lines = trust.concerns(cfg, backends, pinned=pinned, relay=relay)
     if not lines or trust.is_trusted(cfg.config_path):
         return True

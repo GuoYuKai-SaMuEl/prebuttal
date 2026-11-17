@@ -1,7 +1,7 @@
 """Backend auto-detection: pick the cheapest zero-friction path at startup.
 
 Preference order (plan §4): agent CLIs (subscription, zero key) first —
-Claude + Codex together give cross-model reviews for free — then the Gemini
+Claude + Codex (+ Antigravity) together give cross-model reviews for free — then the Gemini
 free tier, then OpenAI/Anthropic keys, then a local Ollama.
 """
 
@@ -22,15 +22,19 @@ from .ollama import ollama_base_url, ollama_tags, pick_ollama_model
 # How each agent CLI reports its sign-in without calling a model, and the
 # command that fixes it.  Exit 0 = signed in on both (checked on claude 2.1,
 # codex 0.164); a CLI too old to have the command is given the benefit of
-# the doubt.
+# the doubt.  agy (1.4) has no such command: installed counts as ready.
 _SIGN_IN = {
     "claude": (["auth", "status"], "claude auth login"),
     "codex": (["login", "status"], "codex login"),
 }
 
+# The built-in agent backends and the CLI each runs.
+_AGENT_CLIS = (("agent-claude", "claude"), ("agent-codex", "codex"), ("agent-agy", "agy"))
+
 _PREFERENCE = [
     "agent-claude",
     "agent-codex",
+    "agent-agy",
     "api-gemini",
     "api-openai",
     "api-anthropic",
@@ -47,6 +51,7 @@ EXPLICIT_ONLY = frozenset({"relay"})
 _HOST_AGENT_MARKERS = (
     ("CLAUDECODE", "Claude Code"),
     ("GEMINI_CLI", "Gemini CLI"),
+    ("ANTIGRAVITY_AGENT", "Antigravity"),  # agy 1.5 sets ANTIGRAVITY_AGENT=1
 )
 
 RELAY_AGENT_HINT = (
@@ -79,6 +84,7 @@ class NoBackendError(Exception):
             "no review backend available. Install one of:\n"
             "  - Claude Code CLI  (npm i -g @anthropic-ai/claude-code)  -> agent-claude\n"
             "  - Codex CLI        (npm i -g @openai/codex)              -> agent-codex\n"
+            "  - Antigravity CLI  (agy, antigravity.google)             -> agent-agy\n"
             "  - set GEMINI_API_KEY (free tier)                         -> api-gemini\n"
             "  - set OPENAI_API_KEY / ANTHROPIC_API_KEY                 -> api-openai/-anthropic\n"
             "  - set OPENROUTER_API_KEY (has :free models)              -> api-openrouter\n"
@@ -115,11 +121,11 @@ def signed_out(cli: str) -> bool:
 def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
     out: list[BackendStatus] = []
 
-    paths = {cli: shutil.which(cli) for cli in _SIGN_IN}
-    found = [cli for cli, path in paths.items() if path]
+    paths = {cli: shutil.which(cli) for _b, cli in _AGENT_CLIS}
+    found = [cli for cli, path in paths.items() if path and cli in _SIGN_IN]
     with ThreadPoolExecutor(max_workers=2) as pool:  # each takes a second or so
         out_of = dict(zip(found, pool.map(signed_out, found), strict=True))
-    for backend, cli in (("agent-claude", "claude"), ("agent-codex", "codex")):
+    for backend, cli in _AGENT_CLIS:
         path = paths[cli]
         if out_of.get(cli):
             detail = f"{cli} CLI {path}, not signed in — run `{_SIGN_IN[cli][1]}`"

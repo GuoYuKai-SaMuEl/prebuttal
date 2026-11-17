@@ -84,7 +84,10 @@ def test_scan_without_keys_is_graceful(monkeypatch):
         "prebuttal.modelscan.openrouter_catalog",
         lambda max_rows=40: (["some/model:free"], {"some/model:free": "(free)"}),
     )
+    # ... and `agy models`, which would run the real CLI where it is installed
+    monkeypatch.setattr("prebuttal.modelscan.agy_models", lambda: ["gemini-4-argon"])
     listings = {x.backend: x for x in scan()}
+    assert listings["agent-agy"].models == ["gemini-4-argon"]
     assert listings["api-gemini"].note.startswith("(no key")
     assert listings["ollama"].note == "(not running)"
     assert listings["agent-claude"].models == ["opus", "sonnet", "haiku"]

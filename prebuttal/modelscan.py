@@ -2,7 +2,8 @@
 
 Backs ``prebuttal backends <name>`` — a read-only listing so users can pick informed
 ``model = "..."`` values for prebuttal.toml.  API list endpoints are free,
-single calls; agent CLIs don't expose a list API, so they get curated notes.
+single calls; `agy models` lists its own; the other agent CLIs don't expose
+a list, so they get curated notes.
 """
 
 from __future__ import annotations
@@ -31,6 +32,10 @@ _GEMINI_DROP = re.compile(
 
 # `claude -p --model` accepts stable aliases (plus full model ids).
 _CLAUDE_ALIASES = ["opus", "sonnet", "haiku"]
+
+# `agy models` lists each model once per thinking level (gemini-3.8-flash-high);
+# prebuttal sets the level with `effort`, so the listing shows the base ids.
+_AGY_LEVEL = re.compile(r"-(low|medium|high|xhigh|max)$")
 
 # OpenRouter carries ~470 ids; keep the ones a reviewer backend can use.
 _OR_NOISE = re.compile(
@@ -219,6 +224,31 @@ def _ollama() -> ModelListing:
     return ModelListing("ollama", installed, chat or "none", note)
 
 
+def agy_models() -> list[str]:
+    """Base model ids from `agy models` (one call, no model is run)."""
+    from .providers.agent_cli import _run
+
+    proc = _run(["agy", "models"], "", stdin=False, timeout_s=30)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "").strip()[-300:])
+    out: list[str] = []
+    for line in proc.stdout.splitlines():
+        if "\t" not in line:
+            continue  # "Fetching available models..."
+        base = _AGY_LEVEL.sub("", line.split("\t", 1)[0].strip())
+        if base and base not in out:
+            out.append(base)
+    return out
+
+
+def _agy() -> ModelListing:
+    note = "the agy CLI picks its own default; set the thinking level with `effort`"
+    try:
+        return ModelListing("agent-agy", agy_models(), "", note)
+    except Exception as e:  # not installed, signed out, offline
+        return ModelListing("agent-agy", [], "", f"could not list models ({e})")
+
+
 _LISTERS: dict[str, Callable[[], ModelListing]] = {
     "api-gemini": _keyed("GeminiProvider", "gemini", gemini_models, "the Gemini API"),
     "api-openai": _keyed(
@@ -235,6 +265,7 @@ _LISTERS: dict[str, Callable[[], ModelListing]] = {
     "agent-codex": lambda: ModelListing(
         "agent-codex", [], "", "the codex CLI picks its own default — see `codex --help`"
     ),
+    "agent-agy": _agy,
     "relay": lambda: ModelListing("relay", [], "", "whoever answers the .req.md files decides"),
 }
 BACKENDS = tuple(_LISTERS)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ..config import RunConfig
-from .agent_cli import AgentCLIProvider, claude_provider, codex_provider
+from .agent_cli import AgentCLIProvider, agy_provider, claude_provider, codex_provider
 from .api import (
     API_PROVIDERS,
     AnthropicProvider,
@@ -45,6 +45,7 @@ _FACTORIES: dict[str, Factory] = {
     "ollama": _factory(OllamaProvider),
     "agent-claude": lambda model, cfg, t: claude_provider(model, timeout_s=t),
     "agent-codex": lambda model, cfg, t: codex_provider(model, timeout_s=t),
+    "agent-agy": lambda model, cfg, t: agy_provider(model, timeout_s=t),
     "relay": lambda model, cfg, t: RelayProvider(
         model=model or "external responder",
         spool_dir=cfg.relay_dir,

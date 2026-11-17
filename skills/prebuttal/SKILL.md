@@ -45,7 +45,7 @@ exactly what this tool exists to avoid.
    human-readable report (Markdown + HTML) lands in its own folder under
    `prebuttal-reports/<project>/`; the CLI prints the paths.
 4. If the user has no API keys: Prebuttal auto-detects subscription CLIs
-   (`claude -p`, `codex exec`) and local Ollama — zero-key paths. Check
+   (`claude -p`, `codex exec`, `agy -p`) and local Ollama — zero-key paths. Check
    `prebuttal backends`. For unpublished work, suggest Ollama (nothing leaves
    the machine). Use `--dry-run` first if the user asks about cost.
 5. Leave effort unset (each model's default) unless the user asks for a

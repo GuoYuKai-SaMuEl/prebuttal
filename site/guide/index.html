@@ -227,6 +227,7 @@ prebuttal projects rename mamba mamba-v2</pre>
     <tr><th>Backend</th><th>Access</th><th>Notes</th></tr>
     <tr><td><code>agent-claude</code></td><td>your Claude subscription, no API key</td><td>runs <code>claude -p</code> with no tools at all</td></tr>
     <tr><td><code>agent-codex</code></td><td>your Codex subscription, no API key</td><td>runs <code>codex exec</code> with no shell or file access</td></tr>
+    <tr><td><code>agent-agy</code></td><td>your Antigravity (Google) subscription, no API key</td><td>runs <code>agy -p</code> with every file, shell, URL and MCP action denied; keeps its own conversation history</td></tr>
     <tr><td><code>api-gemini</code></td><td><code>GEMINI_API_KEY</code></td><td>free tier — the cheapest first key</td></tr>
     <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td><code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code></td><td>mid-tier models by default</td></tr>
     <tr><td><code>api-openrouter</code></td><td><code>OPENROUTER_API_KEY</code></td><td>hundreds of models; <code>:free</code> ids cost nothing</td></tr>
@@ -234,7 +235,8 @@ prebuttal projects rename mamba mamba-v2</pre>
     <tr><td><code>relay</code></td><td>none</td><td>prompts go to files and you or your agent answer; never chosen automatically</td></tr>
   </table>
   <p>An agent CLI counts only when it is signed in (asked through <code>claude auth
-  status</code> / <code>codex login status</code>, no model call). Ollama's default is
+  status</code> / <code>codex login status</code>, no model call); agy has no such
+  command, so an installed <code>agy</code> counts as ready. Ollama's default is
   the first installed model that can chat; embedding models are skipped.
   <code>prebuttal backends &lt;name&gt;</code> lists one backend's models.</p>
   <p><strong>Keys.</strong> <code>prebuttal key set gemini</code> asks for the key with
@@ -339,7 +341,9 @@ model = "opus"</pre>
   every role then uses that backend's default model unless <code>--model</code> is
   given. A <code>prebuttal.toml</code> found in the current folder — say, inside a
   co-author's repository — can't run commands, pick a provider or write outside the
-  folder without asking you first; pass it with <code>-c</code> to trust it.</p>
+  folder without asking you first; pass it with <code>-c</code> to trust it. The trust
+  is remembered for that file's content, so commands without <code>-c</code>, such as
+  <code>prebuttal diff</code>, use it from then on.</p>
   <h3 id="effort">Reasoning effort</h3>
   <p>Leave <code>effort</code> unset and every model thinks as much as its provider's
   default — right for most papers. Set it to trade cost and time for depth; each
@@ -348,6 +352,7 @@ model = "opus"</pre>
     <tr><th>Backend</th><th>Sent as</th></tr>
     <tr><td><code>agent-claude</code></td><td><code>claude --effort</code></td></tr>
     <tr><td><code>agent-codex</code></td><td><code>-c model_reasoning_effort=...</code></td></tr>
+    <tr><td><code>agent-agy</code></td><td><code>agy --effort</code></td></tr>
     <tr><td><code>api-anthropic</code></td><td><code>output_config.effort</code></td></tr>
     <tr><td><code>api-openai</code></td><td><code>reasoning_effort</code> (gpt-5 and later, o-series)</td></tr>
     <tr><td><code>api-gemini</code></td><td><code>thinkingLevel</code> (Gemini 3+) / <code>thinkingBudget</code> (2.x)</td></tr>
@@ -414,7 +419,7 @@ required_sections = ["Limitations"]   # these don't count toward the limit</pre>
   agent's subagents — or you, or any other system — write the answers next to them,
   and the run continues. The CLI must run in the background while the agent answers,
   which is why relay is never picked automatically; <code>PREBUTTAL_BACKEND=relay</code>
-  pins it for a whole environment. Inside Claude Code or Gemini CLI,
+  pins it for a whole environment. Inside Claude Code, Gemini CLI or Antigravity,
   <code>prebuttal run</code> and <code>prebuttal backends</code> print a one-line
   relay hint.</p>
 

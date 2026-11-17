@@ -29,7 +29,7 @@ Know what is intentional behavior before reporting it:
   is the product. For unpublished work use the `ollama` backend (local) or
   `relay` (you control the responder).
 - **Subprocess execution**: configured backends run as subprocesses
-  (`claude`, `codex`, or your own `[agents.<name>]` command). Commands come
+  (`claude`, `codex`, `agy`, or your own `[agents.<name>]` command). Commands come
   from *your own* `prebuttal.toml` or our built-in defaults — never from the
   paper being reviewed. A `prebuttal.toml` that is merely *found* in the
   current directory (e.g. inside a coauthor's repo or an unpacked arXiv
@@ -38,7 +38,8 @@ Know what is intentional behavior before reporting it:
   that), or write reports or the relay spool outside the current directory:
   Prebuttal shows what the file would do and asks first, and refuses
   outright in non-interactive runs — passing it with `--config` is what
-  marks it as trusted. A yes is remembered for that file's exact content
+  marks it as trusted. A yes, or a run with `--config`, is remembered for
+  that file's exact content
   (`~/.prebuttal/trusted-configs.json`); editing the file asks again. `-y`
   does not bypass this.
 - **Prompt injection (the paper is untrusted input).** Anyone can hide text in
@@ -51,8 +52,15 @@ Know what is intentional behavior before reporting it:
     its `--sandbox read-only` mode, without your `~/.codex/config.toml`
     (`--ignore-user-config`, so none of your MCP servers are reachable) and
     without saving the session — and with it the paper — to disk
-    (`--ephemeral`); both start in an empty temporary directory instead of
-    your project;
+    (`--ephemeral`); `agy` runs with every file, shell, URL and MCP action
+    denied (`permissions.deny`), strict tool permissions (headless agy
+    refuses whatever would need asking), `--sandbox` and no slash commands
+    or skills (`--disable-slash-commands`); all three start in an empty
+    temporary directory instead of your project. Two gaps agy leaves open:
+    its web search falls under no permission rule (with no file readable,
+    the most a paper can send it is its own text), and agy keeps each
+    conversation — the paper included — under
+    `~/.gemini/antigravity-cli/conversations/`, with no flag to turn that off;
   - every prompt fences the paper inside `<submission>…</submission>` as
     untrusted data, strips forged fence tags, and tells reviewers to report
     embedded instructions as a weakness instead of following them.
@@ -68,7 +76,10 @@ Know what is intentional behavior before reporting it:
     applied for prebuttal's own API calls), so `claude -p` can't switch to
     API billing and no agent sees them as variables;
   - the built-in agents have **no tool that can read a file**: `claude`
-    has none at all; `codex` loses its shell and code mode. Codex's
+    has none at all; `codex` loses its shell and code mode; `agy` is
+    denied `read_file`, `command` and `unsandboxed` outright (checked
+    against agy 1.4.12 and 1.5.10: reads, `type`, `Get-ChildItem` and `Select-String`
+    were all refused). Codex's
     read-only sandbox by itself is not enough — on macOS and Linux it still
     lets a shell *read* any file the user can (on Windows it rejects the
     shell outright). Checked against codex-cli 0.164: the remaining tools

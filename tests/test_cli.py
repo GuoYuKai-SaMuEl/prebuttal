@@ -183,6 +183,10 @@ def test_backends_command_relay_hint_inside_agent(monkeypatch, capsys, fake_stat
     monkeypatch.setenv("GEMINI_CLI", "1")
     assert cli.main(["backends"]) == cli.EXIT_OK
     assert "Hint: running inside Gemini CLI" in capsys.readouterr().out
+    monkeypatch.delenv("GEMINI_CLI")
+    monkeypatch.setenv("ANTIGRAVITY_AGENT", "1")
+    assert cli.main(["backends"]) == cli.EXIT_OK
+    assert "Hint: running inside Antigravity" in capsys.readouterr().out
 
 
 def test_backends_command_only_relay(monkeypatch, capsys):
@@ -289,6 +293,29 @@ def test_explicit_config_is_trusted(tmp_path, monkeypatch, latex_project, fake_s
     monkeypatch.setattr(cli, "_is_interactive", lambda: False)
     cli.main(["run", str(latex_project), "--config", str(cfg), "--no-save"])
     assert (tmp_path / "ran.txt").exists()
+
+
+def test_explicit_config_is_remembered_for_commands_without_config(
+    tmp_path, monkeypatch, latex_project, fake_statuses
+):
+    """`diff` has no --config: it reads ./prebuttal.toml, and matched by word
+    overlap after `run --config` because the yes was never remembered."""
+    from prebuttal import trust
+
+    monkeypatch.chdir(tmp_path)
+    cfg = tmp_path / "prebuttal.toml"
+    cfg.write_text(EVIL_TOML, encoding="utf-8")
+    monkeypatch.setattr(cli, "_is_interactive", lambda: False)
+    assert not trust.is_trusted(str(cfg))
+    cli.main(["run", str(latex_project), "--config", str(cfg), "--no-save", "-y"])
+    assert trust.is_trusted(str(cfg))
+    (tmp_path / "ran.txt").unlink()
+    # found, not passed: it now runs without a question
+    cli.main(["run", str(latex_project), "--no-save", "-y"])
+    assert (tmp_path / "ran.txt").exists()
+    # ... until the file changes
+    cfg.write_text(EVIL_TOML + "\n# edited\n", encoding="utf-8")
+    assert not trust.is_trusted(str(cfg))
 
 
 def test_non_utf8_redirected_output_does_not_crash(tmp_path):

@@ -35,6 +35,22 @@ releases (0.2, 0.3, …) are substantial new features.
   price" in `--dry-run`, with the `[pricing."model-id"]` line that sets it.
 
 ### Added
+- **`agent-agy` backend: the Antigravity CLI** (`agy`, Google's subscription
+  CLI) — Gemini, and the other models agy offers, with no API key. Auto
+  mode picks it after `agent-claude` and `agent-codex`, so the three CLIs
+  together make a three-family panel. The paper goes in on stdin as one
+  stream-json event; reports carry agy's real token counts. Locked down
+  like the other agent CLIs: every file, shell, URL and MCP action denied,
+  strict permissions (headless agy refuses anything that needs asking), no
+  slash commands or skills, an empty temporary folder. Two limits it does not
+  let prebuttal close: its web search is not covered by any permission rule
+  (with no file readable, a paper can only send its own text to it), and agy
+  keeps each conversation, the paper included, in
+  `~/.gemini/antigravity-cli/conversations/`. `prebuttal backends agent-agy`
+  lists its models; `effort` sets agy's thinking level. A model/effort pair
+  agy rejects (an unknown id, a level the model lacks) stops at once with
+  agy's reason. Inside Antigravity (`ANTIGRAVITY_AGENT=1`), `run` and
+  `backends` print the relay hint as they do in Claude Code and Gemini CLI.
 - The revision plan is followed across runs. After a run, its plan is
   checked against the project's previous run (one call to the AC's
   backend; word overlap with relay) and the summary says `Plan: 3 of 5
@@ -94,6 +110,11 @@ releases (0.2, 0.3, …) are substantial new features.
   - `prebuttal runs --paper`: `prebuttal runs <project>`.
 
 ### Fixed
+- `prebuttal diff` matched by wording after `prebuttal run --config
+  prebuttal.toml`: `diff` has no `--config`, reads `./prebuttal.toml`, and
+  found it "not trusted yet" because passing a file with `--config` trusted
+  it for that run only. That trust is now remembered for the file's content,
+  like a yes to the question.
 - An area chair that wrote LaTeX such as `\(O(n)\)` in its meta-review
   could lose the whole meta-review and revision plan while the run looked
   finished (and `prebuttal retry` saw nothing to redo): the JSON reader

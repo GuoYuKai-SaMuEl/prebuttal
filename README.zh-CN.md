@@ -69,7 +69,7 @@ LaTeX 项目无需编译即可检查（页数限制需要 PDF）。发现可能�
 
 | 后端 | 认证 | 说明 |
 |---|---|---|
-| `agent-claude` / `agent-codex` | 你的 Claude / Codex 订阅，**无需 API key** | 不提供任何能读文件或执行命令的工具 |
+| `agent-claude` / `agent-codex` / `agent-agy` | 你的 Claude / Codex / Antigravity 订阅，**无需 API key** | 不提供任何能读文件或执行命令的工具 |
 | `api-gemini` | `GEMINI_API_KEY` | 有**免费额度** |
 | `api-openrouter` | `OPENROUTER_API_KEY` | `:free` 模型免费 |
 | `api-openai` / `api-anthropic` | 自带 key | |

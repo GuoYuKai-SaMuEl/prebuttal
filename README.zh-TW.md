@@ -70,7 +70,7 @@ LaTeX 專案不需編譯即可檢查（頁數上限需要 PDF）。找到可能�
 
 | 後端 | 認證 | 說明 |
 |---|---|---|
-| `agent-claude` / `agent-codex` | 你的 Claude / Codex 訂閱，**不需 API key** | 不給任何能讀檔或執行指令的工具 |
+| `agent-claude` / `agent-codex` / `agent-agy` | 你的 Claude / Codex / Antigravity 訂閱，**不需 API key** | 不給任何能讀檔或執行指令的工具 |
 | `api-gemini` | `GEMINI_API_KEY` | 有**免費額度** |
 | `api-openrouter` | `OPENROUTER_API_KEY` | `:free` 模型免費 |
 | `api-openai` / `api-anthropic` | 自備 key | |

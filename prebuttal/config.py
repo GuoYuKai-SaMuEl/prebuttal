@@ -51,12 +51,12 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
                         # measure how much the scores move by chance; costs
                         # 3x the reviewer calls. The AC still runs once.
 # effort = "high"       # reasoning effort: low | medium | high (unset = each
-                        # model's default). Thinking models only: Claude, codex,
+                        # model's default). Thinking models only: Claude, codex, agy,
                         # OpenAI gpt-5+/o-series, Gemini, OpenRouter, Ollama gpt-oss.
                         # Also per [[reviewer]] / [ac].
 
 # backend = "auto" (default) picks the best available backends at startup:
-#   agent-claude / agent-codex  (subscription CLIs, zero API key)
+#   agent-claude / agent-codex / agent-agy  (subscription CLIs, zero API key)
 #   api-gemini / api-openai / api-anthropic / api-openrouter  (BYO key;
 #   Gemini has a free tier, OpenRouter has :free models)
 #   ollama (local) / relay (you or your agent answer by hand)
@@ -64,7 +64,7 @@ budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
 #   PREBUTTAL_BACKEND=relay   (the --backend flag still wins)
 # Pin one per reviewer for a fixed setup, e.g.
 #   backend = "api-gemini"   model = "gemini-3.5-flash-lite"
-# (claude and codex CLIs get model as `--model X`; custom [agents.*] put
+# (claude, codex and agy CLIs get model as `--model X`; custom [agents.*] put
 #  any model flag in `command`. Empty model = the backend/CLI's own default)
 
 [[reviewer]]

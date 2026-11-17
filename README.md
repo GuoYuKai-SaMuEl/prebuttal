@@ -63,7 +63,7 @@ Report:   prebuttal-reports/globalgate-a-universal/2026-10-27_2228_neurips/repor
 - **A desk-reject pre-flight.** `prebuttal check` catches anonymity leaks,
   page-limit overruns, missing required sections and leftover `??` — no
   model, no cost, also as a GitHub Action.
-- **Zero setup if you have a subscription.** Uses `claude` / `codex` CLIs you
+- **Zero setup if you have a subscription.** Uses `claude` / `codex` / `agy` CLIs you
   are already logged into, a free Gemini key, OpenRouter, or a local Ollama —
   and stays honest about which model wrote what.
 

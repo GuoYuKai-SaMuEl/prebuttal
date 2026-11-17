@@ -152,8 +152,8 @@ def openai_reasoning_model(model: str) -> bool:
 def param_support(backend: str, model: str = "") -> tuple[bool, bool]:
     """Whether ``backend`` (with ``model``) really applies (temperature, seed).
 
-    Agent CLIs (``claude -p``, ``codex exec``, custom ``[agents.*]``) expose
-    neither, the relay responder is an outside agent, current Claude API
+    Agent CLIs (``claude -p``, ``codex exec``, ``agy -p``, custom
+    ``[agents.*]``) expose neither, the relay responder is an outside agent, current Claude API
     models accept only their default sampling and have no seed, and OpenAI
     reasoning models (gpt-5, o-series) take no temperature. Reports show the
     configured value only where it took effect.
@@ -185,7 +185,7 @@ def effort_support(backend: str, model: str = "") -> bool:
     """Whether ``backend`` (with ``model``) has a reasoning-effort control we can set."""
     if backend == "api-anthropic":
         return anthropic_effort_model(model)
-    if backend in ("agent-claude", "agent-codex", "api-gemini", "api-openrouter"):
+    if backend in ("agent-claude", "agent-codex", "agent-agy", "api-gemini", "api-openrouter"):
         return True
     if backend == "api-openai":
         return openai_reasoning_model(model)
