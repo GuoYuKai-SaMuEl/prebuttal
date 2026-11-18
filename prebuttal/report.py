@@ -77,6 +77,18 @@ def _bar(value: float, maximum: float) -> str:
     return "█" * filled + "░" * max(0, int(maximum) - filled)
 
 
+def left_out(review: Review, venue: Venue) -> list[str]:
+    """The required text fields a finished review left empty: still a review
+    (it has its score and some text), but the reader should know."""
+    if not review.parse_ok:
+        return []
+    return [
+        f.label
+        for f in venue.fields
+        if f.kind in ("text", "list") and f.required and not review.fields.get(f.key)
+    ]
+
+
 def _render_review(review: Review, venue: Venue, index: int) -> str:
     out = [f"## Review {index}: {review.label} — persona `{review.persona}`", ""]
     model = review.model or "CLI default"
@@ -94,6 +106,8 @@ def _render_review(review: Review, venue: Venue, index: int) -> str:
             out += ["<details><summary>Raw model output</summary>", "", "```"]
             out += [review.raw_output[:4000], "```", "", "</details>"]
         return "\n".join(out)
+    if missing := left_out(review, venue):
+        _para(out, f"> *Left out by this reviewer: {', '.join(missing)}.*")
 
     for f in venue.fields:
         v = review.fields.get(f.key)
@@ -332,8 +346,13 @@ def report_from_dict(d: dict[str, Any]) -> ReviewReport:
         if not isinstance(r, dict):
             raise ValueError(f"report.json: reviewer {i} is not an object")
         for key, kind in (("fields", dict), ("usage", dict)):
-            if key in r and r[key] is not None and not isinstance(r[key], kind):
+            if r.get(key) is None:
+                r.pop(key, None)  # null: as if absent (the default), not a crash later
+            elif not isinstance(r[key], kind):
                 raise ValueError(f"report.json: reviewer {i} has an invalid '{key}'")
+        for name, value in (r.get("fields") or {}).items():
+            if not _field_value(value):  # what the Markdown and HTML pages print
+                raise ValueError(f"report.json: reviewer {i} has an invalid field '{name}'")
     plan = d["meta"].get("action_plan")
     if plan is not None and (
         not isinstance(plan, list) or not all(isinstance(it, dict) for it in plan)
@@ -343,6 +362,15 @@ def report_from_dict(d: dict[str, Any]) -> ReviewReport:
         return _report_from_dict(d)
     except (KeyError, TypeError, AttributeError) as e:
         raise ValueError(f"report.json is malformed ({type(e).__name__}: {e})") from None
+
+
+def _field_value(v: Any) -> bool:
+    """A review field as reports store it: text, a number, a list of texts, or null."""
+    if v is None or isinstance(v, str):
+        return True
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return True
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
 
 
 def _report_from_dict(d: dict[str, Any]) -> ReviewReport:

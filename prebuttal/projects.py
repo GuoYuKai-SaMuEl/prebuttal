@@ -84,11 +84,11 @@ def _root() -> Path:
     return runs_root()
 
 
-def _lock(*, required: bool) -> contextlib.AbstractContextManager[None]:
+def _lock() -> contextlib.AbstractContextManager[None]:
     """The archive's write lock; the registry is rewritten whole, like the history."""
     from .runs import store_lock
 
-    return store_lock(required=required)
+    return store_lock()
 
 
 def _as_list(v: Any) -> list:
@@ -192,7 +192,7 @@ def assign_project(
     """
     if not register:
         return _assign(source, title, explicit, register=False)
-    with _lock(required=False):
+    with _lock():
         return _assign(source, title, explicit, register=True)
 
 
@@ -237,7 +237,7 @@ def rename_project(old: str, new: str) -> tuple[str, int]:
     from .runs import load_history, rewrite_history
 
     new_key = normalize_key(new)
-    with _lock(required=True):
+    with _lock():
         projects = load_projects()
         records = load_history()
         own = projects[old].aliases if old in projects else []
@@ -275,8 +275,17 @@ def rename_project(old: str, new: str) -> tuple[str, int]:
     return new_key, len(moved)
 
 
-def forget_project(key: str) -> None:
-    with _lock(required=True):
+def forget_project(key: str) -> int:
+    """Drop ``key`` from the registry, unless runs of it are still archived
+    (one saved while its runs were being deleted): then it stays, and the
+    number of those runs is returned."""
+    from .runs import load_history
+
+    with _lock():
+        left = sum(1 for r in load_history() if r.project == key)
+        if left:
+            return left
         projects = load_projects()
         if projects.pop(key, None) is not None:
             save_projects(projects)
+    return 0

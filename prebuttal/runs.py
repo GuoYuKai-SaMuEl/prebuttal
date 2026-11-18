@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import time
 import uuid
 from collections.abc import Callable, Iterator
@@ -50,57 +51,68 @@ def runs_dir() -> Path:
     return runs_root() / "runs"
 
 
-_STALE_LOCK_S = 60
-_LOCK_WAIT_S = 5.0  # best-effort and `required` writers
+_LOCK_WAIT_S = 5.0  # note, rm, rename, key set, project registration
+_ARCHIVE_WAIT_S = 600.0  # archiving a finished (paid) run waits longer
+
+
+def _try_lock(fd: int) -> bool:
+    """An operating-system lock on ``fd``: released by the OS when its holder
+    exits or crashes, so there is no stale lock to guess about, and two
+    holders are impossible (a lock is per open file, so per process and per
+    thread here)."""
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock(fd: int) -> None:
+    with contextlib.suppress(OSError):
+        if sys.platform == "win32":
+            import msvcrt
+
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_UN)
 
 
 @contextlib.contextmanager
-def store_lock(*, required: bool = False, wait_s: float | None = None) -> Iterator[None]:
+def store_lock(*, wait_s: float | None = None) -> Iterator[None]:
     """Serialize writes to the history and the project registry between
-    concurrent processes.
+    concurrent processes (and threads).
 
-    A lock older than a minute means its holder crashed and is stolen.  A
-    busy lock gives way after ``wait_s``: unlocked for best-effort writers,
-    with OSError for ``required`` ones (note, rm, rename: whole-file
-    rewrites).  Archiving a run waits past the stale-lock age, so it always
-    gets the lock — the lock released or taken over — and never appends
-    while a rewriter could drop it."""
-    p = runs_root() / "history.lock"
+    Every writer holds it: a busy lock is waited for ``wait_s`` (default
+    :data:`_LOCK_WAIT_S`), then OSError — nothing is ever written unlocked.
+    The lock file itself stays; holding is the OS lock on it."""
     make_private_dir(runs_root())
-    held = False
-    deadline = time.monotonic() + (_LOCK_WAIT_S if wait_s is None else wait_s)
-    while time.monotonic() < deadline:
-        try:
-            fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-            held = True
-            break
-        except (FileExistsError, PermissionError):
-            # Windows reports a lock file that is being unlinked this instant
-            # (delete-pending) as PermissionError, not FileExistsError — both
-            # mean "busy": sleep and retry, never let it escape the lock
-            try:
-                if time.time() - p.stat().st_mtime > _STALE_LOCK_S:
-                    # a crashed holder's lock: rename it away and try to create
-                    # the next one.  This narrows the takeover race but does
-                    # not fully close it: a waiter that stat'ed before the
-                    # takeover can still rename a freshly created lock — which
-                    # takes a stale lock to happen at all.
-                    stolen = p.with_name(f"{p.name}.stolen-{os.getpid()}")
-                    os.rename(p, stolen)
-                    stolen.unlink(missing_ok=True)
-                    continue
-            except OSError:
-                pass
-            time.sleep(0.05)
-    if required and not held:
-        raise OSError("the run history is busy (another prebuttal is writing it) — try again")
+    p = runs_root() / "history.lock"
+    fd = os.open(p, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        yield
+        deadline = time.monotonic() + (_LOCK_WAIT_S if wait_s is None else wait_s)
+        while not _try_lock(fd):
+            if time.monotonic() >= deadline:
+                raise OSError(
+                    "the run history is busy (another prebuttal is writing it) — try again"
+                )
+            time.sleep(0.05)
+        try:
+            yield
+        finally:
+            _unlock(fd)
     finally:
-        if held:
-            with contextlib.suppress(OSError):
-                p.unlink(missing_ok=True)
+        os.close(fd)
 
 
 def new_run_id(paper_title: str) -> str:
@@ -133,6 +145,7 @@ class RunRecord:
     # the first run of this version of the paper: a retry's original, kept
     # even if the runs between are deleted (None: itself, or before 0.7.0)
     version: str | None = None
+    version_no: int = 0  # that first run's number (0: itself, or before 0.7.0)
 
     @property
     def dir_path(self) -> Path:
@@ -263,9 +276,8 @@ def save_run(
         },
     }
     # the run's files are written under the lock too, but nothing is paid for
-    # while waiting: the reviews are done.  Waiting past a stale lock's age,
-    # the archive always gets the lock and never appends unlocked
-    with store_lock(required=True, wait_s=_STALE_LOCK_S + 10):
+    # while waiting: the reviews are done.  A holder that crashed releases it
+    with store_lock(wait_s=_ARCHIVE_WAIT_S):
         # the id's time and the run number are both taken under the lock: two
         # runs saved at once across a second boundary must not get ids in one
         # order and numbers in the other (history is ordered by the id's time)
@@ -301,7 +313,8 @@ def save_run(
             scale=venue.rating_field.max,
             round_means=list(rm) if len(rm := report.aggregate.round_means) > 1 else None,
             retry_of=retry_of,
-            version=_version_of_retry(retry_of) if retry_of else None,
+            version=(v := _version_of_retry(retry_of) if retry_of else None),
+            version_no=_version_no(v) if v else 0,
         )
         with history_path().open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
@@ -372,7 +385,7 @@ def _update_history(apply: Callable[[list[RunRecord]], None]) -> list[RunRecord]
     """Read-modify-write the history under the cross-process lock, so a run
     archived while ``note`` / ``rm`` / ``rename`` holds it cannot be lost to
     their full-file rewrite."""
-    with store_lock(required=True):
+    with store_lock():
         records = load_history()
         apply(records)
         rewrite_history(records)
@@ -411,6 +424,7 @@ def delete_runs(run_ids: set[str]) -> int:
 
     def apply(records: list[RunRecord]) -> None:
         _keep_run_numbers(records, gone)
+        _keep_versions(records, gone)
         records[:] = [r for r in records if r.id not in gone]
 
     _update_history(apply)
@@ -421,6 +435,19 @@ def delete_runs(run_ids: set[str]) -> int:
             + " — they stay listed: close what holds them and run `prebuttal rm` again"
         )
     return len(removed)
+
+
+def _keep_versions(records: list[RunRecord], run_ids: set[str]) -> None:
+    """Before a version's first run leaves the history, its retries record it
+    (``version``, ``version_no``): retries archived before 0.7.0 do not, and
+    would lose the version's place once that run is gone."""
+    for first in (r for r in records if r.id in run_ids):
+        for r in records:
+            if r.id in run_ids or r.id == first.id:
+                continue
+            if version_key(records, r) == first.id:
+                r.version = first.id
+                r.version_no = r.version_no or first.run_no
 
 
 def _keep_run_numbers(records: list[RunRecord], run_ids: set[str]) -> None:
@@ -554,6 +581,28 @@ def version_key(runs: list[RunRecord], rec: RunRecord) -> str:
     return run_id
 
 
+def _version_no(version: str) -> int:
+    """The run number of ``version``'s first run (read under the lock)."""
+    runs = load_history()
+    first = next((r for r in runs if r.id == version), None)
+    if first is not None:
+        return first.run_no
+    # deleted: another retry of it may have kept the number
+    return next((r.version_no for r in runs if r.version == version and r.version_no), 0)
+
+
+def _version_start(runs: list[RunRecord], key: str, members: list[int]) -> tuple[str, int]:
+    """When a version started: its first run's time (from the id, which
+    outlives the run) and number (that run's, or the one its retries keep)."""
+    first = next((r for r in runs if r.id == key), None)
+    if first is not None:
+        no = first.run_no
+    else:
+        no = next((runs[i].version_no for i in members if runs[i].version_no), 0)
+        no = no or min(runs[i].run_no for i in members)
+    return key[:15], no
+
+
 def _version_of_retry(retry_of: str) -> str:
     """The version a new retry of ``retry_of`` belongs to (read under the lock)."""
     return version_of_id(load_history(), retry_of)
@@ -582,9 +631,9 @@ def revisions(
     for i, r in enumerate(runs):  # newest first
         if keep is None or keep(r):
             groups.setdefault(version_key(runs, r), []).append(i)
-    # a version is as old as its first run, whose id carries its time even
-    # when that run is deleted or filtered out (newest version first)
-    order = sorted(groups.items(), key=lambda kv: (kv[0][:15], -max(kv[1])), reverse=True)
+    # a version is as old as its first run: its id's time and its number,
+    # kept by its retries when it is deleted or filtered out (newest first)
+    order = sorted(groups.items(), key=lambda kv: _version_start(runs, kv[0], kv[1]), reverse=True)
     return [runs[min(idx)] for _key, idx in order]
 
 

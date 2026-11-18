@@ -189,6 +189,8 @@ class RevisionDiff:
     # False when no reviewer (id · persona) is in both runs, though both have
     # some: their weaknesses could not be compared at all
     shared_reviewers: bool = True
+    # rated reviews (``R2 · adversarial round 2``) in one run only
+    rated_change: list[str] = field(default_factory=list)
 
     @property
     def same_scale(self) -> bool:
@@ -212,13 +214,9 @@ class RevisionDiff:
 
     @property
     def panel_change(self) -> list[str]:
-        """Reviewers rated in one run only (``R2 · adversarial (A only)``): the
-        mean then averages different reviewers, and its change may be that."""
-        return [
-            f"{rc.reviewer} ({'A' if rc.a is not None else 'B'} only)"
-            for rc in self.ratings
-            if (rc.a is None) != (rc.b is None)
-        ]
+        """The rated reviews (each reviewer's rounds) in one run only: the mean
+        then averages other ratings, and its change may be that."""
+        return self.rated_change
 
 
 def _by_reviewer(reviewers: list[dict], failed: bool = False) -> dict[str, list[dict]]:
@@ -236,9 +234,34 @@ def _by_reviewer(reviewers: list[dict], failed: bool = False) -> dict[str, list[
     return out
 
 
-def rated_reviewers(reviewers: list[dict]) -> set[str]:
-    """``R1 · senior_kind`` of every reviewer with a rating in a report's reviewers."""
-    return {k for k, rs in _by_reviewer(reviewers).items() if _mean_rating(rs) is not None}
+def rated_slots(reviewers: list[dict]) -> dict[tuple[str, int], str]:
+    """Every rating a report's panel mean averages: (``R1 · senior_kind``,
+    round) of each review that finished with a rating, and the model that
+    gave it (``backend/model``)."""
+    return {
+        (key, int(_num(r.get("repeat")) or 0)): f"{r.get('backend') or '?'}/{r.get('model') or '?'}"
+        for key, rs in _by_reviewer(reviewers).items()
+        for r in rs
+        if _num(r.get("rating")) is not None
+    }
+
+
+def slot_change(a: list[dict], b: list[dict]) -> list[str]:
+    """What makes two runs' means average different ratings, named for a
+    reader: ``R2 · adversarial (A only)``, ``R1 · senior_kind round 2 (B
+    only)``, ``R3 · detail_obsessive model api-gemini/x → agent-agy/y``."""
+    sa, sb = rated_slots(a), rated_slots(b)
+    many = any(n for _k, n in sa.keys() | sb.keys())  # rounds named only with `repeats`
+    out = []
+    for key, n in sorted(sa.keys() | sb.keys()):
+        name = f"{key}{f' round {n + 1}' if many else ''}"
+        if (key, n) not in sb:
+            out.append(f"{name} (A only)")
+        elif (key, n) not in sa:
+            out.append(f"{name} (B only)")
+        elif sa[key, n] != sb[key, n]:  # another model is another reviewer
+            out.append(f"{name} model {sa[key, n]} → {sb[key, n]}")
+    return out
 
 
 def _mean_rating(reviews: list[dict]) -> float | None:
@@ -399,6 +422,7 @@ def compute_diff(
         plan=plan if plan is not None else check_plan(matcher, da, db),
         round_means=(_round_means(aa), _round_means(ab)),
         shared_reviewers=bool(both) or not (ra and rb),
+        rated_change=slot_change(da.get("reviewers") or [], db.get("reviewers") or []),
     )
 
 
@@ -427,7 +451,7 @@ def render_diff_markdown(d: RevisionDiff) -> str:
         out.extend(_noise_lines(noise))
     elif d.panel_change and same:
         out.append(
-            "  not checked against run-to-run noise: rated in one run only — "
+            "  not checked against run-to-run noise: the ratings differ — "
             + ", ".join(d.panel_change)
             + "; the change may come from who is missing"
         )

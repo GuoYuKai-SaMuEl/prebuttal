@@ -276,9 +276,9 @@ def _scalar_text(v: Any) -> str:
 
 def _has_text(fields: dict, venue: Venue) -> bool:
     """A review says something besides its scores (``{"rating": 8}`` does not)
-    — when its form asks for any text: a scores-only custom form is complete
-    with its scores."""
-    texts = [f.key for f in venue.fields if f.kind in ("text", "list")]
+    — when its form requires any text: a custom form whose text fields are
+    all optional (or that has none) is complete with its scores."""
+    texts = [f.key for f in venue.fields if f.kind in ("text", "list") and f.required]
     return not texts or any(fields.get(k) for k in texts)
 
 

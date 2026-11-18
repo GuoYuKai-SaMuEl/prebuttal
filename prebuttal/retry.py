@@ -141,7 +141,17 @@ def load_resolved(run_dir: Path, made_by: str = "") -> dict:
         raise RetryError(f"the archived resolved-config.json is unreadable ({e})") from None
     if not isinstance(data, dict):
         raise RetryError("the archived resolved-config.json is not a JSON object")
+    if made_by and _version(made_by) >= (0, 7, 0):
+        lost = [k for k in _RETRY_KEYS if k not in data]
+        if lost:  # what retry runs with: none may be missing from a 0.7.0+ run
+            raise RetryError(
+                f"the archived resolved-config.json lacks {', '.join(lost)} — start a new run"
+            )
     return data
+
+
+# what a run of 0.7.0 or later records for `retry` in resolved-config.json
+_RETRY_KEYS = ("max_tokens", "budget_chars", "agents", "venue_path")
 
 
 def retry_config(cfg: RunConfig, resolved: dict, backends: set[str]) -> RunConfig:
@@ -167,6 +177,20 @@ def retry_config(cfg: RunConfig, resolved: dict, backends: set[str]) -> RunConfi
     venue_path = resolved.get("venue_path", "")
     if not isinstance(venue_path, str):
         raise RetryError("the archived resolved-config.json has an invalid 'venue_path'")
+    if resolved.get("prebuttal_version") and _version(str(resolved["prebuttal_version"])) >= (
+        0,
+        7,
+        0,
+    ):
+        # every custom agent about to run must have been recorded: else the
+        # current [agents] entry would run unchecked
+        custom = {b[6:] for b in backends if b.startswith("agent-") and b[6:] in cfg.agents}
+        unrecorded = sorted(custom - set(agents))
+        if unrecorded:
+            raise RetryError(
+                f"the archived resolved-config.json has no settings for custom agent(s) "
+                f"{', '.join(unrecorded)} — start a new run"
+            )
     for name, spec in agents.items():
         if f"agent-{name}" not in backends:
             continue

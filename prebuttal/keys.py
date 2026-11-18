@@ -84,7 +84,7 @@ def store_key(var: str, value: str) -> None:
     p = keys_path()
     make_private_dir(p.parent)
     # two `key set` at once must not drop each other's key (read-modify-write)
-    with store_lock(required=True):
+    with store_lock():
         data = _read_all()
         data[var] = value
         _write_keys_file(p, _serialize(data))
@@ -92,7 +92,7 @@ def store_key(var: str, value: str) -> None:
 
 def unset_key(var: str) -> bool:
     p = keys_path()
-    with store_lock(required=True):
+    with store_lock():
         data = _read_all()
         if var not in data:
             return False

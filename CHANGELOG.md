@@ -193,8 +193,10 @@ releases (0.2, 0.3, …) are substantial new features.
   a custom venue given by a relative path is found from any folder.
 - A review with a score and no text (`{"rating": 8}`) counted as finished,
   and a list holding `null` was kept as the text `None`; such a review gets
-  the repair pass, then counts as failed — on a form that asks for text: a
-  scores-only custom form is complete with its scores. A plan item whose
+  the repair pass, then counts as failed — on a form that requires text: a
+  custom form whose text fields are all optional, or that has none, is
+  complete with its scores. Reports name the required text fields a finished
+  review left empty ("Left out by this reviewer: Questions"). A plan item whose
   issue is not text is dropped.
 - A backend answering with something other than text (a list, an object)
   crashed `prebuttal diff` instead of falling back to matching by wording;
@@ -245,9 +247,10 @@ releases (0.2, 0.3, …) are substantial new features.
   said neither raised a weakness; it says they cannot be compared.
 - A review field of the wrong type (an object as the summary) counted as
   text; a retry's archived settings of the wrong type are a damaged archive,
-  not a reason to use the current ones, nor is a missing one in a run of
-  0.7.0 or later; a `report.json` of the wrong shape (down to a reviewer's
-  fields and the plan items),
+  not a reason to use the current ones, nor is a missing one (or one missing
+  a field, or the settings of a custom agent it will run) in a run of 0.7.0
+  or later; a `report.json` of the wrong shape (down to a reviewer's
+  fields, their values and the plan items),
   and a custom venue's `rating` that is not a field name, are one-line
   errors instead of tracebacks.
 - Writing fewer formats than the previous run left that run's `latest.json`
@@ -255,10 +258,21 @@ releases (0.2, 0.3, …) are substantial new features.
 - `prebuttal rm` reported a run deleted when its folder could not be (a file
   held open on Windows), and dropped it from the history, leaving no way to
   try again. A run is now listed until its files are gone, and `rm` says
-  which are left. Files are deleted outside the history lock, so a slow
-  disk cannot make a run being archived meanwhile skip the lock. Archiving
-  waits for the lock past the age at which a stale one is taken over, so it
-  never writes the history unlocked.
+  which are left. Files are deleted outside the history lock.
+- The history lock is an operating-system file lock (`msvcrt` on Windows,
+  `flock` elsewhere), released by the OS when its holder exits or crashes.
+  It used to be a file judged stale after a minute, which a slow but live
+  holder could lose to a second one, and a busy lock let some writers go on
+  unlocked. Every write to the history and the project registry now holds
+  it; archiving a finished run waits up to ten minutes for it.
+- A run whose reviews finished but whose report could be saved nowhere (the
+  archive failed and `[output] dir = ""`) exited 0. It now prints the report
+  and exits 7 — also when every reviewer failed but the area chair wrote.
+- `prebuttal run --project NAME` archived under the paper's title when the
+  project could not be registered; it keeps NAME and warns.
+- `prebuttal projects rm` dropped a project from the registry while a run of
+  it archived during the deletion was still listed; the project is kept,
+  and `rm` says how many runs are left.
 - Retries were counted differently by each view: two retries of one run
   were two versions in trends but one in `diff`, and a retry of v1 made after
   v2 plotted as the newest score. Trends, `diff`, the `Change:` line, the
@@ -266,13 +280,16 @@ releases (0.2, 0.3, …) are substantial new features.
   retries are one version, the newest stands for it, and versions keep the
   order of their first run. A retry records that first run (`version` in the
   history), so deleting a retry in between keeps the others together, and
-  the order holds even when that first run is deleted. A retry of v1 follows
+  the order holds even when that first run is deleted (a retry also keeps
+  its number, for versions started within one second; retries archived
+  before get both when that run is deleted). A retry of v1 follows
   no revision plan rather than v2's. The project's score (`prebuttal
   projects`, the dashboard, `--json`) is the newest version's, as its trend
   is; "last run" is still the most recent run.
-- A score change between runs whose rated reviewers differ (one failed in B)
-  was checked against run-to-run noise; `diff` and the `Change:` line now say
-  who was rated in one run only, as the change may be that.
+- A score change between runs whose means average different ratings (a
+  reviewer, or one round of it, failed in B, or gave its rating with another
+  model) was checked against run-to-run noise; `diff`, the `Change:` line and the dashboard now say which ratings
+  are in one run only, and give the change no direction.
 - A report folder that already existed, empty, got no `.gitignore`; it does
   now. A folder that holds files is still left as it is.
 - `prebuttal key set` / `unset` run under the store lock and replace the file

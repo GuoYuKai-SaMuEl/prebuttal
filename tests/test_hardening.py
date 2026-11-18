@@ -701,7 +701,7 @@ def test_rm_deletes_files_outside_the_history_lock(latex_project, monkeypatch):
     real = runs.shutil.rmtree
 
     def watch(path, *args, **kw):
-        held.append((runs.runs_root() / "history.lock").exists())
+        held.append(_locked(runs))
         return real(path, *args, **kw)
 
     monkeypatch.setattr(runs.shutil, "rmtree", watch)
@@ -832,23 +832,40 @@ def test_a_venue_rating_that_is_not_a_name_is_a_venue_error():
 # ------------------------------------------------------------------ fifth review round
 
 
-def test_archiving_waits_for_the_lock_instead_of_going_unlocked(latex_project, monkeypatch):
+def _locked(runs) -> bool:
+    """Whether someone holds the history lock (probed with a short wait)."""
+    try:
+        with runs.store_lock(wait_s=0):
+            return False
+    except OSError:
+        return True
+
+
+def test_archiving_writes_only_under_the_lock(latex_project, monkeypatch):
     from prebuttal import runs
 
-    monkeypatch.setattr(runs, "_STALE_LOCK_S", 0.3)
     _archive(latex_project)
-    lock = runs.runs_root() / "history.lock"
-    lock.write_text("", encoding="utf-8")  # a holder that never lets go
     seen = []
     real = runs._write_run_files
 
     def check(*a, **kw):
-        seen.append(lock.exists())  # held by this save, not skipped
+        seen.append(_locked(runs))  # held by this save
         return real(*a, **kw)
 
     monkeypatch.setattr(runs, "_write_run_files", check)
     _archive(latex_project)
     assert seen == [True] and len(load_history()) == 2
+    assert not _locked(runs)  # and released
+
+
+def test_a_lock_file_left_behind_is_not_a_held_lock(latex_project):
+    from prebuttal import runs
+
+    runs.runs_root().mkdir(parents=True, exist_ok=True)
+    (runs.runs_root() / "history.lock").write_text("", encoding="utf-8")  # a crash's leftover
+    assert not _locked(runs)
+    _archive(latex_project)
+    assert len(load_history()) == 1
 
 
 def test_a_scores_only_form_is_complete_with_its_scores():
@@ -940,3 +957,274 @@ def test_nested_report_sections_of_the_wrong_type_fail_when_read(latex_project):
     bad["meta"]["action_plan"] = [None]
     with pytest.raises(ValueError, match="revision plan"):
         report_from_dict(bad)
+
+
+# ------------------------------------------------------------------ sixth review round
+
+
+def test_the_history_lock_has_one_holder_however_long_it_is_held(latex_project, monkeypatch):
+    import os
+    import time
+
+    from prebuttal import runs
+
+    monkeypatch.setattr(runs, "_LOCK_WAIT_S", 0.2)
+    with runs.store_lock():
+        lock = runs.runs_root() / "history.lock"
+        old = time.time() - 3600
+        os.utime(lock, (old, old))  # an hour old: no longer read as a crashed holder's
+        with pytest.raises(OSError, match="busy"), runs.store_lock():
+            pass
+
+
+def test_project_registration_never_writes_unlocked(tmp_path, monkeypatch):
+    from prebuttal import runs
+    from prebuttal.projects import assign_project, load_projects
+
+    monkeypatch.setattr(runs, "_LOCK_WAIT_S", 0.2)
+    with runs.store_lock(), pytest.raises(OSError, match="busy"):
+        assign_project(str(tmp_path / "a.pdf"), "Draft")
+    assert load_projects() == {}
+
+
+def test_a_review_kept_nowhere_is_printed_with_exit_7(
+    latex_project, fake_statuses, fake_config, monkeypatch, capsys
+):
+    from prebuttal import runs
+
+    def broken(*a, **kw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(runs, "_write_run_files", broken)
+    toml = fake_config.read_text(encoding="utf-8")
+    fake_config.write_text(toml + '\n[output]\ndir = ""\n', encoding="utf-8")
+    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "-y"])
+    out = capsys.readouterr()
+    assert rc == cli.EXIT_UNSAVED == 7
+    assert "could not be saved anywhere" in out.err and "# Prebuttal" in out.out
+
+
+def test_optional_text_fields_are_not_required():
+    from prebuttal.orchestrator import _has_text, coerce_fields
+    from prebuttal.venues.custom import venue_from_spec
+
+    venue = venue_from_spec(
+        "notes",
+        {
+            "name": "Notes",
+            "rating": "rating",
+            "fields": [
+                {"key": "rating", "label": "R", "kind": "score", "max": 5},
+                {"key": "note", "label": "Note", "kind": "text", "required": False},
+            ],
+        },
+        form="Rate it.",
+    )
+    assert _has_text(coerce_fields({"rating": 5, "note": ""}, venue), venue)
+
+
+def test_versions_started_in_one_second_keep_their_order(latex_project):
+    from prebuttal.runs import revisions
+
+    v1 = replace(_archive(latex_project), id="20260101-000001-aaaa-p")
+    v2 = replace(_archive(latex_project, rating_shift=1), id="20260101-000001-bbbb-p")
+    r1 = replace(
+        _archive(latex_project),
+        id="20260101-000009-cccc-p",
+        retry_of=v1.id,
+        version=v1.id,
+        version_no=v1.run_no,
+    )
+    assert v1.run_no < v2.run_no < r1.run_no
+    assert [r.id for r in revisions([r1, v2])] == [v2.id, r1.id]  # v1 deleted
+    assert [r.id for r in revisions([r1, v2, v1], keep=lambda r: r is not v1)] == [
+        v2.id,
+        r1.id,
+    ]
+
+
+def test_a_retry_records_its_versions_number(latex_project):
+    a = _archive(latex_project)
+    report, venue = make_report(latex_project)
+    r = save_run(
+        report,
+        venue,
+        load_config(None),
+        md="#",
+        json_str="{}",
+        html=None,
+        project=a.project,
+        retry_of=a.id,
+    )
+    assert (r.version, r.version_no) == (a.id, a.run_no)
+
+
+def test_a_missing_round_is_a_changed_panel(latex_project, offline_diff):
+    from prebuttal.revdiff import slot_change
+
+    rows = [
+        {"reviewer_id": "R1", "persona": "p", "repeat": 0, "rating": 8},
+        {"reviewer_id": "R1", "persona": "p", "repeat": 1, "rating": 8},
+        {"reviewer_id": "R2", "persona": "q", "repeat": 0, "rating": 4},
+        {"reviewer_id": "R2", "persona": "q", "repeat": 1, "rating": 4},
+    ]
+    fewer = [*rows[:3], {**rows[3], "parse_ok": False, "rating": None}]
+    assert slot_change(rows, fewer) == ["R2 · q round 2 (A only)"]
+    assert slot_change(rows, rows) == []
+
+
+def test_the_dashboard_gives_no_direction_when_ratings_differ(latex_project):
+    from prebuttal.dashboard import _delta
+    from prebuttal.runs import ProjectSummary
+
+    a = _archive(latex_project)
+    b = _archive(latex_project, rating_shift=1)
+    data = json.loads((b.dir_path / "report.json").read_text(encoding="utf-8"))
+    data["reviewers"][1]["parse_ok"] = False
+    data["reviewers"][1]["rating"] = None
+    (b.dir_path / "report.json").write_text(json.dumps(data), encoding="utf-8")
+    html = _delta(ProjectSummary(key=a.project, title="", runs=[b, a]))
+    assert "ratings differ" in html and "up" not in html and "down" not in html
+
+
+def test_a_new_archives_resolved_config_needs_every_field(tmp_path):
+    from prebuttal.retry import RetryError, load_resolved
+
+    (tmp_path / "resolved-config.json").write_text("{}", encoding="utf-8")
+    assert load_resolved(tmp_path, "0.6.1") == {}
+    with pytest.raises(RetryError, match="lacks max_tokens"):
+        load_resolved(tmp_path, "0.7.0")
+
+
+def test_null_review_fields_read_as_empty(latex_project):
+    from prebuttal.report import render_markdown, report_from_dict
+    from prebuttal.venues import venue_from_report
+
+    rec = _archive(latex_project)
+    data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+    data["reviewers"][0]["fields"] = None
+    report = report_from_dict(data)
+    assert report.reviews[0].fields == {}
+    assert render_markdown(report, venue_from_report(data))
+
+
+# ------------------------------------------------------------------ seventh review round
+
+
+def test_a_named_project_is_kept_when_registering_fails(
+    latex_project, fake_statuses, fake_config, monkeypatch
+):
+    from prebuttal import cli as cli_mod
+
+    def busy(*a, **kw):
+        raise OSError("the run history is busy")
+
+    monkeypatch.setattr(cli_mod, "assign_project", busy)
+    rc = cli.main(
+        ["run", str(latex_project), "--config", str(fake_config), "-y", "--project", "Expected"]
+    )
+    assert rc == cli.EXIT_OK
+    assert load_history()[0].project == "expected"
+
+
+def test_projects_rm_keeps_a_project_that_got_a_run_meanwhile(latex_project, monkeypatch):
+    from prebuttal import runs
+
+    a = _archive(latex_project)
+    real = runs.delete_runs
+
+    def and_one_more(ids):
+        n = real(ids)
+        _archive(latex_project)  # archived while the project was being deleted
+        return n
+
+    monkeypatch.setattr(cli, "delete_runs", and_one_more)
+    assert cli.main(["projects", "rm", a.project, "-y"]) != cli.EXIT_OK
+    from prebuttal.projects import load_projects
+
+    assert a.project in load_projects() and len(load_history()) == 1
+
+
+def test_an_ac_report_with_every_reviewer_failed_is_still_kept(
+    latex_project, fake_statuses, fake_config, monkeypatch, capsys
+):
+    from prebuttal import runs
+    from prebuttal.providers import register_backend
+    from prebuttal.providers.base import ProviderError
+
+    class _Down(PersonaFakeProvider):
+        def _complete(self, **kw):
+            if "estimated_rating" not in kw["system"]:
+                raise ProviderError("HTTP 503")
+            return super()._complete(**kw)
+
+    register_backend("fake", lambda m, cfg, t: _Down(model="fake-m"))
+
+    def broken(*a, **kw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(runs, "_write_run_files", broken)
+    toml = fake_config.read_text(encoding="utf-8")
+    fake_config.write_text(toml + '\n[output]\ndir = ""\n', encoding="utf-8")
+    rc = cli.main(["run", str(latex_project), "--config", str(fake_config), "-y"])
+    assert rc == cli.EXIT_UNSAVED
+    assert "# Prebuttal" in capsys.readouterr().out
+
+
+def test_rm_of_a_versions_first_run_keeps_old_retries_in_place(latex_project):
+    from prebuttal.runs import delete_runs, rewrite_history, store_lock
+
+    v1 = _archive(latex_project)
+    v2 = _archive(latex_project, rating_shift=1)
+    r1 = _archive(latex_project)
+    with store_lock():  # as written before 0.7.0: a retry with no version
+        recs = [replace(r, retry_of=v1.id) if r.id == r1.id else r for r in load_history()]
+        rewrite_history(recs)
+    delete_runs({v1.id})
+    kept = next(r for r in load_history() if r.id == r1.id)
+    assert (kept.version, kept.version_no) == (v1.id, v1.run_no)
+    assert v1.run_no < v2.run_no
+
+
+def test_a_custom_agent_with_no_recorded_settings_is_not_retried():
+    from prebuttal.config import AgentSpec
+    from prebuttal.retry import RetryError, retry_config
+
+    cfg = load_config(None)
+    cfg.agents["mine"] = AgentSpec(command=["mine"])
+    resolved = {"prebuttal_version": "0.7.0", "agents": {}}
+    with pytest.raises(RetryError, match="no settings for custom agent"):
+        retry_config(cfg, resolved, {"agent-mine"})
+    assert retry_config(cfg, {"agents": {}}, {"agent-mine"})  # an older archive
+
+
+def test_another_model_for_a_reviewer_is_a_changed_panel():
+    from prebuttal.revdiff import slot_change
+
+    a = [{"reviewer_id": "R1", "persona": "p", "rating": 8, "backend": "x", "model": "m1"}]
+    b = [{**a[0], "model": "m2"}]
+    assert slot_change(a, b) == ["R1 · p model x/m1 → x/m2"]
+
+
+def test_a_field_value_of_the_wrong_type_fails_when_read(latex_project):
+    from prebuttal.report import report_from_dict
+
+    rec = _archive(latex_project)
+    data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+    data["reviewers"][0]["fields"]["weaknesses"] = 3.5
+    report_from_dict(json.loads(json.dumps(data)))  # a number is a value
+    data["reviewers"][0]["fields"]["weaknesses"] = {"a": 1}
+    with pytest.raises(ValueError, match="invalid field 'weaknesses'"):
+        report_from_dict(data)
+
+
+def test_reports_name_the_required_fields_a_reviewer_left_out(latex_project):
+    from prebuttal.report import left_out, render_markdown
+    from prebuttal.share import render_share_html
+
+    report, venue = make_report(latex_project)
+    report.reviews[0].fields["questions"] = []
+    label = next(f.label for f in venue.fields if f.key == "questions")
+    assert label in left_out(report.reviews[0], venue)
+    assert f"Left out by this reviewer: {label}" in render_markdown(report, venue)
+    assert f"left out: {label}" in render_share_html(report, venue, "https://example.org")

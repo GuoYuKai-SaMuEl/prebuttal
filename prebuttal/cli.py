@@ -88,6 +88,10 @@ EXIT_NO_BACKEND = 3
 EXIT_PARTIAL = 4
 EXIT_ALL_FAILED = 5
 EXIT_CHECK_FAILED = 6  # `check` found something that can get the paper desk-rejected
+# the reviews finished, but no report could be saved (archive and report folder
+# both failed or off): the report is printed instead, and automation must not
+# take the run for a success
+EXIT_UNSAVED = 7
 
 
 def _log(msg: str) -> None:
@@ -399,9 +403,14 @@ def cmd_projects(args) -> int:
             return EXIT_USAGE
         try:
             delete_runs({r.id for r in runs})
-            forget_project(args.name)
+            left = forget_project(args.name)
         except OSError as e:
             return _fail(f"cannot delete project '{args.name}': {e}")
+        if left:  # archived while deleting: the project stays, with them
+            return _fail(
+                f"deleted {len(runs)} run(s), but {left} more of '{args.name}' were archived "
+                "meanwhile — the project is kept; `prebuttal projects rm` again to delete them"
+            )
         print(f"deleted {what} (files under ./prebuttal-reports are left alone)")
         return EXIT_OK
 
@@ -1067,8 +1076,13 @@ def cmd_run(args) -> int:
     # Archive first, best-effort: a failure to archive never fails the
     # review, and a bad output path afterwards can't lose a (paid) review.
     project = slugify(paper.title)
-    with contextlib.suppress(OSError, ProjectError):
+    try:
         project = assign_project(args.paper, paper.title, args.project, register=not args.no_save)
+    except (OSError, ProjectError) as e:
+        if args.project:  # the name asked for, not another project's history
+            with contextlib.suppress(ProjectError):
+                project = normalize_key(args.project)
+        _log(f"[prebuttal] warning: could not register the project ({e}); using '{project}'")
     note = args.note.strip()
     if interrupted:
         note = f"{note} (interrupted)".strip() if note else "interrupted"
@@ -1172,7 +1186,8 @@ def _deliver(
         print(f"error: cannot write report: {e}", file=sys.stderr)
         if rec is not None:
             print(f"The review is archived: `prebuttal show {rec.label} --open`", file=sys.stderr)
-        return EXIT_USAGE
+            return EXIT_USAGE
+        return _unsaved(md)
 
     agg = report.aggregate
     scale = venue.rating_field.max
@@ -1200,7 +1215,7 @@ def _deliver(
             verdict = ""
             missing = _panel_change(prev, report)
             if missing:  # the means average different reviewers
-                verdict = f" — reviewers rated in one run only ({missing}): not noise-checked"
+                verdict = f" — not noise-checked ({missing})"
             elif noise is not None:
                 verdict = (
                     f" — {'within' if noise.within else 'larger than'} run-to-run noise "
@@ -1245,11 +1260,29 @@ def _deliver(
             )
             + ", or pick another model / backend (--model, --backend)."
         )
+    if (
+        save
+        and rec is None
+        and not written
+        and (report.meta.parse_ok or len(failed) < len(report.reviews))
+    ):  # something was paid for and is kept nowhere (an AC may write on its own)
+        return _unsaved(md)
     if len(failed) == len(report.reviews):
         return EXIT_ALL_FAILED
     if failed or not report.meta.parse_ok:
         return EXIT_PARTIAL
     return EXIT_OK
+
+
+def _unsaved(md: str) -> int:
+    """No copy of the report was saved: print it whole, so it is not lost."""
+    print(
+        "\nerror: the report could not be saved anywhere (see the warnings above) — "
+        "here it is in full:\n",
+        file=sys.stderr,
+    )
+    print(md)
+    return EXIT_UNSAVED
 
 
 def cmd_retry(args) -> int:
@@ -1338,16 +1371,16 @@ def cmd_retry(args) -> int:
 
 
 def _panel_change(prev, report) -> str:
-    """The reviewers rated in only one of ``prev`` (archived) and ``report``."""
-    from .revdiff import rated_reviewers
+    """The ratings averaged in only one of ``prev`` (archived) and ``report``."""
+    from .revdiff import slot_change
     from .runs import _load_run_json
 
     try:
-        before = rated_reviewers(_load_run_json(prev).get("reviewers") or [])
+        before = _load_run_json(prev).get("reviewers") or []
     except (OSError, ValueError):
-        return ""
-    now = rated_reviewers([dataclass_to_dict(r) for r in report.reviews])
-    return ", ".join(sorted(before ^ now))
+        return "the previous report is unreadable"
+    changed = slot_change(before, [dataclass_to_dict(r) for r in report.reviews])
+    return f"ratings differ: {', '.join(changed)}" if changed else ""
 
 
 def _utf8_stdio() -> None:

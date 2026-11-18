@@ -168,6 +168,12 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
             lis = "".join(f"<li>{_e(_clip(w, _ITEM_CHARS))}</li>" for w in weaknesses)
             weak_html = f'<div class="weak"><div class="card-label">Top weaknesses</div><ul>{lis}</ul></div>'
         model = _e(rev.model or "CLI default")
+        from .report import left_out
+
+        missing = left_out(rev, venue)
+        missing_html = (
+            f'<div class="backend">left out: {_e(", ".join(missing))}</div>' if missing else ""
+        )
         cards.append(
             f"""
     <div class="card">
@@ -176,7 +182,7 @@ def render_share_html(report: ReviewReport, venue: Venue, repo_url: str) -> str:
         <span class="persona">{_e(rev.persona)}</span>
         {chip}
       </div>
-      <div class="backend">{_e(rev.backend)} · {model} · conf {_e(f"{rev.confidence:g}" if rev.confidence is not None else "n/a")}</div>
+      <div class="backend">{_e(rev.backend)} · {model} · conf {_e(f"{rev.confidence:g}" if rev.confidence is not None else "n/a")}</div>{missing_html}
       <p>{_e(summary)}</p>
       {weak_html}
     </div>"""

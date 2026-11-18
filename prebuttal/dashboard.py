@@ -113,6 +113,9 @@ def _delta(p: ProjectSummary) -> str:
     d = b.mean - a.mean if comparable(a, b) else None
     if d is None:
         return '<span class="delta">venue changed</span>'
+    changed = _rated_change(a, b)
+    if changed:  # the means average other ratings: no direction, no noise check
+        return f'<span class="delta flat" title="{_e(changed)}">ratings differ</span>'
     n = check_noise(a.mean, b.mean, a.round_means or [], b.round_means or [], b.scale or 10)
     if n.within:  # a change chance alone could make: no colour, no direction
         return (
@@ -121,6 +124,20 @@ def _delta(p: ProjectSummary) -> str:
         )
     cls = "up" if d > 0 else ("down" if d < 0 else "flat")
     return f'<span class="delta {cls}">{d:+g} vs #{a.run_no}</span>'
+
+
+def _rated_change(a: RunRecord, b: RunRecord) -> str:
+    """Why two runs' means are not one panel's (as `diff` finds it), or ""."""
+    from .revdiff import slot_change
+    from .runs import _load_run_json
+
+    try:
+        ra = _load_run_json(a).get("reviewers") or []
+        rb = _load_run_json(b).get("reviewers") or []
+    except (OSError, ValueError):
+        return "a report is unreadable"
+    changed = slot_change(ra, rb)
+    return f"ratings differ: {', '.join(changed)}" if changed else ""
 
 
 def _run_rows(p: ProjectSummary, base: Path) -> str:
