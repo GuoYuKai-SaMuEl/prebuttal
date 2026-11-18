@@ -117,11 +117,23 @@ def venue_for_retry(data: dict, path: str = "") -> Venue:
     return live
 
 
-def load_resolved(run_dir: Path) -> dict:
-    """The run's ``resolved-config.json``: {} for a run archived without one;
-    a file that is there but unreadable is a damaged archive, not an old one."""
+def _version(v: str) -> tuple[int, ...]:
+    nums = []
+    for part in str(v).split(".")[:3]:
+        digits = "".join(c for c in part if c.isdigit())
+        nums.append(int(digits) if digits else 0)
+    return tuple(nums)
+
+
+def load_resolved(run_dir: Path, made_by: str = "") -> dict:
+    """The run's ``resolved-config.json``: {} for a run archived before 0.7.0
+    without what retry needs from it; for a run of 0.7.0 or later
+    (``made_by``: the report's prebuttal version) a missing or unreadable
+    file is a damaged archive, not an old one."""
     p = run_dir / "resolved-config.json"
     if not p.is_file():
+        if made_by and _version(made_by) >= (0, 7, 0):
+            raise RetryError("the archived resolved-config.json is missing")
         return {}
     try:
         data = json.loads(p.read_text(encoding="utf-8"))

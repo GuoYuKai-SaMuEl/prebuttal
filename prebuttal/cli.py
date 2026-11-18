@@ -414,9 +414,10 @@ def cmd_projects(args) -> int:
                 "project": p.key,
                 "title": p.title,
                 "runs": len(p.runs),
-                "latest": p.latest.label,
-                "latest_mean": p.latest.mean,
-                "scale": p.latest.scale,
+                # the newest version's run (a late retry of v1 is not it)
+                "latest": p.current.label,
+                "latest_mean": p.current.mean,
+                "scale": p.current.scale,
                 "last_run": p.latest.ts,
             }
             for p in projects
@@ -1197,7 +1198,10 @@ def _deliver(
                 else None
             )
             verdict = ""
-            if noise is not None:
+            missing = _panel_change(prev, report)
+            if missing:  # the means average different reviewers
+                verdict = f" — reviewers rated in one run only ({missing}): not noise-checked"
+            elif noise is not None:
                 verdict = (
                     f" — {'within' if noise.within else 'larger than'} run-to-run noise "
                     f"(±{noise.band:g})"
@@ -1281,7 +1285,7 @@ def cmd_retry(args) -> int:
     ]
     ac_role = (old.meta.backend, old.meta.model, old.meta.effort)
     try:
-        resolved = load_resolved(rec.dir_path)
+        resolved = load_resolved(rec.dir_path, old.run.prebuttal_version)
         venue = venue_for_retry(data, str(resolved.get("venue_path") or ""))
         # checked before any paid call: the retried reviews must read what the others read
         pack = load_pack(rec.dir_path, old.run.pack_sha256)
@@ -1331,6 +1335,19 @@ def cmd_retry(args) -> int:
         retry_of=rec.id,
     )
     return 130 if interrupted else rc
+
+
+def _panel_change(prev, report) -> str:
+    """The reviewers rated in only one of ``prev`` (archived) and ``report``."""
+    from .revdiff import rated_reviewers
+    from .runs import _load_run_json
+
+    try:
+        before = rated_reviewers(_load_run_json(prev).get("reviewers") or [])
+    except (OSError, ValueError):
+        return ""
+    now = rated_reviewers([dataclass_to_dict(r) for r in report.reviews])
+    return ", ".join(sorted(before ^ now))
 
 
 def _utf8_stdio() -> None:

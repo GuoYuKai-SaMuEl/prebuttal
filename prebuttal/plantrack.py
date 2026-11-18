@@ -73,8 +73,14 @@ def plan_base(earlier: Iterable[RunRecord], skip: str | None = None) -> RunRecor
     first, same project) that :func:`_followed` keeps, other than ``skip``
     (the run a retry completes, and any run that one retried)."""
     earlier = list(earlier)
-    gone = version_of_id(earlier, skip) if skip else None
-    return next((r for r in _followed(earlier) if version_key(earlier, r) != gone), None)
+    if not skip:
+        return next(iter(_followed(earlier)), None)
+    # a retry completes its version: follow from a version before it (none
+    # for a retry of the first one), never a newer one made since
+    gone = version_of_id(earlier, skip)
+    order = [version_key(earlier, r) for r in revisions(earlier)]  # newest first
+    newer = set(order[: order.index(gone) + 1]) if gone in order else {gone}
+    return next((r for r in _followed(earlier) if version_key(earlier, r) not in newer), None)
 
 
 def _plans_key(da: dict, db: dict) -> str:

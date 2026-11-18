@@ -275,8 +275,11 @@ def _scalar_text(v: Any) -> str:
 
 
 def _has_text(fields: dict, venue: Venue) -> bool:
-    """A review says something besides its scores (``{"rating": 8}`` does not)."""
-    return any(fields.get(f.key) for f in venue.fields if f.kind in ("text", "list"))
+    """A review says something besides its scores (``{"rating": 8}`` does not)
+    — when its form asks for any text: a scores-only custom form is complete
+    with its scores."""
+    texts = [f.key for f in venue.fields if f.kind in ("text", "list")]
+    return not texts or any(fields.get(k) for k in texts)
 
 
 def coerce_fields(payload: dict, venue: Venue) -> dict:

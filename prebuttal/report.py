@@ -327,6 +327,18 @@ def report_from_dict(d: dict[str, Any]) -> ReviewReport:
     for key, kind in (("reviewers", list), ("meta", dict), ("aggregate", dict), ("run", dict)):
         if not isinstance(d.get(key), kind):
             raise ValueError(f"report.json has no valid '{key}' section")
+    # what rendering reads, checked here so every command fails alike
+    for i, r in enumerate(d["reviewers"], 1):
+        if not isinstance(r, dict):
+            raise ValueError(f"report.json: reviewer {i} is not an object")
+        for key, kind in (("fields", dict), ("usage", dict)):
+            if key in r and r[key] is not None and not isinstance(r[key], kind):
+                raise ValueError(f"report.json: reviewer {i} has an invalid '{key}'")
+    plan = d["meta"].get("action_plan")
+    if plan is not None and (
+        not isinstance(plan, list) or not all(isinstance(it, dict) for it in plan)
+    ):
+        raise ValueError("report.json: the revision plan is not a list of items")
     try:
         return _report_from_dict(d)
     except (KeyError, TypeError, AttributeError) as e:

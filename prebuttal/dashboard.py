@@ -185,7 +185,7 @@ def render_dashboard(projects: list[ProjectSummary], *, base: Path | None = None
     n_runs = sum(len(p.runs) for p in projects)
     cards = []
     for p in projects:
-        last = p.latest
+        last, now = p.latest, p.current
         cards.append(f"""
   <section class="card">
     <div class="head">
@@ -194,7 +194,7 @@ def render_dashboard(projects: list[ProjectSummary], *, base: Path | None = None
         <div class="sub"><code>{_e(p.key)}</code> · {_plural(len(p.runs), "run")}
           · last {_e(last.when)}</div>
       </div>
-      <div class="score">{_score(last)} {_delta(p)}</div>
+      <div class="score">{_score(now)} {_delta(p)}</div>
     </div>
     {_sparkline(p.runs)}
     <table>

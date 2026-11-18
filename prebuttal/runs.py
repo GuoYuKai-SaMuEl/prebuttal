@@ -50,20 +50,26 @@ def runs_dir() -> Path:
     return runs_root() / "runs"
 
 
+_STALE_LOCK_S = 60
+_LOCK_WAIT_S = 5.0  # best-effort and `required` writers
+
+
 @contextlib.contextmanager
-def store_lock(*, required: bool = False) -> Iterator[None]:
+def store_lock(*, required: bool = False, wait_s: float | None = None) -> Iterator[None]:
     """Serialize writes to the history and the project registry between
     concurrent processes.
 
     A lock older than a minute means its holder crashed and is stolen.  A
-    busy lock gives way after ~5s: archiving a (paid) run is never blocked,
-    the worst case being the duplicate number this lock exists to avoid.
-    ``required`` writers (note, rm, rename: whole-file rewrites that could
-    drop a concurrent run) raise OSError instead of going on unlocked."""
+    busy lock gives way after ``wait_s``: unlocked for best-effort writers,
+    with OSError for ``required`` ones (note, rm, rename: whole-file
+    rewrites).  Archiving a run waits past the stale-lock age, so it always
+    gets the lock — the lock released or taken over — and never appends
+    while a rewriter could drop it."""
     p = runs_root() / "history.lock"
     make_private_dir(runs_root())
     held = False
-    for _ in range(100):
+    deadline = time.monotonic() + (_LOCK_WAIT_S if wait_s is None else wait_s)
+    while time.monotonic() < deadline:
         try:
             fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             os.close(fd)
@@ -74,7 +80,7 @@ def store_lock(*, required: bool = False) -> Iterator[None]:
             # (delete-pending) as PermissionError, not FileExistsError — both
             # mean "busy": sleep and retry, never let it escape the lock
             try:
-                if time.time() - p.stat().st_mtime > 60:
+                if time.time() - p.stat().st_mtime > _STALE_LOCK_S:
                     # a crashed holder's lock: rename it away and try to create
                     # the next one.  This narrows the takeover race but does
                     # not fully close it: a waiter that stat'ed before the
@@ -256,7 +262,10 @@ def save_run(
             if any(b == f"agent-{name}" for b in _backends(report))
         },
     }
-    with store_lock():
+    # the run's files are written under the lock too, but nothing is paid for
+    # while waiting: the reviews are done.  Waiting past a stale lock's age,
+    # the archive always gets the lock and never appends unlocked
+    with store_lock(required=True, wait_s=_STALE_LOCK_S + 10):
         # the id's time and the run number are both taken under the lock: two
         # runs saved at once across a second boundary must not get ids in one
         # order and numbers in the other (history is ordered by the id's time)
@@ -443,7 +452,15 @@ class ProjectSummary:
 
     @property
     def latest(self) -> RunRecord:
+        """The most recent run (for "last run" times)."""
         return self.runs[0]
+
+    @property
+    def current(self) -> RunRecord:
+        """The run that stands for the newest version of the paper: its score
+        is the project's score, as trends and `diff` count versions — a
+        retry of v1 made after v2 is not the latest score."""
+        return revisions(self.runs)[0]
 
 
 def project_summaries(records: list[RunRecord] | None = None) -> list[ProjectSummary]:
@@ -565,9 +582,10 @@ def revisions(
     for i, r in enumerate(runs):  # newest first
         if keep is None or keep(r):
             groups.setdefault(version_key(runs, r), []).append(i)
-    # a version is as old as its oldest run: the largest index
-    order = sorted(groups.values(), key=lambda idx: max(idx))
-    return [runs[min(idx)] for idx in order]
+    # a version is as old as its first run, whose id carries its time even
+    # when that run is deleted or filtered out (newest version first)
+    order = sorted(groups.items(), key=lambda kv: (kv[0][:15], -max(kv[1])), reverse=True)
+    return [runs[min(idx)] for _key, idx in order]
 
 
 def previous_version(runs: list[RunRecord], key: str | None) -> RunRecord | None:
@@ -641,7 +659,7 @@ def render_projects_table(projects: list[ProjectSummary]) -> str:
     rows: list[tuple[str, ...]] = [("project", "runs", "latest", "trend", "last run", "title")]
     for p in projects:
         versions = revisions(p.runs)  # a retry and the run it completes: one version
-        first, last = versions[-1], p.latest
+        first, last = versions[-1], p.current
         trend = "-"
         # a raw-mean trend across venues (iclr /10 vs neurips /6, or even
         # iclr /10 vs icml /10) compares incomparable numbers — skip it
@@ -652,7 +670,7 @@ def render_projects_table(projects: list[ProjectSummary]) -> str:
             and comparable(first, last)
         ):
             trend = f"{first.mean:g} → {last.mean:g} ({last.mean - first.mean:+g})"
-        rows.append((p.key, str(len(p.runs)), _score(last), trend, last.when, p.title[:48]))
+        rows.append((p.key, str(len(p.runs)), _score(last), trend, p.latest.when, p.title[:48]))
     return _table(rows)
 
 

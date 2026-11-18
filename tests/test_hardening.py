@@ -827,3 +827,116 @@ def test_a_venue_rating_that_is_not_a_name_is_a_venue_error():
     }
     with pytest.raises(VenueError, match="must name a score field"):
         venue_from_spec("x", spec, form="Rate it.")
+
+
+# ------------------------------------------------------------------ fifth review round
+
+
+def test_archiving_waits_for_the_lock_instead_of_going_unlocked(latex_project, monkeypatch):
+    from prebuttal import runs
+
+    monkeypatch.setattr(runs, "_STALE_LOCK_S", 0.3)
+    _archive(latex_project)
+    lock = runs.runs_root() / "history.lock"
+    lock.write_text("", encoding="utf-8")  # a holder that never lets go
+    seen = []
+    real = runs._write_run_files
+
+    def check(*a, **kw):
+        seen.append(lock.exists())  # held by this save, not skipped
+        return real(*a, **kw)
+
+    monkeypatch.setattr(runs, "_write_run_files", check)
+    _archive(latex_project)
+    assert seen == [True] and len(load_history()) == 2
+
+
+def test_a_scores_only_form_is_complete_with_its_scores():
+    from prebuttal.orchestrator import _has_text, coerce_fields
+    from prebuttal.venues.custom import venue_from_spec
+
+    venue = venue_from_spec(
+        "scores",
+        {
+            "name": "Scores",
+            "rating": "rating",
+            "fields": [{"key": "rating", "label": "R", "kind": "score", "max": 5}],
+        },
+        form="Rate it.",
+    )
+    assert _has_text(coerce_fields({"rating": 5}, venue), venue)
+
+
+def test_version_order_survives_the_first_run_deleted_or_filtered(latex_project):
+    from prebuttal.runs import revisions
+
+    # ids carry the time a version started (archived within one second here)
+    v1 = replace(_archive(latex_project), id="20260101-000001-aaaa-p")
+    v2 = replace(_archive(latex_project, rating_shift=1), id="20260101-000002-bbbb-p")
+    r1 = replace(_archive(latex_project), id="20260101-000003-cccc-p", retry_of=v1.id)
+    r1 = replace(r1, version=v1.id)
+    assert [r.id for r in revisions([r1, v2])] == [v2.id, r1.id]  # v1 deleted
+    assert [r.id for r in revisions([r1, v2, v1], keep=lambda r: r is not v1)] == [
+        v2.id,
+        r1.id,
+    ]
+
+
+def test_a_retry_of_the_first_version_follows_no_plan(latex_project):
+    from prebuttal.plantrack import plan_base
+
+    v1 = _archive(latex_project)
+    v2 = _archive(latex_project, rating_shift=1)
+    assert plan_base([v2, v1], skip=v1.id) is None  # not v2: it came after
+    v3 = _archive(latex_project)
+    assert plan_base([v3, v2, v1], skip=v2.id).id == v1.id
+
+
+def test_the_projects_score_is_the_newest_versions(latex_project):
+    from prebuttal.runs import ProjectSummary
+
+    v1 = _archive(latex_project)
+    v2 = _archive(latex_project, rating_shift=1)
+    late = replace(_archive(latex_project), retry_of=v1.id, version=v1.id)
+    p = ProjectSummary(key=v1.project, title="", runs=[late, v2, v1])
+    assert p.latest.id == late.id and p.current.id == v2.id
+    row = next(ln for ln in render_projects_table([p]).splitlines() if ln.startswith(v1.project))
+    assert f"{v2.mean:g}" in row
+
+
+def test_a_change_from_a_missing_reviewer_is_not_called_noise(latex_project, offline_diff):
+    from prebuttal.revdiff import compute_diff, render_diff_markdown
+
+    a = _archive(latex_project)
+    b = _archive(latex_project)
+    data = json.loads((b.dir_path / "report.json").read_text(encoding="utf-8"))
+    data["reviewers"][1]["parse_ok"] = False
+    data["reviewers"][1]["rating"] = None
+    (b.dir_path / "report.json").write_text(json.dumps(data), encoding="utf-8")
+    d = compute_diff(a, b)
+    assert d.panel_change and d.noise is None
+    assert "the change may come from who is missing" in render_diff_markdown(d)
+
+
+def test_a_new_archive_without_its_resolved_config_is_damaged(tmp_path):
+    from prebuttal.retry import RetryError, load_resolved
+
+    assert load_resolved(tmp_path, "0.6.1") == {}  # an old archive
+    with pytest.raises(RetryError, match="missing"):
+        load_resolved(tmp_path, "0.7.0")
+
+
+def test_nested_report_sections_of_the_wrong_type_fail_when_read(latex_project):
+    from prebuttal.report import report_from_dict
+
+    rec = _archive(latex_project)
+    data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+    report_from_dict(data)  # as written: fine
+    bad = json.loads(json.dumps(data))
+    bad["reviewers"][0]["fields"] = []
+    with pytest.raises(ValueError, match="reviewer 1"):
+        report_from_dict(bad)
+    bad = json.loads(json.dumps(data))
+    bad["meta"]["action_plan"] = [None]
+    with pytest.raises(ValueError, match="revision plan"):
+        report_from_dict(bad)

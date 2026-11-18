@@ -202,12 +202,23 @@ class RevisionDiff:
     @property
     def noise(self) -> NoiseCheck | None:
         """Whether the predicted score's change can be told from run-to-run noise;
-        None when there is nothing to compare (no score, or not one known scale)."""
+        None when there is nothing to compare (no score, not one known scale,
+        or a panel that changed: then the change may be who is missing)."""
         ma, mb = self.mean
         scale = self.scale_b or self.scale_a
-        if ma is None or mb is None or not scale or not self.same_scale:
+        if ma is None or mb is None or not scale or not self.same_scale or self.panel_change:
             return None
         return check_noise(ma, mb, *self.round_means, scale)
+
+    @property
+    def panel_change(self) -> list[str]:
+        """Reviewers rated in one run only (``R2 · adversarial (A only)``): the
+        mean then averages different reviewers, and its change may be that."""
+        return [
+            f"{rc.reviewer} ({'A' if rc.a is not None else 'B'} only)"
+            for rc in self.ratings
+            if (rc.a is None) != (rc.b is None)
+        ]
 
 
 def _by_reviewer(reviewers: list[dict], failed: bool = False) -> dict[str, list[dict]]:
@@ -223,6 +234,11 @@ def _by_reviewer(reviewers: list[dict], failed: bool = False) -> dict[str, list[
         rid = str(r.get("reviewer_id") or f"#{i + 1}")
         out.setdefault(f"{rid} · {r.get('persona') or '?'}", []).append(r)
     return out
+
+
+def rated_reviewers(reviewers: list[dict]) -> set[str]:
+    """``R1 · senior_kind`` of every reviewer with a rating in a report's reviewers."""
+    return {k for k, rs in _by_reviewer(reviewers).items() if _mean_rating(rs) is not None}
 
 
 def _mean_rating(reviews: list[dict]) -> float | None:
@@ -409,6 +425,12 @@ def render_diff_markdown(d: RevisionDiff) -> str:
     out.append(f"- A {_scored(ma, d.scale_a)} → B {_scored(mb, d.scale_b)}{delta}")
     if (noise := d.noise) is not None:
         out.extend(_noise_lines(noise))
+    elif d.panel_change and same:
+        out.append(
+            "  not checked against run-to-run noise: rated in one run only — "
+            + ", ".join(d.panel_change)
+            + "; the change may come from who is missing"
+        )
     sa, sb = d.std
     if sa is not None and sb is not None:
         out.append(f"- disagreement σ {sa:g} → {sb:g}")  # noqa: RUF001

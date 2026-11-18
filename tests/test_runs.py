@@ -313,10 +313,12 @@ def test_history_rewrites_refuse_a_busy_lock(latex_project, monkeypatch):
     report, venue = make_report(latex_project)
     rec = save_run(report, venue, load_config(None), md="# r", json_str="{}", html=None)
     (runs_mod.runs_root() / "history.lock").write_text("", encoding="utf-8")  # held elsewhere
-    monkeypatch.setattr(runs_mod.time, "sleep", lambda s: None)
+    monkeypatch.setattr(runs_mod, "_LOCK_WAIT_S", 0.2)
+    monkeypatch.setattr(runs_mod, "_STALE_LOCK_S", 0.5)
     with pytest.raises(OSError, match="busy"):
         runs_mod.set_note(rec.id, "x")
-    # archiving a finished run still goes through
+    # archiving a finished run waits until the lock is released or stale
+    # (its holder gone), then goes through — never unlocked
     save_run(report, venue, load_config(None), md="# r", json_str="{}", html=None)
     assert len(load_history()) == 2
 
@@ -327,7 +329,7 @@ def test_note_on_a_busy_history_is_a_clean_error(latex_project, monkeypatch, cap
     report, venue = make_report(latex_project)
     save_run(report, venue, load_config(None), md="# r", json_str="{}", html=None)
     (runs_mod.runs_root() / "history.lock").write_text("", encoding="utf-8")
-    monkeypatch.setattr(runs_mod.time, "sleep", lambda s: None)
+    monkeypatch.setattr(runs_mod, "_LOCK_WAIT_S", 0.2)
     assert cli.main(["note", "latest", "x"]) == cli.EXIT_USAGE
     assert "busy" in capsys.readouterr().err
 
