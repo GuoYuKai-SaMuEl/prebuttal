@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 from ..models import Figure, Section, StructuredPaper, Table
+from .bibtex import declared_bibs, reference_lines
 from .figures import latex_figure_images
 from .hidden import find_hidden_latex_text, hidden_text_warning
 
@@ -759,11 +760,11 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         )
 
     # --- references
-    refs = _collect_references(body, root, resolve_ref, allowed)
+    refs = _collect_references(tex, body, root, resolve_ref, allowed)
     if refs:
         sections.append(Section(level=1, number="", title="References", text=refs))
     else:
-        warnings.append("no .bbl / thebibliography found — references not included")
+        warnings.append("no .bbl / .bib / thebibliography found — references not included")
 
     # attach each table to the section it appears in
     for t in tables:
@@ -794,7 +795,10 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
     )
 
 
-def _collect_references(body: str, root: Path, resolve_ref, allowed: Path) -> str:
+def _collect_references(tex: str, body: str, root: Path, resolve_ref, allowed: Path) -> str:
+    """The paper's references: its thebibliography or .bbl as built, else
+    the cited entries of the .bib files it loads (a source without its
+    build output, as Overleaf downloads it)."""
     entries: list[str] = []
     bib_spans = _env_spans(body, "thebibliography")
     source = ""
@@ -808,5 +812,15 @@ def _collect_references(body: str, root: Path, resolve_ref, allowed: Path) -> st
         source = re.sub(r"\\(?:begin|end)\s*\{[^{}]*\}(?:\s*\{[^{}]*\})?", " ", source)
         parts = re.split(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{[^{}]*\}", source)
         entries = [_clean_inline(" ".join(p.split()), resolve_ref) for p in parts[1:]]
+    else:
+        _declared, bibs = declared_bibs(tex, root, allowed)
+        entries = reference_lines(
+            tex,
+            bibs,
+            lambda s: " ".join(
+                _clean_inline(s, resolve_ref).replace("{", "").replace("}", "").split()
+            ),
+            lambda p: _strip_comments(_read_text(p)),
+        )
     entries = [e for e in entries if e][:60]
     return "\n".join(f"[{i}] {e[:240]}" for i, e in enumerate(entries, 1))

@@ -1206,6 +1206,15 @@ def test_another_model_for_a_reviewer_is_a_changed_panel():
     assert slot_change(a, b) == ["R1 · p model x/m1 → x/m2"]
 
 
+def test_another_effort_for_a_reviewer_is_a_changed_panel():
+    from prebuttal.revdiff import slot_change
+
+    a = [{"reviewer_id": "R1", "persona": "p", "rating": 5, "backend": "x", "model": "m"}]
+    low, high = [{**a[0], "effort": "low"}], [{**a[0], "rating": 8, "effort": "high"}]
+    assert slot_change(low, high) == ["R1 · p model x/m · effort low → x/m · effort high"]
+    assert slot_change(a, [{**a[0], "effort": ""}]) == []  # an older archive: no effort
+
+
 def test_a_field_value_of_the_wrong_type_fails_when_read(latex_project):
     from prebuttal.report import report_from_dict
 
@@ -1228,3 +1237,120 @@ def test_reports_name_the_required_fields_a_reviewer_left_out(latex_project):
     assert label in left_out(report.reviews[0], venue)
     assert f"Left out by this reviewer: {label}" in render_markdown(report, venue)
     assert f"left out: {label}" in render_share_html(report, venue, "https://example.org")
+
+
+# ------------------------------------------------------------------ where data goes
+
+
+def _set_ac(rec, backend: str, endpoints: dict | None = None) -> None:
+    p = rec.dir_path / "report.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["meta"]["backend"] = backend
+    p.write_text(json.dumps(data), encoding="utf-8")
+    q = rec.dir_path / "resolved-config.json"
+    resolved = json.loads(q.read_text(encoding="utf-8"))
+    if endpoints is not None:
+        resolved["endpoints"] = endpoints
+    q.write_text(json.dumps(resolved), encoding="utf-8")
+
+
+def test_diff_matches_only_where_both_runs_went(latex_project, monkeypatch):
+    from conftest import _REAL_MODEL_MATCHER
+
+    from prebuttal.providers import register_backend
+
+    built = []
+    register_backend("cloud", lambda m, cfg, t: built.append("cloud") or PersonaFakeProvider())
+    local = "http://127.0.0.1:11434"
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    monkeypatch.delenv("PREBUTTAL_OLLAMA_HOST", raising=False)
+    a, b = _archive(latex_project), _archive(latex_project)
+    for r in (a, b):
+        _set_ac(r, "ollama", {"ollama": local})
+    matcher, _why = _REAL_MODEL_MATCHER(a, b)
+    assert built == []  # never the environment's cloud backend
+    assert matcher is None or matcher.provider.backend == "ollama"
+    _set_ac(a, "cloud")
+    matcher, why = _REAL_MODEL_MATCHER(a, b)
+    assert matcher is None and "different backends" in why and built == []
+
+
+def test_runs_record_where_a_configurable_backend_sent_the_paper(latex_project, monkeypatch):
+    from prebuttal.runs import _endpoints
+
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1/")
+    report, _venue = make_report(latex_project)
+    report.reviews[0].backend = "api-openai"
+    assert _endpoints(report) == {"api-openai": "http://127.0.0.1:8000/v1"}
+
+
+def test_retry_stops_when_the_endpoint_moved(monkeypatch):
+    from prebuttal.retry import RetryError, retry_config
+
+    cfg = load_config(None)
+    resolved = {"endpoints": {"api-openai": "http://127.0.0.1:8000/v1"}}
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1")
+    assert retry_config(cfg, resolved, {"api-openai"})
+    monkeypatch.delenv("OPENAI_BASE_URL")  # another terminal: the default cloud endpoint
+    with pytest.raises(RetryError, match="somewhere else"):
+        retry_config(cfg, resolved, {"api-openai"})
+
+
+def test_a_changed_panel_starts_the_trend_afresh(latex_project):
+    from prebuttal.dashboard import _sparkline
+    from prebuttal.runs import ProjectSummary, trend_versions
+
+    v1 = _archive(latex_project)
+    v2 = _archive(latex_project, rating_shift=1)
+    v3 = _archive(latex_project)
+    p = v2.dir_path / "report.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["reviewers"][0]["model"] = "another-model"
+    p.write_text(json.dumps(data), encoding="utf-8")
+    runs = [v3, v2, v1]
+    assert [r.id for r in trend_versions(runs)] == [v3.id]  # v2's panel differs from v3's
+    assert _sparkline(runs) == ""
+    row = next(
+        ln
+        for ln in render_projects_table([ProjectSummary(v1.project, "", runs)]).splitlines()
+        if ln.startswith(v1.project)
+    )
+    assert " → " not in row
+    data["reviewers"][0]["model"] = json.loads(
+        (v3.dir_path / "report.json").read_text(encoding="utf-8")
+    )["reviewers"][0]["model"]
+    p.write_text(json.dumps(data), encoding="utf-8")
+    assert len(trend_versions(runs)) == 3
+
+
+def test_diff_obeys_prebuttal_backend_and_needs_one_ac_model(latex_project, monkeypatch):
+    from conftest import _REAL_MODEL_MATCHER
+
+    a, b = _archive(latex_project), _archive(latex_project)
+    for r in (a, b):
+        _set_ac(r, "api-anthropic")
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "relay")  # "send nothing" for this shell
+    matcher, why = _REAL_MODEL_MATCHER(a, b)
+    assert matcher is None and "PREBUTTAL_BACKEND=relay" in why
+    monkeypatch.delenv("PREBUTTAL_BACKEND")
+    p = a.dir_path / "report.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["meta"]["model"] = "another-model"  # another upstream on OpenRouter
+    p.write_text(json.dumps(data), encoding="utf-8")
+    matcher, why = _REAL_MODEL_MATCHER(a, b)
+    assert matcher is None and "different models" in why
+
+
+def test_retry_of_an_archive_without_endpoints_asks_first(monkeypatch):
+    from prebuttal import cli as cli_mod
+    from prebuttal.retry import unrecorded_endpoints
+
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    where = unrecorded_endpoints({}, {"api-openai", "agent-claude"})
+    assert where == ["api-openai → https://api.openai.com/v1"]
+    assert unrecorded_endpoints({"endpoints": {}}, {"api-openai"}) == []  # recorded: compared
+    monkeypatch.setattr(cli_mod, "_is_interactive", lambda: False)
+    assert not cli_mod._confirm_destination("demo#1", where)  # no one to ask: refused
+    monkeypatch.setattr(cli_mod, "_is_interactive", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda _q: "y")
+    assert cli_mod._confirm_destination("demo#1", where)

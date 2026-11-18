@@ -174,9 +174,13 @@ prebuttal run paper.pdf --dry-run          # the plan and the cost, nothing call
   <pre class="term">prebuttal run paper.pdf --note "added the Perceiver baseline"
 prebuttal diff          # newest run vs the one before: score, ratings, weaknesses, plan items</pre>
   <p><code>diff</code> lists the plan items that are no longer raised, the ones still
-  raised, and what is new. It matches by meaning, with two calls to the AC's backend,
-  so a reworded issue is not counted as fixed. With no backend it can use (none
-  available, relay) it falls back to matching by wording, says so, and then a
+  raised, and what is new. It matches by meaning, with two calls to the backend and
+  model both runs' area chairs used — so the excerpts go only where the paper already
+  went, and a run reviewed on Ollama stays local — and a reworded issue is not counted
+  as fixed. When the two runs' area chairs differ (backend, model or endpoint), that
+  backend can't be used, or <code>PREBUTTAL_BACKEND</code> is set to <code>relay</code>
+  (or another backend) to keep this shell off any model, it falls back to matching by
+  wording, says so, and then a
   reworded issue can show up as both “not re-detected” and “new” — read both lists
   before ticking anything off. The seed stays the same between runs unless you change
   <code>seed</code> in <code>prebuttal.toml</code>.</p>
@@ -193,7 +197,9 @@ prebuttal diff          # newest run vs the one before: score, ratings, weakness
   latest plan with the run it first appeared in.</p>
   <p><strong>A reviewer failed</strong> (a quota, a timeout)? The report uses the
   reviews that finished, and <code>prebuttal retry</code> re-runs only the failed
-  reviewers and the AC, on the same text. Ctrl+C keeps what finished, too.</p>
+  reviewers and the AC, on the same text and the same backends — so with
+  <code>PREBUTTAL_BACKEND</code> set to another one (say <code>relay</code>) it stops
+  and asks you to unset it. Ctrl+C keeps what finished, too.</p>
 
   <h2 id="projects">5. Projects &amp; history</h2>
   <p>Each paper is a <strong>project</strong>, found from its source: the same PDF or

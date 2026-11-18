@@ -568,7 +568,7 @@ def cmd_diff(args) -> int:
              "since 0.7 (the flag goes in 0.8)")  # fmt: skip
     from .plantrack import keep_diff_check, plan_base, saved_check
 
-    matcher, why_not = _model_matcher()
+    matcher, why_not = _model_matcher(a, b)
     # the run already checked the previous plan with a model: no second call
     kept = saved_check(a, b)
     if matcher is None:
@@ -587,31 +587,88 @@ def cmd_diff(args) -> int:
     return EXIT_OK
 
 
-def _model_matcher():
-    """The configured AC backend as the diff's matcher, or (None, why not).
+def _archived_ac(rec) -> tuple[str, str, str, dict | None]:
+    """(backend, model, effort, recorded endpoints) of ``rec``'s area chair."""
+    from .runs import _load_run_json
 
-    Never asks: a diff runs offline from the archive, so a backend it can't
-    use without a question (relay, an untrusted prebuttal.toml) means word
-    overlap, said in one line."""
+    meta = _load_run_json(rec).get("meta") or {}
+    try:
+        resolved = json.loads((rec.dir_path / "resolved-config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        resolved = {}
+    ends = resolved.get("endpoints") if isinstance(resolved, dict) else None
+    return (
+        str(meta.get("backend") or ""),
+        str(meta.get("model") or ""),
+        str(meta.get("effort") or ""),
+        ends if isinstance(ends, dict) else None,
+    )
+
+
+def _shared_ac(a, b) -> tuple[tuple[str, str, str] | None, str]:
+    """(backend, model, effort) when ``a`` and ``b``'s area chairs sent the
+    paper to one place — same backend, model and recorded endpoint — else
+    (None, why not).  What a model matching excerpts of both runs may use:
+    `diff`, and the plan a run follows from the one before."""
+    from .providers import backend_endpoint
+
+    try:
+        (ba, ma, _ea, ends_a), (bb, mb, eb, ends_b) = _archived_ac(a), _archived_ac(b)
+    except (OSError, ValueError) as e:
+        return None, f"an archived report is unreadable ({e})"
+    if not bb or ba != bb:
+        return None, "the two runs' area chairs used different backends"
+    if ma != mb:
+        return None, "the two runs' area chairs used different models"
+    if bb == "relay":
+        return None, "the AC's backend is relay, which needs someone to answer"
+    if backend_endpoint(bb) and (ends_a is None or ends_b is None):
+        return None, f"{bb}'s endpoint was not recorded for both runs"
+    if ends_a is not None and ends_b is not None and ends_a.get(bb) != ends_b.get(bb):
+        return None, f"the two runs used {bb} at different endpoints"
+    return (bb, mb, eb), ""
+
+
+def _model_matcher(a, b):
+    """The area chair's backend of the two runs as the diff's matcher, or
+    (None, why not).
+
+    The excerpts it reads come from both runs, so they go only where both
+    runs already sent the paper: the backend (and endpoint) their area chairs
+    used, and the same model (on OpenRouter, another model is another
+    company), not whatever the current environment would pick — a run
+    reviewed on Ollama stays local.  ``PREBUTTAL_BACKEND`` set to relay or to
+    another backend keeps this diff off any model.  Never asks: a diff runs
+    offline from the archive, so a backend it can't use without a question
+    (relay, an untrusted prebuttal.toml) means word overlap, said in one
+    line."""
     from . import trust
     from .diffmatch import ModelMatcher
+    from .retry import endpoint_changes
 
     try:
-        cfg = apply_overrides(load_config(None), backend=env_backend())
+        bb = _archived_ac(b)[0]
+    except (OSError, ValueError) as e:
+        return None, f"an archived report is unreadable ({e})"
+    pinned = env_backend()
+    if pinned and pinned != bb:  # the user's switch: no model, or not that one
+        return None, f"PREBUTTAL_BACKEND={pinned}, not the runs' {bb or 'backend'}"
+    shared, why = _shared_ac(a, b)
+    if shared is None:
+        return None, why
+    bb, mb, eb = shared
+    ends_b = _archived_ac(b)[3]
+    if endpoint_changes(ends_b, {bb}):
+        return None, f"{bb} now points elsewhere than in these runs"
+    try:
+        cfg = load_config(None)
     except ConfigError as e:
         return None, str(e)
-    statuses = scan_backends(cfg)
-    try:
-        _resolved, ac = resolve_backends(cfg, statuses)
-    except NoBackendError:
-        return None, "no model backend is available (`prebuttal backends`)"
-    if ac[0] == "relay":
-        return None, "the AC's backend is relay, which needs someone to answer"
-    concerns = trust.concerns(cfg, [ac], pinned=trust.pinned_by_file(None), relay=False)
+    concerns = trust.concerns(cfg, [(bb, mb)], pinned=trust.pinned_by_file(None), relay=False)
     if concerns and not trust.is_trusted(cfg.config_path or "", cfg.config_sha256):
         return None, f"{cfg.config_path} is not trusted yet (`prebuttal run` asks once)"
     try:
-        provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
+        provider = build_provider(bb, mb, cfg, effort=eb)
     except ProviderError as e:
         return None, str(e)
     _log(f"[prebuttal] matching weaknesses and plan items by meaning via {provider.describe()}")
@@ -786,6 +843,27 @@ def _stdin_is_tty() -> bool:
         return True
     except Exception:  # pragma: no cover - exotic stdio
         return False
+
+
+def _confirm_destination(label: str, where: list[str]) -> bool:
+    """An archive that did not record where its paper went: say where this
+    retry would send it, and ask (non-interactive runs refuse). -y does not
+    answer it: like the config consent, it is about where the paper goes."""
+    _log(
+        f"[prebuttal] {label} was archived without recording where it sent the paper; "
+        "this retry would send it to:\n" + "\n".join(f"  {w}" for w in where)
+    )
+    if not _is_interactive():
+        _log("aborted: confirm interactively, or start a new run")
+        return False
+    try:
+        answer = input("Send the paper there? [y/N]: ")
+    except EOFError:
+        answer = ""
+    if answer.strip().lower() in ("y", "yes"):
+        return True
+    _log("aborted")
+    return False
 
 
 def _is_interactive() -> bool:
@@ -1120,6 +1198,13 @@ def _track_plan(prev, rec, matcher):
     if prev is None or rec is None:
         return None
     if matcher is not WORD_OVERLAP:
+        # the previous plan goes only where both runs sent the paper: a
+        # version reviewed on Ollama does not reach this run's cloud backend
+        shared, why = _shared_ac(prev, rec)
+        if shared is None:
+            _log(f"[prebuttal] following the plan from {prev.label} by wording: {why}")
+            matcher = WORD_OVERLAP
+    if matcher is not WORD_OVERLAP:
         _log(f"[prebuttal] following the revision plan from {prev.label} via {matcher.label}")
     try:
         return track_pair(prev, rec, matcher)
@@ -1296,6 +1381,7 @@ def cmd_retry(args) -> int:
         load_resolved,
         retry_config,
         retry_report,
+        unrecorded_endpoints,
         venue_for_retry,
     )
 
@@ -1327,6 +1413,16 @@ def cmd_retry(args) -> int:
         cfg = retry_config(cfg, resolved, running)
     except RetryError as e:
         return _fail(f"cannot retry {rec.label}: {e}")
+    pinned = env_backend()
+    if pinned and running - {pinned}:  # the user's switch: no model, or not those
+        return _fail(
+            f"cannot retry {rec.label}: {BACKEND_ENV}={pinned}, but this run used "
+            f"{', '.join(sorted(running))}; a retry keeps the run's backends — "
+            f"unset {BACKEND_ENV} to retry, or start a new run"
+        )
+    unknown = unrecorded_endpoints(resolved, running)
+    if unknown and not _confirm_destination(rec.label, unknown):
+        return EXIT_USAGE
 
     backends = [(b, m) for (_r, b, m, _e) in reviewer_roles] + [ac_role[:2]]
     uses_relay = any(b == "relay" for b, _m in backends)

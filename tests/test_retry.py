@@ -218,3 +218,18 @@ def test_retry_from_another_folder_keeps_the_runs_seed(
     rec = load_history()[0]
     resolved = json.loads((rec.dir_path / "resolved-config.json").read_text(encoding="utf-8"))
     assert rec.seed == resolved["seed"] == 7
+
+
+def test_retry_stops_when_prebuttal_backend_names_another(
+    latex_project, fake_statuses, flaky_config, capsys, monkeypatch
+):
+    cfg_path, calls = flaky_config
+    assert cli.main(["run", str(latex_project), "--config", str(cfg_path)]) == cli.EXIT_PARTIAL
+    _Flaky.down = False
+    calls.clear()
+    capsys.readouterr()
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "relay")  # this shell: no model
+    assert cli.main(["retry"]) == cli.EXIT_USAGE
+    assert calls == [] and "PREBUTTAL_BACKEND=relay" in capsys.readouterr().err
+    monkeypatch.setenv("PREBUTTAL_BACKEND", "fake")  # the AC's, but not R2's
+    assert cli.main(["retry"]) == cli.EXIT_USAGE and calls == []

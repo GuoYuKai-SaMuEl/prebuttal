@@ -152,8 +152,7 @@ def test_diff_of_consecutive_runs_keeps_its_model_match(
         def _complete(self, **kw):
             return json.dumps(answer), Usage()
 
-    register_backend("matcher", lambda m, cfg, t: _Canned(backend="matcher"))
-    monkeypatch.setenv("PREBUTTAL_BACKEND", "matcher")
+    register_backend("fake", lambda m, cfg, t: _Canned(backend="matcher"))  # the runs' AC backend
     assert cli.main(["diff"]) == cli.EXIT_OK
     saved = json.loads((b.dir_path / TRACK_FILE).read_text(encoding="utf-8"))
     assert saved["a"] == a.id and not saved["by_words"] and len(saved["still"]) == n
@@ -226,8 +225,7 @@ def test_diff_shows_the_runs_plan_check_without_asking_again(
             asked.append(kw["system"])
             return json.dumps(answer), Usage()
 
-    register_backend("matcher", lambda m, cfg, t: _Canned(backend="matcher"))
-    monkeypatch.setenv("PREBUTTAL_BACKEND", "matcher")
+    register_backend("fake", lambda m, cfg, t: _Canned(backend="matcher"))  # the runs' AC backend
     assert cli.main(["diff"]) == cli.EXIT_OK  # asks, and keeps the answer
     plan_calls = sum("A item" in s for s in asked)  # the plan check's prompt
     asked.clear()
@@ -355,3 +353,25 @@ def test_trends_count_a_retry_and_the_run_it_completes_once(tmp_path):
     two = ProjectSummary(key="p", title="P", runs=[r3, r2, r1])
     assert "6 → 7 (+1)" in render_projects_table([two])  # from the completed run
     assert render_dashboard([two], base=tmp_path).count("<circle") == 2
+
+
+def test_a_run_on_another_ac_backend_follows_the_plan_by_wording(
+    latex_project, fake_statuses, fake_config, monkeypatch, capsys
+):
+    calls: list[dict] = []
+    register_backend("cloud", lambda m, cfg, t: PersonaFakeProvider(backend="cloud", calls=calls))
+    monkeypatch.chdir(fake_config.parent)
+    assert cli.main(["run", str(latex_project), "--config", str(fake_config)]) == 0  # "local"
+    cloud = fake_config.parent / "cloud.toml"
+    cloud.write_text(
+        fake_config.read_text(encoding="utf-8").replace(
+            '[ac]\nbackend = "fake"', '[ac]\nbackend = "cloud"'
+        ),
+        encoding="utf-8",
+    )
+    capsys.readouterr()
+    assert cli.main(["run", str(latex_project), "--config", str(cloud)]) == 0
+    err = capsys.readouterr().err
+    assert "by wording: the two runs' area chairs used different backends" in err
+    # the earlier version's plan never reached the new backend
+    assert calls and not any("Round A revision plan" in c["user"] for c in calls)

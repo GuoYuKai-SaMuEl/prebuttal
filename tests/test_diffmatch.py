@@ -112,10 +112,10 @@ def test_cli_diff_matches_by_meaning_by_default(
     plan = json.loads((hist[1].dir_path / "report.json").read_text(encoding="utf-8"))["meta"]
     n = len(plan["action_plan"])
     answer = json.dumps({"a": [{"id": f"A{i}", "still_raised": i == 1} for i in range(1, n + 1)]})
-    register_backend("matcher", lambda m, cfg, t: _Canned(answer))
+    # the backend both runs' area chairs used (not the environment's pick)
+    register_backend("fake", lambda m, cfg, t: _Canned(answer))
     capsys.readouterr()
 
-    monkeypatch.setenv("PREBUTTAL_BACKEND", "matcher")  # the AC backend, without a flag
     rc = cli.main(["diff"])
     captured = capsys.readouterr()
     out = captured.out
@@ -148,10 +148,14 @@ def test_cli_diff_falls_back_to_word_overlap(
 def test_cli_diff_without_a_usable_backend_says_why(
     latex_project, fake_statuses, fake_config, model_diff, monkeypatch, capsys
 ):
-    _two_runs(latex_project, fake_config, monkeypatch)
+    hist = _two_runs(latex_project, fake_config, monkeypatch)
+    # the older run's area chair was elsewhere: its excerpts stay off the newer one's
+    p = hist[1].dir_path / "report.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["meta"]["backend"] = "ollama"
+    p.write_text(json.dumps(data), encoding="utf-8")
     capsys.readouterr()
-    monkeypatch.setenv("PREBUTTAL_BACKEND", "relay")
     assert cli.main(["diff"]) == cli.EXIT_OK
     captured = capsys.readouterr()
-    assert "by word overlap: the AC's backend is relay" in captured.err
+    assert "by word overlap: the two runs' area chairs used different backends" in captured.err
     assert "matched by word overlap" in captured.out

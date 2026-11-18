@@ -191,6 +191,16 @@ def retry_config(cfg: RunConfig, resolved: dict, backends: set[str]) -> RunConfi
                 f"the archived resolved-config.json has no settings for custom agent(s) "
                 f"{', '.join(unrecorded)} — start a new run"
             )
+    endpoints = resolved.get("endpoints")
+    if endpoints is not None and not isinstance(endpoints, dict):
+        raise RetryError("the archived resolved-config.json has an invalid 'endpoints'")
+    moved = endpoint_changes(endpoints, backends)
+    if moved:
+        raise RetryError(
+            "the paper would go somewhere else than in that run: "
+            + "; ".join(moved)
+            + " — set it back (OPENAI_BASE_URL / OLLAMA_HOST) or start a new run"
+        )
     for name, spec in agents.items():
         if f"agent-{name}" not in backends:
             continue
@@ -202,6 +212,34 @@ def retry_config(cfg: RunConfig, resolved: dict, backends: set[str]) -> RunConfi
                 "(command or stdin changed, or no [agents] entry here) — retry from the "
                 "folder of that run's prebuttal.toml, or start a new run"
             )
+    return out
+
+
+def unrecorded_endpoints(resolved: dict, backends: set[str]) -> list[str]:
+    """``backend → endpoint`` for each of ``backends`` whose destination the
+    environment decides, in a run that did not record it (archived before
+    endpoints were): where a retry would send the paper now, to confirm."""
+    from .providers import backend_endpoint
+
+    if resolved.get("endpoints") is not None:
+        return []
+    return [f"{b} → {u}" for b in sorted(backends) if (u := backend_endpoint(b))]
+
+
+def endpoint_changes(recorded: dict | None, backends: set[str]) -> list[str]:
+    """The backends of ``backends`` whose destination now differs from the one
+    ``recorded`` (``resolved-config.json`` "endpoints"; None: not recorded,
+    before 0.7.0)."""
+    from .providers import backend_endpoint
+
+    if recorded is None:
+        return []
+    out = []
+    for b in sorted(backends):
+        now = backend_endpoint(b)
+        was = recorded.get(b, "")
+        if now and now != was:
+            out.append(f"{b} {was or '(not recorded)'} → {now}")
     return out
 
 

@@ -54,6 +54,21 @@ _FACTORIES: dict[str, Factory] = {
 }
 
 
+def backend_endpoint(backend: str) -> str:
+    """Where ``backend`` sends a paper, when the environment can change it:
+    an OpenAI-compatible server (``OPENAI_BASE_URL``) or the Ollama host.
+    "" for backends whose destination is fixed (or a CLI's own business)."""
+    import os
+
+    if backend == "api-openai":
+        return os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    if backend == "ollama":
+        from .ollama import ollama_base_url
+
+        return ollama_base_url()
+    return ""
+
+
 def register_backend(name: str, factory: Factory) -> None:
     """Register (or replace) a backend — plugin/test hook."""
     _FACTORIES[name] = factory
@@ -107,6 +122,7 @@ __all__ = [
     "RelayProvider",
     "TransientProviderError",
     "auto_candidates",
+    "backend_endpoint",
     "build_provider",
     "default_model_for",
     "detect_host_agent",

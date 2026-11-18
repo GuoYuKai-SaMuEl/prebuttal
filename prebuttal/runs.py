@@ -221,6 +221,12 @@ def _write_run_files(
     )
 
 
+def _endpoints(report: Any) -> dict[str, str]:
+    from .providers import backend_endpoint  # local: providers pulls in this module
+
+    return {b: u for b in sorted(_backends(report)) if (u := backend_endpoint(b))}
+
+
 def _backends(report: Any) -> set[str]:
     return {r.backend for r in report.reviews} | {report.meta.backend}
 
@@ -274,6 +280,10 @@ def save_run(
             for name, spec in cfg.agents.items()
             if any(b == f"agent-{name}" for b in _backends(report))
         },
+        # where each backend sent the paper, when the environment decides it
+        # (OPENAI_BASE_URL, the Ollama host): retry and diff must not send it
+        # elsewhere from another terminal
+        "endpoints": _endpoints(report),
     }
     # the run's files are written under the lock too, but nothing is paid for
     # while waiting: the reviews are done.  A holder that crashed releases it
@@ -637,6 +647,31 @@ def revisions(
     return [runs[min(idx)] for _key, idx in order]
 
 
+def trend_versions(runs: list[RunRecord]) -> list[RunRecord]:
+    """The versions a score trend may join (newest first): the newest, then
+    each older one while it compares with the next — same venue and scale,
+    and the same ratings averaged (reviewer, round and model, as `diff`
+    checks).  A changed panel starts the trend afresh rather than reading a
+    new model's or a missing reviewer's score as the revision's effect."""
+    from .revdiff import slot_change  # local: revdiff reads this module
+
+    versions = revisions(runs)
+    out = versions[:1]
+    for older in versions[1:]:
+        newer = out[-1]
+        if not comparable(older, newer):
+            break
+        try:
+            ra = _load_run_json(older).get("reviewers") or []
+            rb = _load_run_json(newer).get("reviewers") or []
+        except (OSError, ValueError):
+            break
+        if slot_change(ra, rb):
+            break
+        out.append(older)
+    return out
+
+
 def previous_version(runs: list[RunRecord], key: str | None) -> RunRecord | None:
     """The newest run of the version before ``key`` in ``runs`` (newest first,
     one project) — or of the newest version when ``key`` is not among them
@@ -707,18 +742,14 @@ def render_projects_table(projects: list[ProjectSummary]) -> str:
         return "No projects yet — `prebuttal run <paper>` creates one per paper."
     rows: list[tuple[str, ...]] = [("project", "runs", "latest", "trend", "last run", "title")]
     for p in projects:
-        versions = revisions(p.runs)  # a retry and the run it completes: one version
-        first, last = versions[-1], p.current
+        # one version per retry chain, and only versions one panel rated: a
+        # trend across venues or a changed panel compares other numbers
+        seg = trend_versions(p.runs)
+        first, last = seg[-1], p.current
         trend = "-"
-        # a raw-mean trend across venues (iclr /10 vs neurips /6, or even
-        # iclr /10 vs icml /10) compares incomparable numbers — skip it
-        if (
-            len(versions) > 1
-            and first.mean is not None
-            and last.mean is not None
-            and comparable(first, last)
-        ):
-            trend = f"{first.mean:g} → {last.mean:g} ({last.mean - first.mean:+g})"
+        if len(seg) > 1 and first.mean is not None and last.mean is not None:
+            since = f" since #{first.run_no}" if len(seg) < len(revisions(p.runs)) else ""
+            trend = f"{first.mean:g} → {last.mean:g} ({last.mean - first.mean:+g}){since}"
         rows.append((p.key, str(len(p.runs)), _score(last), trend, p.latest.when, p.title[:48]))
     return _table(rows)
 

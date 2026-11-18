@@ -42,7 +42,7 @@ def offline_diff(monkeypatch):
     tests it uses word overlap unless a test asks for `model_diff`."""
     from prebuttal import cli
 
-    monkeypatch.setattr(cli, "_model_matcher", lambda: (None, "offline in tests"))
+    monkeypatch.setattr(cli, "_model_matcher", lambda a, b: (None, "offline in tests"))
 
 
 @pytest.fixture

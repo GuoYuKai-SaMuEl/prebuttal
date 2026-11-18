@@ -19,11 +19,16 @@ releases (0.2, 0.3, …) are substantial new features.
   runs with `repeats = 3`: 7.67 → 7.89, within the measured noise (±0.3),
   all 8 v1 plan items raised again. DPO 4.67/6, LLaVA-1.5 3.67/5, the
   fictional paper 1/10.
-- `prebuttal diff` matches by meaning by default: one call to the AC's
-  backend pairs every reviewer's weaknesses, one checks the revision plan,
-  so an issue B raises in other words is no longer counted as gone *and*
-  new. Without a usable backend (none available, relay, an untrusted
-  `prebuttal.toml`) it falls back to word overlap and says why in one line.
+- `prebuttal diff` matches by meaning by default: one call pairs every
+  reviewer's weaknesses, one checks the revision plan, so an issue B raises
+  in other words is no longer counted as gone *and* new. The calls go to the
+  backend, model and endpoint both runs' area chairs used, never to the one
+  the current environment would pick: excerpts of a paper reviewed on Ollama
+  stay local, and two OpenRouter models (two upstream companies) are not
+  mixed. When the two differ, that backend can't be used (relay, an
+  untrusted `prebuttal.toml`, its endpoint moved), or `PREBUTTAL_BACKEND` is
+  set to `relay` or another backend, it falls back to word overlap and says
+  why in one line.
   An answer that is incomplete or names an item that does not exist is not
   used at all, for plan items as for weaknesses (plan answers used to keep
   their valid parts). `--llm` is no longer needed: it still works, says so,
@@ -63,7 +68,9 @@ releases (0.2, 0.3, …) are substantial new features.
   `backends` print the relay hint as they do in Claude Code and Gemini CLI.
 - The revision plan is followed across runs. After a run, its plan is
   checked against the project's previous run (one call to the AC's
-  backend; word overlap with relay) and the summary says `Plan: 3 of 5
+  backend when the previous run's AC used the same backend, model and
+  endpoint — the earlier plan goes nowhere that version was not sent; word
+  overlap otherwise, and with relay) and the summary says `Plan: 3 of 5
   items of mamba#2 no longer raised · 1 new`. The match is kept in the run's
   folder (`plan-track.json`), as is the one `prebuttal diff` makes for two
   consecutive runs. The dashboard (`prebuttal projects --open`) lists each
@@ -120,6 +127,12 @@ releases (0.2, 0.3, …) are substantial new features.
   - `prebuttal runs --paper`: `prebuttal runs <project>`.
 
 ### Fixed
+- A LaTeX source without its `.bbl` (an Overleaf download: `main.tex` and
+  `refs.bib`) reached the reviewers with no references at all, so novelty,
+  related work and baselines were judged without them. The cited entries of
+  the `.bib` files the paper loads are now listed (all of them with
+  `\nocite{*}`), in order of first citation; `check` and the review read
+  the same files.
 - `prebuttal diff` matched by wording after `prebuttal run --config
   prebuttal.toml`: `diff` has no `--config`, reads `./prebuttal.toml`, and
   found it "not trusted yet" because passing a file with `--config` trusted
@@ -265,6 +278,20 @@ releases (0.2, 0.3, …) are substantial new features.
   holder could lose to a second one, and a busy lock let some writers go on
   unlocked. Every write to the history and the project registry now holds
   it; archiving a finished run waits up to ten minutes for it.
+- `prebuttal retry` could send a paper elsewhere than the run did: an
+  archive recorded the backend, not where `OPENAI_BASE_URL` or the Ollama
+  host pointed. Runs now record those endpoints, and a retry from a terminal
+  where one points elsewhere stops before sending anything; a retry of a run
+  archived before says where the paper would go and asks first. A retry
+  also stops when `PREBUTTAL_BACKEND` names another backend than the run's
+  (`relay` = no model from this shell): it keeps the run's backends, so it
+  says to unset it or start a new run.
+- The score trend of `prebuttal projects` and the dashboard's line joined
+  versions rated by different panels (a reviewer on another model or
+  effort, a missing round); a trend now covers only the latest versions one
+  panel rated, and says "since #N" when it starts later than the first.
+  `prebuttal diff` counts another effort as another reviewer too, and no
+  longer checks such a change against run-to-run noise.
 - A run whose reviews finished but whose report could be saved nowhere (the
   archive failed and `[output] dir = ""`) exited 0. It now prints the report
   and exits 7 — also when every reviewer failed but the area chair wrote.

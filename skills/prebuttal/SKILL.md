@@ -107,8 +107,10 @@ After the user revises the paper:
    the predicted score with a noise verdict, ratings per reviewer, weakness
    movement (gone / persists / new) and the previous run's revision plan
    checked against the new run (not re-detected / still raised / new). It
-   matches by meaning with two calls to the AC's backend; with no usable
-   backend it falls back to word overlap, says why on stderr, and the
+   matches by meaning with two calls to the backend and model both runs'
+   area chairs used (never another one: the excerpts stay where the paper
+   went); when they differ, it can't be used, or `PREBUTTAL_BACKEND=relay`
+   is set, it falls back to word overlap, says why on stderr, and the
    section headers say "matched by word overlap" — then check that a "gone"
    item is not simply reworded among the "new" ones before calling it fixed.
    Relay the noise verdict as written: "within run-to-run noise" means the
@@ -152,7 +154,8 @@ After the user revises the paper:
 4. Give the AC recommendation verbatim.
 5. If a reviewer failed (exit code 4, e.g. an overloaded backend), offer
    `prebuttal retry`: it re-runs only the failed reviewers and the AC on the
-   same text, so the finished reviews are not paid for twice.
+   same text and backends, so the finished reviews are not paid for twice
+   (with `PREBUTTAL_BACKEND=relay` set it refuses: unset it for the retry).
 6. Offer next steps: fix specific weaknesses, re-run after revision with the
    same settings to compare, or open the HTML report (`prebuttal show --open`) /
    the overview of every run (`prebuttal projects --open`).

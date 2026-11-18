@@ -15,7 +15,7 @@ from . import __version__
 from .noise import check_noise
 from .plantrack import project_plan
 from .report import report_from_dict
-from .runs import ProjectSummary, RunRecord, comparable, revisions, runs_root
+from .runs import ProjectSummary, RunRecord, comparable, revisions, runs_root, trend_versions
 from .share import render_share_html
 from .venues import venue_from_report
 
@@ -60,14 +60,10 @@ def _fraction(r: RunRecord) -> float | None:
 def _sparkline(runs: list[RunRecord]) -> str:
     """Score trend, oldest → newest, as a fraction of each venue's scale (one
     point per version: not the run a retry completes)."""
-    versions = revisions(runs)
-    # one line, one venue: the runs since the newest one's venue was last
-    # changed (an ICLR 8 and an ICML 8 are not two points of one trend)
-    same = []
-    for r in versions:
-        if not comparable(r, versions[0]):
-            break
-        same.append(r)
+    # one line, one panel: the versions since the venue or the ratings
+    # averaged last changed (an ICLR 8 and an ICML 8, or a reviewer on another
+    # model, are not two points of one trend)
+    same = trend_versions(runs)
     pts = [(r, f) for r in reversed(same) if (f := _fraction(r)) is not None]
     if len(pts) < 2:
         return ""

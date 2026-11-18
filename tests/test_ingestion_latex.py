@@ -425,3 +425,53 @@ def test_starred_verbatim_ends_only_at_its_own_end_and_image_tables_are_clean(tm
     assert t.caption == "Main results"
     assert "clip" not in t.raw and "table1" not in t.raw and "Main results" not in t.raw
     assert "htbp" not in t.raw
+
+
+_BIB = r"""
+@string{nips = "Advances in Neural Information Processing Systems"}
+@inproceedings{vaswani2017,
+  author = {Vaswani, Ashish and Shazeer, Noam and Parmar, Niki and Uszkoreit, Jakob},
+  title = {Attention Is All You Need},
+  booktitle = nips # " 30",
+  year = 2017,
+}
+@article(he2016,
+  author = "Kaiming He and Xiangyu Zhang",
+  title = "{Deep} Residual Learning",
+  journal = {CVPR},
+  year = {2016}
+)
+@misc{unused2020, title = {Secret Unpublished Detail}, year = {2020}}
+"""
+
+
+def _bib_paper(tmp_path, cites: str):
+    from prebuttal.ingestion.latex import ingest_latex_source
+
+    (tmp_path / "refs.bib").write_text(_BIB, encoding="utf-8")
+    (tmp_path / "main.tex").write_text(
+        r"\documentclass{article}\title{T}\begin{document}\section{Intro}"
+        + f"Text {cites}.\n"
+        + r"\bibliography{refs}\end{document}",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(tmp_path / "main.tex")
+    refs = [s for s in paper.sections if s.title == "References"]
+    return (refs[0].text if refs else ""), paper.warnings
+
+
+def test_a_source_without_its_bbl_lists_the_cited_bib_entries(tmp_path):
+    # an Overleaf download: main.tex and refs.bib, no .bbl
+    text, warnings = _bib_paper(tmp_path, r"\citep{he2016} and \cite{vaswani2017,he2016}")
+    assert text.splitlines() == [  # in order of first citation
+        "[1] Kaiming He, Xiangyu Zhang. Deep Residual Learning. CVPR, 2016.",
+        "[2] Ashish Vaswani et al. Attention Is All You Need. "
+        "Advances in Neural Information Processing Systems 30, 2017.",
+    ]
+    assert "Secret" not in text  # only what the paper cites
+    assert not any("references not included" in w for w in warnings)
+
+
+def test_nocite_star_lists_every_bib_entry(tmp_path):
+    text, _w = _bib_paper(tmp_path, r"\cite{he2016}\nocite{*}")
+    assert text.startswith("[1] Kaiming He") and "Secret Unpublished Detail" in text

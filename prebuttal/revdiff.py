@@ -237,19 +237,26 @@ def _by_reviewer(reviewers: list[dict], failed: bool = False) -> dict[str, list[
 def rated_slots(reviewers: list[dict]) -> dict[tuple[str, int], str]:
     """Every rating a report's panel mean averages: (``R1 · senior_kind``,
     round) of each review that finished with a rating, and the model that
-    gave it (``backend/model``)."""
+    gave it (``backend/model``, with the effort it was sent: another effort
+    is another reviewer)."""
     return {
-        (key, int(_num(r.get("repeat")) or 0)): f"{r.get('backend') or '?'}/{r.get('model') or '?'}"
+        (key, int(_num(r.get("repeat")) or 0)): _rater(r)
         for key, rs in _by_reviewer(reviewers).items()
         for r in rs
         if _num(r.get("rating")) is not None
     }
 
 
+def _rater(r: dict) -> str:
+    effort = f" · effort {r['effort']}" if r.get("effort") else ""
+    return f"{r.get('backend') or '?'}/{r.get('model') or '?'}{effort}"
+
+
 def slot_change(a: list[dict], b: list[dict]) -> list[str]:
     """What makes two runs' means average different ratings, named for a
     reader: ``R2 · adversarial (A only)``, ``R1 · senior_kind round 2 (B
-    only)``, ``R3 · detail_obsessive model api-gemini/x → agent-agy/y``."""
+    only)``, ``R3 · detail_obsessive model api-gemini/x → agent-agy/y`` (or
+    ``x/m · effort low → x/m · effort high``)."""
     sa, sb = rated_slots(a), rated_slots(b)
     many = any(n for _k, n in sa.keys() | sb.keys())  # rounds named only with `repeats`
     out = []

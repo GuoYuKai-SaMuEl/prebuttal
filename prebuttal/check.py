@@ -24,6 +24,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .ingestion.bibtex import CITE as _CITE
+from .ingestion.bibtex import declared_bibs, inside
 from .venues import CheckRules, Venue
 
 ERROR = "error"  # can get the paper desk-rejected
@@ -379,11 +381,6 @@ _LABEL = re.compile(r"\\label\s*\{([^{}]+)\}")
 _REF = re.compile(
     r"\\(?:ref|eqref|autoref|cref|Cref|pageref|vref|nameref|subref)\*?\s*\{([^{}]+)\}"
 )
-# natbib and biblatex citation commands (not \citestyle and other settings)
-_CITE = re.compile(
-    r"\\(?:[Cc]ite(?:t|p|alt|alp|author|year|yearpar|num)?|nocite|[Pp]arencite|[Tt]extcite|"
-    r"[Aa]utocite|[Ff]ootcite|fullcite)\*?\s*(?:\[[^\]]*\]\s*){0,2}\{([^{}]*)\}"
-)
 
 
 def _keys(found: list[str]) -> set[str]:
@@ -394,10 +391,6 @@ def _keys(found: list[str]) -> set[str]:
 
 _BIB_KEY = re.compile(r"@\s*[a-zA-Z]+\s*\{\s*([^,\s]+)\s*,")
 _BIBITEM = re.compile(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
-# where the bibliography comes from: BibTeX's \bibliography{a,b} (no
-# extension) and biblatex's \addbibresource{a.bib}
-_BIBLIOGRAPHY = re.compile(r"\\bibliography\s*\{([^{}]+)\}")
-_BIBRESOURCE = re.compile(r"\\add(?:bibresource|globalbib)\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 _TODO_CMD = re.compile(r"\\(?:todo|TODO|fixme|FIXME)\b")
 # venue styles that hide \author in their default (submission) mode; any
 # package or class loaded with a review / rebuttal / anonymous / blind option does too
@@ -529,16 +522,9 @@ def _bib_files(tex: str, root: Path, allowed: Path) -> tuple[list[str], list[Pat
     none, the main file's own .bbl (arXiv sources ship that instead) — next
     to the .bib it is the output of an earlier build, which may lack keys
     added since or keep ones that were removed."""
-    names = [n.strip() for m in _BIBLIOGRAPHY.findall(tex) for n in m.split(",")]
-    declared = [n if n.lower().endswith(".bib") else f"{n}.bib" for n in names if n]
-    declared += [n.strip() for n in _BIBRESOURCE.findall(tex) if n.strip()]
-
-    def inside(p: Path) -> bool:
-        return p.is_file() and p.resolve().is_relative_to(allowed)
-
-    bibs = [p for p in (root.parent / f for f in declared) if inside(p)]
+    declared, bibs = declared_bibs(tex, root, allowed)
     bbl = root.with_suffix(".bbl")
-    return declared, bibs or ([bbl] if inside(bbl) else [])
+    return declared, bibs or ([bbl] if inside(bbl, allowed) else [])
 
 
 def _latex_citations(result: CheckResult, tex: str, root: Path, folder: Path) -> None:
