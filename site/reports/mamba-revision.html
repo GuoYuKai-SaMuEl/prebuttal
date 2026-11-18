@@ -63,8 +63,9 @@
   <header>
     <div class="back"><a href="../index.html">← Prebuttal</a> · <a href="dpo.html">DPO sample</a></div>
     <h1>Mamba, two rounds: the rejected v1 vs the revised v2</h1>
-    <p class="sub">ICLR review form · one fixed cross-model panel (claude sonnet · codex gpt-6-luna ·
-    gemini-3.8-flash, area chair claude opus) · same personas and settings —
+    <p class="sub">ICLR review form · one fixed cross-model panel (claude sonnet 5.5 · codex
+    gpt-6.1-terra · gemini-4-hydrogen, area chair claude opus 5.5) · every reviewer three
+    rounds (<code>repeats = 3</code>) · same personas and settings —
     <a href="mamba-v1.html">full v1 report →</a> · <a href="mamba-v2.html">full v2 report →</a></p>
   </header>
 
@@ -81,51 +82,67 @@
     <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/issues">open an issue</a>.
   </div>
 
-  <h2>The two panels (seed 42)</h2>
+  <h2>The two panels (seed 42, three rounds each)</h2>
   <table>
     <tr><th>Role</th><th>Model</th><th>v1 · rejected</th><th>v2 · revised</th><th>real ICLR 2024</th></tr>
-    <tr><td>R1 · senior_kind</td><td>claude sonnet</td><td>8</td><td>8</td><td>8</td></tr>
-    <tr><td>R2 · adversarial</td><td>codex (gpt-6-luna)</td><td>6</td><td>6</td><td><b>3</b> (the dissenter)</td></tr>
-    <tr><td>R3 · detail_obsessive</td><td>gemini-3.8-flash</td><td>8</td><td>8</td><td>6</td></tr>
-    <tr><td>Panel mean</td><td></td><td>7.33 (σ 0.94)</td><td>7.33 (σ 0.94)</td><td>6.25 → reject</td></tr>
-    <tr><td>AC estimate</td><td>claude opus</td><td>8</td><td>8</td><td></td></tr>
+    <tr><td>R1 · senior_kind</td><td>claude sonnet 5.5</td><td>8 · 8 · 8</td><td>8 · 7 · 8</td><td>8</td></tr>
+    <tr><td>R2 · adversarial</td><td>codex (gpt-6.1-terra)</td><td>8 · 8 · 8</td><td>8 · 8 · 8</td><td><b>3</b> (the dissenter)</td></tr>
+    <tr><td>R3 · detail_obsessive</td><td>gemini-4-hydrogen</td><td>7 · 7 · 7</td><td>8 · 8 · 8</td><td>6</td></tr>
+    <tr><td>Panel mean</td><td></td><td>7.67 (σ 0.47)</td><td>7.89 (σ 0.31)</td><td>6.25 → reject</td></tr>
+    <tr><td>AC estimate</td><td>claude opus 5.5</td><td>8</td><td>8</td><td></td></tr>
   </table>
 
   <h2>What happened between rounds: almost nothing</h2>
   <div class="card">
+    <h3>The score moves less than the noise — and the noise is measured</h3>
+    <p>Each version is one <code>prebuttal run</code> with <code>repeats = 3</code>: every
+    reviewer reviews three times and the area chair once. The round means are 7.67,
+    7.67, 7.67 for v1 and 8, 7.67, 8 for v2. <code>prebuttal diff</code> reports
+    7.67 → 7.89 (Δ +0.22) as <em>within run-to-run noise (±0.3, measured: 3 and 3
+    rounds)</em>. The movement comes from two reviewers: the detail reviewer went from
+    7 to 8, the senior reviewer gave one 7 among its 8s. This panel does not separate
+    the two versions.</p>
+  </div>
+  <div class="card">
     <h3>The same concerns, raised again</h3>
-    <p>Matched by meaning (<code>prebuttal diff</code>), all 8 items of the v1
-    revision plan were raised again against v2: headline claims beyond the tested
-    scale (scaling laws stop near 1.3B, zero-shot at 2.8B), no seeds or error bars in
-    any table, a non-monotonic Table 13, a missing Transformer++ row in Table 3,
-    efficiency numbers without operating context. The one new v2 item is the
-    portability of the custom fused CUDA kernel. To this panel, the revision did not
-    address what it cared about.</p>
+    <p>Matched by meaning, all 8 items of the v1 revision plan were raised again
+    against v2: two mistaken Average cells in Table 3 (Mamba-370M and 790M), headline
+    claims beyond the tested scale (Transformer++ parity only up to about 1.3B), no
+    variance estimates in any table while conclusions rest on small gaps, narrow
+    long-context evidence (DNA against HyenaDNA only, a non-monotonic Table 13),
+    efficiency numbers that depend on large batches without a KV cache, missing
+    baselines, unablated block components. The one new v2 item: Section 1 carries a
+    non-anonymised GitHub link, a double-blind concern on a public arXiv version.
+    Of the individual weaknesses, 40 persist, 5 are new and 6 are gone, nearly all
+    of the new and gone ones raised in one round of three — chance, as a single review
+    is.</p>
   </div>
   <div class="card">
-    <h3>The score doesn't move either — and that is measured, not guessed</h3>
-    <p>Each version was reviewed three times (seeds 42–44). v1: 7.33, 7.33, 7.00
-    (mean 7.22). v2: 7.33, 7.33, 7.33 (mean 7.33). The whole difference is one point
-    from one reviewer in one run — inside the noise. The senior and detail
-    reviewers gave 8 to both versions in every run: this panel does not separate
-    the two versions, and an earlier version of this page that read a
-    7.0 → 7.3 “improvement” from single runs was reading noise.</p>
-  </div>
-  <div class="card">
-    <h3>A claim we withdrew</h3>
-    <p>That earlier page also said a “Mamba-3B vs 2.8B” naming inconsistency was
-    “gone in v2, because the revision fixed it”. It is not: the seed-42 v2 review
-    raises it again. The old claim came from word-overlap matching, which on this
-    pair calls 5 of the 8 plan items resolved — by meaning, none were. That is why
-    <code>diff</code> matches by meaning by default since 0.7.</p>
+    <h3>No dissenter this time</h3>
+    <p>The real ICLR 2024 panel had a 3. The adversarial reviewer here gave 8 in all six
+    of its rounds; on the earlier panel of this page (gpt-6-luna) it gave 6. A
+    persona sets the tone, not the verdict: a model that finds the paper strong says so
+    even when told to probe. That is one more reason not to read these scores as a
+    prediction of the real decision.</p>
   </div>
   <div class="card">
     <h3>The area chair still checks its panel</h3>
-    <p>In both rounds the AC (claude opus) sided with the two 8s but kept the
-    adversarial reviewer's points on scoping the claims. In v2 it disputed part of
-    R2's case: the decisive Table 3 comparisons share tokenizer, data and token
-    budget, and R2's reading of Table 15 conflated a memory benchmark with the
-    KV-cache argument.</p>
+    <p>In both rounds the AC (claude opus 5.5) recommended acceptance but kept the
+    detail reviewer's points as required fixes: it recomputed the Table 3 averages and
+    sided with R3, the only reviewer who found them. It also rejected an objection of
+    R1 and R2 to the Table 3 caption ("best-in-class on every single evaluation"):
+    their counter-examples compare across size classes, and within each size the
+    caption holds.</p>
+  </div>
+  <div class="card">
+    <h3>A claim we withdrew</h3>
+    <p>An earlier version of this page said a “Mamba-3B vs 2.8B” naming
+    inconsistency was “gone in v2, because the revision fixed it”. It was not. The claim
+    came from word-overlap matching, which on that pair called 5 of the 8 plan items
+    resolved — by meaning, none were. That is why <code>diff</code> matches by meaning
+    by default since 0.7. The same version read a 7.0 → 7.3 “improvement” from single
+    runs; three seeds run by hand then showed it was noise, which <code>repeats</code>
+    now measures in one run.</p>
   </div>
 
   <div class="note">
@@ -133,12 +150,12 @@
     (contamination), which pushes scores toward the lenient side. And arXiv v2 being
     accepted at a different venue says little about whether it answered these
     particular concerns. What this demo does show is the workflow — run, revise,
-    diff, re-check with more seeds — and a tool that reports “no change” when it
+    diff, with the noise measured — and a tool that reports “no change” when it
     sees none.
   </div>
 
   <footer>
-    Generated with a pre-release of Prebuttal 0.4 from the public arXiv versions of the paper ·
+    Generated with Prebuttal 0.7.0 from the public arXiv versions of the paper ·
     reports: <a href="mamba-v1.html">v1</a> · <a href="mamba-v2.html">v2</a> ·
     <a href="../index.html#revision-loop">how this was made</a>
   </footer>

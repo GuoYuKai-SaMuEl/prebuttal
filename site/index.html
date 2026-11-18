@@ -90,21 +90,21 @@
 <span class="d">[prebuttal] parsed: “GlobalGate: A Universal Attention Mechanism…”</span>
 <span class="bad">[prebuttal] Pre-flight check (error): no "NeurIPS Paper
             Checklist" section — the venue requires one</span>
-<span class="d">[R2] dispatching adversarial via agent-codex / gpt-6-luna</span>
-<span class="d">[R1] dispatching senior_kind via agent-claude / sonnet</span>
-<span class="d">[R3] dispatching detail_obsessive via api-gemini /
-     gemini-3.5-flash-lite</span>
-[R3] done in 9s  rating 1
-[R2] done in 11s rating 2
-[R1] done in 25s rating 1
-[AC] done in 27s
+<span class="d">[R1] dispatching senior_kind via agent-claude / claude-sonnet-5-5</span>
+<span class="d">[R2] dispatching adversarial via agent-codex / gpt-6.1-terra</span>
+<span class="d">[R3] dispatching detail_obsessive via agent-agy /
+     gemini-4-hydrogen</span>
+[R2] done in 18s rating 1
+[R3] done in 20s rating 1
+[R1] done in 37s rating 1
+[AC] done in 30s
 
-Predicted: <span class="hl">1.33/6</span> (σ 0.47, range 1–2)
+Predicted: <span class="hl">1/6</span> (σ 0, range 1–1)
 Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires one
-           [must] Section 3.1 / Table 1: baseline Transformer trained
-                  for 1 epoch vs GlobalGate for 5 epoch…
-           [must] Section 3.1: the same 200 LongQA-Mini questions are
-                  used for hyperparameter selection and…</pre>
+           [must] Table 1 compares a baseline trained for 1 epoch
+                  with GlobalGate trained for 5 epochs (Sec…
+           [must] The same 200 LongQA-Mini questions are used for
+                  both hyperparameter selection and reporti…</pre>
       <figcaption>Real output, abridged, on <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">a fictional
       paper with planted flaws</a>: Claude, Codex and Gemini as the three reviewers.</figcaption>
     </figure>
@@ -117,18 +117,18 @@ Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires on
     <table class="results">
       <tr><th>Paper</th><th>Venue</th><th class="num">Prebuttal</th><th>Real outcome</th></tr>
       <tr><td><a href="reports/mamba-revision.html">Mamba, v1 → v2</a><small>a revision round,
-        three seeds each</small></td><td>ICLR 2024</td><td class="num">7.22 → 7.33 /10</td>
+        three rounds each</small></td><td>ICLR 2024</td><td class="num">7.67 → 7.89 /10</td>
         <td>rejected → accepted at COLM 2024</td></tr>
       <tr><td><a href="reports/dpo.html">Direct Preference Optimization</a><small>AC estimate
-        5</small></td><td>NeurIPS 2023</td><td class="num">4.33 /6</td><td>accepted (oral)</td></tr>
+        5</small></td><td>NeurIPS 2023</td><td class="num">4.67 /6</td><td>accepted (oral)</td></tr>
       <tr><td><a href="reports/llava.html">LLaVA-1.5: Improved Baselines with Visual
         Instruction Tuning</a><small>AC estimate 4, weak accept</small></td><td>CVPR 2024</td>
-        <td class="num">3.33 /5</td><td>accepted (highlight)</td></tr>
+        <td class="num">3.67 /5</td><td>accepted (highlight)</td></tr>
       <tr><td><a href="reports/weak.html">GlobalGate</a><small>fictional, planted
-        flaws</small></td><td>ICLR</td><td class="num">1.33 /10</td><td>—</td></tr>
+        flaws</small></td><td>ICLR</td><td class="num">1 /10</td><td>—</td></tr>
     </table>
-    <p class="sub" style="margin-top:20px">On Mamba the score did not move between the
-    rejected and the revised version, and every concern in the v1 revision plan was raised
+    <p class="sub" style="margin-top:20px">On Mamba the score moved less than the measured
+    run-to-run noise between the rejected and the revised version, and every concern in the v1 revision plan was raised
     again against v2 — including the missing error bars the real ICLR reviewers hammered
     on. The tool says “no change” when it sees none. Frontier models have likely seen
     these papers in training, which pushes scores up: read them as the workflow, not as
@@ -199,27 +199,25 @@ Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires on
     <p class="sub">Every run ends with a revision plan, and every paper is a project whose
     runs line up as revision history. Two runs can be diffed.</p>
     <div class="split wide-left">
-      <pre class="term"><span class="d"># abridged output of the real runs</span>
+      <pre class="term"><span class="d"># abridged output of the real runs; prebuttal.toml sets repeats = 3</span>
 <span class="d">$</span> prebuttal run 2312.00752v1 --project mamba-revision \
     --note "v1 — rejected at ICLR 2024"
-  R1 claude/sonnet 8 · R2 codex/gpt-6-luna 6
-  R3 gemini-3.8-flash <span class="bad">FAILED (HTTP 429)</span>
+  R1 sonnet 8·8·8 · R2 gpt-6.1-terra 8·8·8 · R3 gemini-4-hydrogen 7·7·7
+  Predicted: 7.67/10 (σ 0.47; 3 rounds: 7.67–7.67)
+  Saved:     mamba-revision#20
 
-<span class="d">$</span> prebuttal retry mamba-revision#11
-  R3 gemini-3.8-flash 8
-  Predicted: 7.33/10 (σ 0.94)  → saved as mamba-revision#17
-
-<span class="d">$</span> prebuttal run 2312.00752v2 \
+<span class="d">$</span> prebuttal run 2312.00752v2 --project mamba-revision \
     --note "v2 — revised, accepted at COLM 2024"
-<span class="d">$</span> prebuttal retry mamba-revision#12   <span class="d"># same quota, same fix</span>
-  Predicted: 7.33/10 (σ 0.94)  → saved as mamba-revision#18
+  Predicted: 7.89/10 (σ 0.31; 3 rounds: 7.67–8)
+  Change:    +0.22 vs mamba-revision#20 — within run-to-run noise (±0.3)
+  Plan:      0 of 8 items of mamba-revision#20 no longer raised · 1 new
 
-<span class="d">$</span> prebuttal diff mamba-revision#17 mamba-revision#18
-  panel          7.33/10 → 7.33/10 (Δ +0)
-                 within run-to-run noise (±0.99, estimated)
-  still raised:  [must] Headline claims exceed the tested regime …
-  still raised:  [should] No seeds, standard deviations …
-  new in B:      the custom fused CUDA kernel's portability
+<span class="d">$</span> prebuttal diff
+  A 7.67/10 → B 7.89/10  (Δ +0.22)
+    within run-to-run noise (±0.3, measured: 3 and 3 rounds)
+  still raised:  [must] Reporting inconsistencies. Table 3 Average …
+  still raised:  [must] Headline claims exceed the evidence …
+  new in B:      Section 1 contains a non-anonymised GitHub URL
   0 of 8 plan items were not re-detected in B.</pre>
       <dl class="facts">
         <div><dt>A plan, not just a verdict</dt><dd>The area chair merges the reviews into

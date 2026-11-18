@@ -28,23 +28,23 @@ $ pip install prebuttal
 $ prebuttal run examples/weak-paper --venue neurips
 [prebuttal] parsed: “GlobalGate: A Universal Attention Mechanism That Solves Long-Context Reasoning” — 7 sections, 1 tables, 0 figure captions
 [prebuttal] Pre-flight check (error): no "NeurIPS Paper Checklist" section — the venue requires one
-[R2] dispatching adversarial via agent-codex (codex, subscription auth) / gpt-6-luna
-[R1] dispatching senior_kind via agent-claude (claude, subscription auth) / sonnet
-[R3] dispatching detail_obsessive via api-gemini / gemini-3.5-flash-lite
-[R3] done in 9s rating 1 (1,776 in / 570 out)
-[R2] done in 11s rating 2 (usage n/a (backend reports no tokens))
-[R1] done in 25s rating 1 (usage n/a (backend reports no tokens))
-[AC] synthesizing via agent-claude (claude, subscription auth) / sonnet
-[AC] done in 27s
+[R1] dispatching senior_kind via agent-claude (claude, subscription auth) / claude-sonnet-5-5
+[R2] dispatching adversarial via agent-codex (codex, subscription auth) / gpt-6.1-terra
+[R3] dispatching detail_obsessive via agent-agy (agy, subscription auth) / gemini-4-hydrogen
+[R2] done in 18s rating 1 (usage n/a (backend reports no tokens))
+[R3] done in 20s rating 1 (11,891 in / 3,769 out)
+[R1] done in 37s rating 1 (usage n/a (backend reports no tokens))
+[AC] synthesizing via agent-claude (claude, subscription auth) / claude-opus-5-5
+[AC] done in 30s
 
-Predicted: 1.33/6 (σ 0.47, range 1–2)
+Predicted: 1/6 (σ 0, range 1–1)
 Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires one
-           [must] Section 3.1 / Table 1: baseline Transformer trained for 1 epoch vs GlobalGate for 5 epoch…
-           [must] Section 3.1: the same 200 LongQA-Mini questions are used for hyperparameter selection and…
-Report:   prebuttal-reports/globalgate-a-universal/2026-10-27_2228_neurips/report.html
+           [must] Table 1 compares a baseline trained for 1 epoch with GlobalGate trained for 5 epochs (Sec…
+           [must] The same 200 LongQA-Mini questions are used for both hyperparameter selection and reporti…
+Report:   prebuttal-reports/globalgate-a-universal/2026-11-18_0131_neurips/report.html
 ```
 
-<sub>Real output (report path shortened) on <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">a fictional paper with planted flaws</a>: claude, codex and Gemini as the three reviewers.</sub>
+<sub>Real output (abridged, report path shortened) on <a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">a fictional paper with planted flaws</a>: claude, codex and Gemini (through agy) as the three reviewers, claude opus as the area chair.</sub>
 
 ## Highlights
 
@@ -88,10 +88,10 @@ commands. Everything else is in the [guide](https://guoyukai-samuel.github.io/pr
 
 | Paper | Venue | Prebuttal | Real outcome |
 |---|---|---|---|
-| [Direct Preference Optimization](https://guoyukai-samuel.github.io/prebuttal/reports/dpo.html) | NeurIPS 2023 | 4.33/6 · AC 5 | accepted (oral) |
-| [LLaVA-1.5](https://guoyukai-samuel.github.io/prebuttal/reports/llava.html) | CVPR 2024 | 3.33/5 · AC 4 | accepted (highlight) |
-| [Mamba v1 → v2, a revision round](https://guoyukai-samuel.github.io/prebuttal/reports/mamba-revision.html) | ICLR 2024 | 7.33 → 7.33/10 — "no change", and it says so | rejected → accepted at COLM |
-| [GlobalGate (fictional, planted flaws)](https://guoyukai-samuel.github.io/prebuttal/reports/weak.html) | ICLR | 1.33/10 | — |
+| [Direct Preference Optimization](https://guoyukai-samuel.github.io/prebuttal/reports/dpo.html) | NeurIPS 2023 | 4.67/6 · AC 5 | accepted (oral) |
+| [LLaVA-1.5](https://guoyukai-samuel.github.io/prebuttal/reports/llava.html) | CVPR 2024 | 3.67/5 · AC 4 | accepted (highlight) |
+| [Mamba v1 → v2, a revision round](https://guoyukai-samuel.github.io/prebuttal/reports/mamba-revision.html) | ICLR 2024 | 7.67 → 7.89/10 — within the measured noise, and it says so | rejected → accepted at COLM |
+| [GlobalGate (fictional, planted flaws)](https://guoyukai-samuel.github.io/prebuttal/reports/weak.html) | ICLR | 1/10 | — |
 
 Unofficial demos on public arXiv versions; frontier models have likely seen
 these papers in training, so read them as a demonstration of the workflow,
@@ -154,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: GuoYuKai-SaMuEl/prebuttal@v0.6.1
+      - uses: GuoYuKai-SaMuEl/prebuttal@v0.7.0
         with:
           paper: paper/          # a LaTeX folder, main .tex or .zip, or a built PDF
           venue: cvpr            # optional: else prebuttal.toml, else neurips
@@ -194,10 +194,10 @@ substantial features. In short (details in
 1. **0.5 — nothing leaks before submission**: `prebuttal check`
    (also as a GitHub Action), agent CLIs with no tool that can read your
    keys, `backends` as the one setup view; CVPR and Overleaf .zip sources
-2. **0.6 (current) — a smaller CLI**: the 0.4 aliases go, `plan` becomes
+2. **0.6 — a smaller CLI**: the 0.4 aliases go, `plan` becomes
    `show --plan`, and `run` keeps only per-run flags (project-wide ones
    live in `prebuttal.toml`)
-3. **0.7 — a revision loop you can trust**: a diff that says when a change
+3. **0.7 (current) — a revision loop you can trust**: a diff that says when a change
    is within noise (single runs included), repeated reviews as an advanced
    setting, meaning-based matching by default
 4. **Patch releases, as they are ready** — more venue forms before each

@@ -166,23 +166,9 @@ def _order(r: RunRecord) -> tuple[str, int, str]:
     return (r.id[:15], r.run_no, r.id)
 
 
-def save_run(
-    report: Any,
-    venue: Any,
-    cfg: Any,
-    *,
-    md: str,
-    json_str: str,
-    html: str | None,
-    project: str = "",
-    note: str = "",
-    retry_of: str | None = None,
-) -> RunRecord:
-    """Archive one run. Raises OSError on failure; the caller treats it as non-fatal."""
-    run_id = new_run_id(report.paper.title)
-    make_private_dir(runs_root())
-    project = project or slugify(report.paper.title)
-    out_dir = runs_dir() / run_id
+def _write_run_files(
+    out_dir: Path, report: Any, md: str, json_str: str, html: str | None, resolved: dict
+) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(md, encoding="utf-8")
     (out_dir / "report.json").write_text(json_str, encoding="utf-8")
@@ -199,6 +185,26 @@ def save_run(
         (fig_dir / "figures.json").write_text(
             json.dumps([im.label for im in images], ensure_ascii=False), encoding="utf-8"
         )
+    (out_dir / "resolved-config.json").write_text(
+        json.dumps(resolved, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def save_run(
+    report: Any,
+    venue: Any,
+    cfg: Any,
+    *,
+    md: str,
+    json_str: str,
+    html: str | None,
+    project: str = "",
+    note: str = "",
+    retry_of: str | None = None,
+) -> RunRecord:
+    """Archive one run. Raises OSError on failure; the caller treats it as non-fatal."""
+    make_private_dir(runs_root())
+    project = project or slugify(report.paper.title)
     resolved = {
         "prebuttal_version": __version__,
         "venue": venue.key,
@@ -225,10 +231,13 @@ def save_run(
         ],
         "ac": {"backend": report.meta.backend, "model": report.meta.model},
     }
-    (out_dir / "resolved-config.json").write_text(
-        json.dumps(resolved, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
     with store_lock():
+        # the id's time and the run number are both taken under the lock: two
+        # runs saved at once across a second boundary must not get ids in one
+        # order and numbers in the other (history is ordered by the id's time)
+        run_id = new_run_id(report.paper.title)
+        out_dir = runs_dir() / run_id
+        _write_run_files(out_dir, report, md, json_str, html, resolved)
         run_no = 1 + max((r.run_no for r in load_history() if r.project == project), default=0)
         rec = RunRecord(
             id=run_id,

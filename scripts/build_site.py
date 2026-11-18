@@ -71,21 +71,19 @@ SYNTHETIC_BANNER = (
     "No real authors, methods or results."
 )
 
-# Every sample comes from one panel (claude sonnet · codex gpt-6-luna ·
-# gemini-3.8-flash, AC claude opus), seed 42, run on 2026-10-27 with the 0.4
-# pre-release. The Mamba pair is a revision round over both arXiv versions —
-# v1 is the ICLR 2024-rejected submission, v2 the revision accepted at
-# COLM 2024 (the v1 run's R3 was completed with `prebuttal retry` after a
-# Gemini quota error). Seeds 43 and 44 stay in the local archive as the
-# variance check quoted on mamba-revision.html. LLaVA-1.5 (CVPR 2024) was
-# run on 2026-11-03 with the 0.6 development version, on the CVPR form: R3
-# hit Gemini 503 overloads twice and was completed with `prebuttal retry`,
-# then the AC by one more retry. The id prefixes pin the runs so a glob
-# can't silently drift to a newer one.
+# Every sample comes from one panel, all on subscription CLIs: claude
+# sonnet-5-5 (agent-claude) · codex gpt-6.1-terra (agent-codex) · gemini-4-
+# hydrogen (agent-agy), AC claude opus-5-5; seed 42, effort unset; run on
+# 2026-11-18 with 0.7.0. The Mamba pair is a revision round over both arXiv
+# versions — v1 is the ICLR 2024-rejected submission, v2 the revision
+# accepted at COLM 2024 — each with `repeats = 3`, the noise check quoted on
+# mamba-revision.html. DPO, LLaVA-1.5 (CVPR form) and the fictional paper are
+# single runs, as a default `prebuttal run` makes them. The id prefixes pin
+# the runs so a glob can't silently drift to a newer one.
 CURATED: list[tuple[str, str, str]] = [
     (
         "mamba-v1.html",
-        "20261027-153543-a958*",
+        "20261118-012043-b647*",
         _real_paper_banner(
             "2312.00752v1",
             "Albert Gu and Tri Dao",
@@ -94,7 +92,7 @@ CURATED: list[tuple[str, str, str]] = [
     ),
     (
         "mamba-v2.html",
-        "20261027-153730-b30d*",
+        "20261118-012329-9f14*",
         _real_paper_banner(
             "2312.00752v2",
             "Albert Gu and Tri Dao",
@@ -103,19 +101,19 @@ CURATED: list[tuple[str, str, str]] = [
     ),
     (
         "dpo.html",
-        "20261027-153028-2d91*",
+        "20261118-012610-7259*",
         _real_paper_banner("2305.18290", "Rafael Rafailov, Archit Sharma, Eric Mitchell, et al."),
     ),
     (
         "llava.html",
-        "20261103-013742-a9d7*",
+        "20261118-012824-bd51*",
         _real_paper_banner(
             "2310.03744v2",
             "Haotian Liu, Chunyuan Li, Yuheng Li and Yong Jae Lee",
             "This is arXiv v2 — the CVPR 2024 camera-ready version (a highlight paper).",
         ),
     ),
-    ("weak.html", "20261027-153345-0861*", SYNTHETIC_BANNER),
+    ("weak.html", "20261118-012935-04cb*", SYNTHETIC_BANNER),
 ]
 
 _BANNER_START = "<!-- site-banner -->"
@@ -584,7 +582,7 @@ def config_docs() -> list[tuple[str, str, list[tuple[str, str, str]]]]:
                     "repeats",
                     _toml(run.repeats),
                     "Advanced: every reviewer reviews this many times, 1–5, to measure how "
-                    "much the scores move by chance. Round <em>k</em> adds 1000·<em>k</em> to "
+                    "much the scores move by chance. Round k adds 1000·k to "
                     "the seed. Costs that many times the reviewer calls; the AC still runs "
                     "once, over all rounds.",
                 ),

@@ -254,11 +254,25 @@ def test_weakness_matching_is_one_to_one(latex_project):
     assert section.count("- persists:") == 1 and section.count("- gone:") == 1
 
 
-def test_concurrent_saves_get_distinct_run_numbers(latex_project):
+def test_concurrent_saves_get_distinct_run_numbers(latex_project, monkeypatch):
     """Two runs finishing at the same moment on one project: the history lock
-    allocates each its own run number (labels like proj#3 stay unique)."""
+    allocates each its own run number (labels like proj#3 stay unique), and
+    history lists them in that order even when their ids fall in different
+    seconds (CI once saw #3 listed as newer than #4)."""
+    import itertools
+    import threading
     from concurrent.futures import ThreadPoolExecutor
 
+    import prebuttal.runs as runs_mod
+
+    seconds = itertools.count(10)
+    guard = threading.Lock()
+
+    def next_second(fmt):  # every id in a later second than the one before
+        with guard:
+            return f"20261118-0000{next(seconds)}"
+
+    monkeypatch.setattr(runs_mod.time, "strftime", next_second)
     report, venue = make_report(latex_project)
     cfg = load_config(None)
 

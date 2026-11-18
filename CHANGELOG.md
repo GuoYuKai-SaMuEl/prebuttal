@@ -10,7 +10,15 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-18
+
 ### Changed
+- **Site samples re-run on 0.7.0** with one panel on subscription CLIs
+  (claude sonnet-5-5 · codex gpt-6.1-terra · gemini-4-hydrogen through agy,
+  AC claude opus-5-5), seed 42. The Mamba revision page now comes from two
+  runs with `repeats = 3`: 7.67 → 7.89, within the measured noise (±0.3),
+  all 8 v1 plan items raised again. DPO 4.67/6, LLaVA-1.5 3.67/5, the
+  fictional paper 1/10.
 - `prebuttal diff` matches by meaning by default: one call to the AC's
   backend pairs every reviewer's weaknesses, one checks the revision plan,
   so an issue B raises in other words is no longer counted as gone *and*
@@ -115,6 +123,10 @@ releases (0.2, 0.3, …) are substantial new features.
   found it "not trusted yet" because passing a file with `--config` trusted
   it for that run only. That trust is now remembered for the file's content,
   like a yes to the question.
+- Two runs of one project archived at the same moment could be listed out
+  of order (`#3` after `#4`) when their saves straddled a second: the run id
+  (whose time orders the history) was taken before the history lock, the
+  run number inside it. Both are now taken under the lock.
 - An area chair that wrote LaTeX such as `\(O(n)\)` in its meta-review
   could lose the whole meta-review and revision plan while the run looked
   finished (and `prebuttal retry` saw nothing to redo): the JSON reader
@@ -937,7 +949,8 @@ First public release.
   stacked), and table cells are rebuilt from word geometry so kerned decimals
   survive (`47.9` no longer reads `479 .`; negative deltas keep their sign).
 
-[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/GuoYuKai-SaMuEl/prebuttal/compare/v0.5.3...v0.5.4

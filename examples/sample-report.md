@@ -1,7 +1,7 @@
 # Prebuttal Report — Latent Bottleneck Transformers for Efficient Long-Context Modeling
 
-> **Venue:** ICLR (iclr) · **Generated:** 2026-10-25T09:39:47+00:00 · **Source:** latex `examples/demo-paper`
-> prebuttal v0.1.0 · seed 42 · pack 2,927 chars (sha256/51293925002719c9)
+> **Venue:** ICLR (iclr) · **Generated:** 2026-11-17T17:18:11+00:00 · **Source:** latex `examples\demo-paper`
+> prebuttal v0.7.0 · seed 42 · pack 3,027 chars (sha256/0af996ee793730d3)
 
 ## Predicted outcome
 
@@ -10,6 +10,11 @@
 - R1 `████████░░` **8** — Accept — good paper (senior_kind, fake)
 - R2 `████░░░░░░` **4** — Reject — not good enough (adversarial, fake)
 - R3 `██████░░░░` **6** — Marginally above acceptance threshold (detail_obsessive, fake)
+
+## Revision plan
+
+- [ ] **must** — Baseline set is thin: Table 1 misses a Perceiver comparison. → Add Perceiver-AR to Table 1 or scope the claim to the baselines run. (R2, R3 · effort: medium)
+- [ ] **should** — No variance across seeds for the Table 2 ablation. → Report mean and std over 3 seeds. (R3 · effort: small)
 
 ## Meta-review (Area Chair — `fake` / `fake-1`)
 
@@ -119,12 +124,12 @@ Authors state none; retrieval-heavy failure mode exists.
 
 ## Backend transparency
 
-| Reviewer | Persona | Backend | Model | Temp | Seed |
-|---|---|---|---|---|---|
-| R1 | senior_kind | `fake` | `fake-1` | 0.4 | 43 |
-| R2 | adversarial | `fake` | `fake-1` | 0.7 | 44 |
-| R3 | detail_obsessive | `fake` | `fake-1` | 0.5 | 45 |
-| AC | area_chair | `fake` | `fake-1` | 0.3 | 42 |
+| Reviewer | Persona | Backend | Model | Effort | Temp | Seed |
+|---|---|---|---|---|---|---|
+| R1 | senior_kind | `fake` | `fake-1` | default | 0.4 | 43 |
+| R2 | adversarial | `fake` | `fake-1` | default | 0.7 | 44 |
+| R3 | detail_obsessive | `fake` | `fake-1` | default | 0.5 | 45 |
+| AC | area_chair | `fake` | `fake-1` | default | 0.3 | 42 |
 
 Total usage: 4,000 in / 800 out.
 

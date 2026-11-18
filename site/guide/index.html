@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: GuoYuKai-SaMuEl/prebuttal@v0.6.1
+      - uses: GuoYuKai-SaMuEl/prebuttal@v0.7.0
         with:
           paper: paper/          # a LaTeX folder, main .tex or .zip, or a built PDF
           venue: cvpr            # optional: else prebuttal.toml, else neurips</pre>
@@ -221,8 +221,8 @@ prebuttal projects rename mamba mamba-v2</pre>
   <h2 id="backends">6. Backends &amp; privacy</h2>
   <p>With <code>backend = "auto"</code> (the default) the reviewers get different ready
   backends in this order of preference — cycling when fewer are ready — and the AC gets
-  the first. With both agent CLIs signed in, that is a cross-model panel at no API
-  cost:</p>
+  the first. With two or more agent CLIs signed in, that is a cross-model panel at no
+  API cost:</p>
   <table class="ref">
     <tr><th>Backend</th><th>Access</th><th>Notes</th></tr>
     <tr><td><code>agent-claude</code></td><td>your Claude subscription, no API key</td><td>runs <code>claude -p</code> with no tools at all</td></tr>
@@ -301,7 +301,7 @@ model = "opus"</pre>
 <tr><td><code>effort</code></td><td><code>unset</code></td><td>Reasoning effort, <code>low</code> | <code>medium</code> | <code>high</code>. Unset leaves each model at its provider's default; models without the control skip it.</td></tr>
 <tr><td><code>figures</code></td><td><code>false</code></td><td>Also show figures as images to reviewers on the vision-capable API backends (about 1.5k tokens each). Other backends keep the captions.</td></tr>
 <tr><td><code>max_figures</code></td><td><code>6</code></td><td>Images per reviewer, 1–20.</td></tr>
-<tr><td><code>repeats</code></td><td><code>1</code></td><td>Advanced: every reviewer reviews this many times, 1–5, to measure how much the scores move by chance. Round &lt;em&gt;k&lt;/em&gt; adds 1000·&lt;em&gt;k&lt;/em&gt; to the seed. Costs that many times the reviewer calls; the AC still runs once, over all rounds.</td></tr>
+<tr><td><code>repeats</code></td><td><code>1</code></td><td>Advanced: every reviewer reviews this many times, 1–5, to measure how much the scores move by chance. Round k adds 1000·k to the seed. Costs that many times the reviewer calls; the AC still runs once, over all rounds.</td></tr>
 <tr><td><code>compress</code></td><td><code>false</code></td><td>When the paper is over <code>budget_chars</code>, summarize the cut sections with the AC's model instead of truncating them (extra model calls).</td></tr>
 <tr><td><code>max_tokens</code></td><td><code>6000</code></td><td>Output-token cap for each review.</td></tr>
 <tr><td><code>timeout_s</code></td><td><code>900</code></td><td>Seconds before a model call is given up.</td></tr>
@@ -542,9 +542,10 @@ required_sections = ["Limitations"]   # these don't count toward the limit</pre>
   reader is likely to raise, so you can fix it before real reviewers see it. It does
   not tell you whether the paper will be accepted:</p>
   <ul>
-    <li><strong>Single runs are noisy.</strong> On the Mamba demo the score did not
-    move between the rejected and the revised version once three seeds were averaged;
-    a single-run 7.0 → 7.3 had looked like progress.</li>
+    <li><strong>Single runs are noisy.</strong> On the Mamba demo the score went from
+    7.67 to 7.89 between the rejected and the revised version, inside the ±0.3 that
+    <code>repeats = 3</code> measured on each: no change the tool could tell from
+    chance. An earlier single-run 7.0 → 7.3 had looked like progress.</li>
     <li><strong>Models know famous papers.</strong> Published papers are in the
     models' training data, which pushes their scores up.</li>
     <li><strong>Scores are not calibrated yet.</strong> A calibration script against

@@ -66,21 +66,21 @@
 <span class="d">[prebuttal] parsed: “GlobalGate: A Universal Attention Mechanism…”</span>
 <span class="bad">[prebuttal] Pre-flight check (error): no "NeurIPS Paper
             Checklist" section — the venue requires one</span>
-<span class="d">[R2] dispatching adversarial via agent-codex / gpt-6-luna</span>
-<span class="d">[R1] dispatching senior_kind via agent-claude / sonnet</span>
-<span class="d">[R3] dispatching detail_obsessive via api-gemini /
-     gemini-3.5-flash-lite</span>
-[R3] done in 9s  rating 1
-[R2] done in 11s rating 2
-[R1] done in 25s rating 1
-[AC] done in 27s
+<span class="d">[R1] dispatching senior_kind via agent-claude / claude-sonnet-5-5</span>
+<span class="d">[R2] dispatching adversarial via agent-codex / gpt-6.1-terra</span>
+<span class="d">[R3] dispatching detail_obsessive via agent-agy /
+     gemini-4-hydrogen</span>
+[R2] done in 18s rating 1
+[R3] done in 20s rating 1
+[R1] done in 37s rating 1
+[AC] done in 30s
 
-Predicted: <span class="hl">1.33/6</span> (σ 0.47, range 1–2)
+Predicted: <span class="hl">1/6</span> (σ 0, range 1–1)
 Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires one
-           [must] Section 3.1 / Table 1: baseline Transformer trained
-                  for 1 epoch vs GlobalGate for 5 epoch…
-           [must] Section 3.1: the same 200 LongQA-Mini questions are
-                  used for hyperparameter selection and…</pre>
+           [must] Table 1 compares a baseline trained for 1 epoch
+                  with GlobalGate trained for 5 epochs (Sec…
+           [must] The same 200 LongQA-Mini questions are used for
+                  both hyperparameter selection and reporti…</pre>
       <figcaption>实际输出（节选），对象是<a href="https://github.com/GuoYuKai-SaMuEl/prebuttal/tree/main/examples/weak-paper">一篇故意埋了缺陷的虚构论文</a>；三位审稿人分别是 Claude、Codex 和 Gemini。工具输出和审稿表都是英文。</figcaption>
     </figure>
   </section>
@@ -90,12 +90,12 @@ Fix first: [must] no "NeurIPS Paper Checklist" section — the venue requires on
     <p class="sub">用 arXiv 上公开的论文完整运行一次，再对照它们真实的结果。非官方示例，并非论文作者撰写或认可。</p>
     <table class="results">
       <tr><th>论文</th><th>会议</th><th class="num">Prebuttal</th><th>真实结果</th></tr>
-      <tr><td><a href="../reports/mamba-revision.html">Mamba，v1 → v2</a><small>一轮修改，各运行三个 seed</small></td><td>ICLR 2024</td><td class="num">7.22 → 7.33 /10</td><td>被拒 → 改投 COLM 2024 录用</td></tr>
-      <tr><td><a href="../reports/dpo.html">Direct Preference Optimization</a><small>AC 估计 5</small></td><td>NeurIPS 2023</td><td class="num">4.33 /6</td><td>录用（oral）</td></tr>
-      <tr><td><a href="../reports/llava.html">LLaVA-1.5: Improved Baselines with Visual Instruction Tuning</a><small>AC 估计 4（weak accept）</small></td><td>CVPR 2024</td><td class="num">3.33 /5</td><td>录用（highlight）</td></tr>
-      <tr><td><a href="../reports/weak.html">GlobalGate</a><small>虚构，故意埋了缺陷</small></td><td>ICLR</td><td class="num">1.33 /10</td><td>—</td></tr>
+      <tr><td><a href="../reports/mamba-revision.html">Mamba，v1 → v2</a><small>一轮修改，每版各评三轮</small></td><td>ICLR 2024</td><td class="num">7.67 → 7.89 /10</td><td>被拒 → 改投 COLM 2024 录用</td></tr>
+      <tr><td><a href="../reports/dpo.html">Direct Preference Optimization</a><small>AC 估计 5</small></td><td>NeurIPS 2023</td><td class="num">4.67 /6</td><td>录用（oral）</td></tr>
+      <tr><td><a href="../reports/llava.html">LLaVA-1.5: Improved Baselines with Visual Instruction Tuning</a><small>AC 估计 4（weak accept）</small></td><td>CVPR 2024</td><td class="num">3.67 /5</td><td>录用（highlight）</td></tr>
+      <tr><td><a href="../reports/weak.html">GlobalGate</a><small>虚构，故意埋了缺陷</small></td><td>ICLR</td><td class="num">1 /10</td><td>—</td></tr>
     </table>
-    <p class="sub" style="margin-top:20px">Mamba 被拒的版本和修改后的版本分数几乎没变，v1 修改清单里的每一项在 v2 中都再次被提出，包括真正的 ICLR 审稿人反复追问的误差范围。看不出变化时，工具会直接说“没有变化”。这些论文很可能在模型的训练数据里，分数会偏高，请当作流程示例，而不是准确度的证据。</p>
+    <p class="sub" style="margin-top:20px">Mamba 被拒的版本和修改后的版本，分数变化小于实测的随机误差，v1 修改清单里的每一项在 v2 中都再次被提出，包括真正的 ICLR 审稿人反复追问的误差范围。看不出变化时，工具会直接说“没有变化”。这些论文很可能在模型的训练数据里，分数会偏高，请当作流程示例，而不是准确度的证据。</p>
   </section>
 
   <section class="band" id="why">
