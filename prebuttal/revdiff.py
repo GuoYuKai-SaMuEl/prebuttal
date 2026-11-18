@@ -186,10 +186,17 @@ class RevisionDiff:
     plan: PlanCheck | None  # None when A has no plan
     # the panel means of each round (`repeats`); one or none for a single run
     round_means: tuple[list[float], list[float]] = ([], [])
+    # False when no reviewer (id · persona) is in both runs, though both have
+    # some: their weaknesses could not be compared at all
+    shared_reviewers: bool = True
 
     @property
     def same_scale(self) -> bool:
-        """Raw scores compare only on one scale (unknown scales are given the benefit)."""
+        """Raw scores compare only within one venue — ICLR and ICML both rate out
+        of 10 with other meanings — and on one scale (unknown scales are given
+        the benefit)."""
+        if (self.a.venue or "").lower() != (self.b.venue or "").lower():
+            return False
         return self.scale_a == self.scale_b or not (self.scale_a and self.scale_b)
 
     @property
@@ -375,6 +382,7 @@ def compute_diff(
         weaknesses_matched_by=matcher.label,
         plan=plan if plan is not None else check_plan(matcher, da, db),
         round_means=(_round_means(aa), _round_means(ab)),
+        shared_reviewers=bool(both) or not (ra and rb),
     )
 
 
@@ -439,7 +447,11 @@ def render_diff_markdown(d: RevisionDiff) -> str:
         once = once or any(kb > 1 and w.seen_b == 1 for w in mv.persists + mv.new)
         out.append("")
     if not d.weaknesses:
-        out.append("(no weaknesses reported in either run)")
+        out.append(
+            "(no reviewer is in both runs (id · persona): weaknesses cannot be compared)"
+            if not d.shared_reviewers
+            else "(no weaknesses reported in either run)"
+        )
         out.append("")
 
     if d.plan is not None:

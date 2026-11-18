@@ -15,7 +15,7 @@ from . import __version__
 from .noise import check_noise
 from .plantrack import project_plan
 from .report import report_from_dict
-from .runs import ProjectSummary, RunRecord, retried, revisions, runs_root
+from .runs import ProjectSummary, RunRecord, comparable, revisions, runs_root
 from .share import render_share_html
 from .venues import venue_from_report
 
@@ -60,7 +60,15 @@ def _fraction(r: RunRecord) -> float | None:
 def _sparkline(runs: list[RunRecord]) -> str:
     """Score trend, oldest → newest, as a fraction of each venue's scale (one
     point per version: not the run a retry completes)."""
-    pts = [(r, f) for r in reversed(revisions(runs)) if (f := _fraction(r)) is not None]
+    versions = revisions(runs)
+    # one line, one venue: the runs since the newest one's venue was last
+    # changed (an ICLR 8 and an ICML 8 are not two points of one trend)
+    same = []
+    for r in versions:
+        if not comparable(r, versions[0]):
+            break
+        same.append(r)
+    pts = [(r, f) for r in reversed(same) if (f := _fraction(r)) is not None]
     if len(pts) < 2:
         return ""
     w, h, pad = 220, 48, 5
@@ -93,15 +101,16 @@ def _score(r: RunRecord) -> str:
 
 
 def _delta(p: ProjectSummary) -> str:
-    b = p.runs[0] if p.runs else None
-    # a retry completes the same paper: compare with the run before it
-    a = b and next((r for r in p.runs[1:] if r.id not in retried(p.runs, b.retry_of)), None)
+    # the newest version and the one before, as every view counts them
+    versions = revisions(p.runs)
+    b = versions[0] if versions else None
+    a = versions[1] if len(versions) > 1 else None
     if a is None or b is None:
         return ""
     fa, fb = _fraction(a), _fraction(b)
     if fa is None or fb is None or a.mean is None or b.mean is None:
         return ""
-    d = b.mean - a.mean if a.scale == b.scale else None
+    d = b.mean - a.mean if comparable(a, b) else None
     if d is None:
         return '<span class="delta">venue changed</span>'
     n = check_noise(a.mean, b.mean, a.round_means or [], b.round_means or [], b.scale or 10)

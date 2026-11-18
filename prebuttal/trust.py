@@ -42,18 +42,20 @@ def _load() -> dict[str, str]:
     return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
 
 
-def is_trusted(path: str) -> bool:
+def is_trusted(path: str, digest: str = "") -> bool:
+    """``digest``: the sha256 of the content the settings were parsed from
+    (``RunConfig.config_sha256``), so the file cannot change in between."""
     try:
-        return _load().get(_key(path)) == _digest(path)
+        return _load().get(_key(path)) == (digest or _digest(path))
     except OSError:
         return False
 
 
-def remember(path: str) -> None:
+def remember(path: str, digest: str = "") -> None:
     """Best-effort: a failure only means the question comes back next time."""
     try:
         data = _load()
-        data[_key(path)] = _digest(path)
+        data[_key(path)] = digest or _digest(path)
         make_private_dir(runs_root())
         atomic_write(_store(), json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     except OSError:

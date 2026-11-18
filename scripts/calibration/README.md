@@ -26,6 +26,12 @@ python scripts/calibration/calibrate.py \
     --venue-id ICLR.cc/2024/Conference --venue iclr -n 20 --out-dir calib_out
 ```
 
+`--venue` must be the conference of `--venue-id` — the built-in form, or a
+custom venue named after it (`prebuttal venues new iclr-2024 --from iclr`) for
+a year whose rating scale differs from today's. Checking that the custom
+form's scale matches that year's reviews is up to you: the script only checks
+the conference.
+
 Cost note: 20 papers x (3 reviewers + AC) full runs. Use a `prebuttal.toml`
 with cheap/free backends (Gemini free tier, agent CLIs) and a fixed `seed`
 for reproducibility.

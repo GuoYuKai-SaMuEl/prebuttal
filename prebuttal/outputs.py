@@ -52,6 +52,9 @@ def run_folder_name(venue: str, stamp: float | None = None) -> str:
     return time.strftime("%Y-%m-%d_%H%M", t) + f"_{venue}"
 
 
+_FORMATS = ("md", "html", "json")
+
+
 def write_local(
     root: Path, project: str, venue: str, files: dict[str, str]
 ) -> tuple[Path, list[Path]]:
@@ -59,8 +62,13 @@ def write_local(
 
     Returns (run folder, written report paths). Raises OSError.
     """
+    # a new or empty report folder gets a .gitignore, so reviews of unpublished
+    # work stay out of version control; a folder that already holds files may
+    # be one the user commits on purpose, and is left as it is
     if not root.exists():
         root.mkdir(parents=True)
+        (root / ".gitignore").write_text(_GITIGNORE, encoding="utf-8")
+    elif root.is_dir() and not any(root.iterdir()):
         (root / ".gitignore").write_text(_GITIGNORE, encoding="utf-8")
     proj_dir = root / project
     proj_dir.mkdir(parents=True, exist_ok=True)
@@ -80,4 +88,9 @@ def write_local(
         path.write_text(text, encoding="utf-8")
         written.append(path)
         (proj_dir / f"latest.{fmt}").write_text(text, encoding="utf-8")
+    # a latest.* of a format this run did not write belongs to an older run:
+    # a script reading latest.json must not take it for this one
+    for fmt in _FORMATS:
+        if fmt not in files:
+            (proj_dir / f"latest.{fmt}").unlink(missing_ok=True)
     return run_dir, written

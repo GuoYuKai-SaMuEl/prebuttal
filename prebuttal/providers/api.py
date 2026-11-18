@@ -139,9 +139,9 @@ class OpenAIProvider(_HTTPProvider):
         )
         try:
             text = data["choices"][0]["message"]["content"] or ""
-            u = data.get("usage", {})
+            u = data.get("usage") or {}
             usage = Usage(u.get("prompt_tokens", 0), u.get("completion_tokens", 0))
-        except (KeyError, IndexError, TypeError) as e:
+        except (KeyError, IndexError, TypeError, AttributeError) as e:
             raise ProviderError(f"unexpected OpenAI response shape: {str(data)[:300]}") from e
         return text, usage
 
@@ -196,7 +196,7 @@ class OpenRouterProvider(_HTTPProvider):
             text = content or ""
             u = data.get("usage") or {}
             usage = Usage(u.get("prompt_tokens", 0), u.get("completion_tokens", 0))
-        except (KeyError, IndexError, TypeError) as e:
+        except (KeyError, IndexError, TypeError, AttributeError) as e:
             raise ProviderError(f"unexpected OpenRouter response shape: {str(data)[:300]}") from e
         if not text.strip():
             finish = choice.get("finish_reason", "")
@@ -249,9 +249,9 @@ class AnthropicProvider(_HTTPProvider):
         )
         try:
             text = "".join(b.get("text", "") for b in data["content"])
-            u = data.get("usage", {})
+            u = data.get("usage") or {}
             usage = Usage(u.get("input_tokens", 0), u.get("output_tokens", 0))
-        except (KeyError, TypeError) as e:
+        except (KeyError, TypeError, AttributeError) as e:
             raise ProviderError(f"unexpected Anthropic response shape: {str(data)[:300]}") from e
         return text, usage
 
@@ -299,9 +299,9 @@ class GeminiProvider(_HTTPProvider):
         try:
             cand = data["candidates"][0]
             text = "".join(p.get("text", "") for p in cand["content"]["parts"])
-            u = data.get("usageMetadata", {})
+            u = data.get("usageMetadata") or {}
             usage = Usage(u.get("promptTokenCount", 0), u.get("candidatesTokenCount", 0))
-        except (KeyError, IndexError, TypeError) as e:
+        except (KeyError, IndexError, TypeError, AttributeError) as e:
             raise ProviderError(f"unexpected Gemini response shape: {str(data)[:300]}") from e
         return text, usage
 

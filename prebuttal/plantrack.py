@@ -26,7 +26,7 @@ from .revdiff import (
     check_plan,
     plan_items,
 )
-from .runs import RunRecord, _load_run_json, retried
+from .runs import RunRecord, _load_run_json, revisions, version_key, version_of_id
 
 TRACK_FILE = "plan-track.json"
 TRACK_SCHEMA = 1
@@ -63,11 +63,9 @@ def _followed(runs: Iterable[RunRecord]) -> list[RunRecord]:
     """The runs a plan is followed through (newest first): those whose AC
     finished, less any run a finished `prebuttal retry` completed: the retry
     has the same paper with the missing reviews, so it is not a revision of it."""
-    runs = list(runs)
-    done = [r for r in runs if ac_finished(r)]
-    # a retry whose AC failed was retried again: the last one completes both
-    replaced = {x for r in done if r.retry_of for x in retried(runs, r.retry_of)}
-    return [r for r in done if r.id not in replaced]
+    # one per version (runs.revisions): a retry whose AC failed, retried
+    # again, or two retries of one run, are one version of the paper
+    return revisions(list(runs), keep=ac_finished)
 
 
 def plan_base(earlier: Iterable[RunRecord], skip: str | None = None) -> RunRecord | None:
@@ -75,8 +73,8 @@ def plan_base(earlier: Iterable[RunRecord], skip: str | None = None) -> RunRecor
     first, same project) that :func:`_followed` keeps, other than ``skip``
     (the run a retry completes, and any run that one retried)."""
     earlier = list(earlier)
-    gone = retried(earlier, skip)
-    return next((r for r in _followed(earlier) if r.id not in gone), None)
+    gone = version_of_id(earlier, skip) if skip else None
+    return next((r for r in _followed(earlier) if version_key(earlier, r) != gone), None)
 
 
 def _plans_key(da: dict, db: dict) -> str:
@@ -110,6 +108,8 @@ def track_from_check(a: RunRecord, b: RunRecord, pc: PlanCheck, key: str) -> Pla
 def _load(b: RunRecord) -> PlanTrack | None:
     try:
         data = json.loads((b.dir_path / TRACK_FILE).read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
         data.pop("schema", None)
         track = PlanTrack(**data)
     except (OSError, ValueError, TypeError):

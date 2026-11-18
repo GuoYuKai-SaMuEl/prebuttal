@@ -13,7 +13,8 @@ import os
 import stat
 from pathlib import Path
 
-from .runs import make_private_dir, runs_root
+from .projects import atomic_write
+from .runs import make_private_dir, runs_root, store_lock
 
 # friendly name -> environment variable (accept either, case-insensitively)
 KEY_MAP = {
@@ -66,10 +67,10 @@ def _serialize(data: dict[str, str]) -> str:
 
 
 def _write_keys_file(p: Path, text: str) -> None:
-    # O_CREAT with 0o600 (POSIX); on Windows the user profile already isolates it
-    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(text)
+    # a temp file + rename: an interrupted write never leaves an empty keys
+    # file.  mkstemp creates it 0o600 (POSIX); on Windows the user profile
+    # already isolates it
+    atomic_write(p, text)
     with contextlib.suppress(OSError):  # pragma: no cover - e.g. some filesystems
         os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
 
@@ -80,23 +81,26 @@ def store_key(var: str, value: str) -> None:
         raise KeyError_("refusing to store an empty key")
     if any(c.isspace() for c in value):  # a pasted line break would forge a second entry
         raise KeyError_("refusing a key that contains spaces or line breaks")
-    data = _read_all()
-    data[var] = value
     p = keys_path()
     make_private_dir(p.parent)
-    _write_keys_file(p, _serialize(data))
+    # two `key set` at once must not drop each other's key (read-modify-write)
+    with store_lock(required=True):
+        data = _read_all()
+        data[var] = value
+        _write_keys_file(p, _serialize(data))
 
 
 def unset_key(var: str) -> bool:
-    data = _read_all()
-    if var not in data:
-        return False
-    del data[var]
     p = keys_path()
-    if not data:
-        p.unlink(missing_ok=True)
-        return True
-    _write_keys_file(p, _serialize(data))
+    with store_lock(required=True):
+        data = _read_all()
+        if var not in data:
+            return False
+        del data[var]
+        if not data:
+            p.unlink(missing_ok=True)
+            return True
+        _write_keys_file(p, _serialize(data))
     return True
 
 

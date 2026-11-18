@@ -29,7 +29,7 @@ import subprocess
 import tempfile
 
 from .. import keys as key_store
-from ..models import Usage
+from ..models import Usage, token_count
 from .base import BaseProvider, ProviderError, TransientProviderError, strip_ansi
 
 # Command-line arg length safety margin (Windows ~32k; stay well under).
@@ -327,11 +327,12 @@ class AgyProvider(AgentCLIProvider):
             raise TransientProviderError(
                 "agy gave no answer" + (f" (it tried a blocked tool: {denied})" if denied else "")
             )
-        usage = result.get("usage") or {}
+        usage = result.get("usage")
+        usage = usage if isinstance(usage, dict) else {}
         return text, Usage(
-            prompt_tokens=int(usage.get("input_tokens") or 0),
-            completion_tokens=int(usage.get("output_tokens") or 0)
-            + int(usage.get("thinking_tokens") or 0),
+            prompt_tokens=token_count(usage.get("input_tokens")),
+            completion_tokens=token_count(usage.get("output_tokens"))
+            + token_count(usage.get("thinking_tokens")),
         )
 
 

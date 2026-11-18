@@ -20,8 +20,9 @@ from .models import (
     Usage,
     dataclass_to_dict,
     param_support,
+    sha256_text,
 )
-from .venues import Venue
+from .venues import FORM_NOT_STORED, Venue
 
 HONESTY_NOTE = (
     "Prebuttal is a pre-submission stress test, not a score predictor. "
@@ -280,6 +281,11 @@ def _venue_json(venue: Venue) -> dict[str, Any]:
 
         out["custom"] = True
         out["definition"] = venue_to_spec(venue)
+        # the form text itself is not kept; its hash lets `retry` refuse an edited
+        # one (a venue rebuilt from a report has no form to hash)
+        form = venue.form_text()
+        if form != FORM_NOT_STORED:
+            out["form_sha256"] = sha256_text(form)
     return out
 
 
@@ -311,7 +317,23 @@ def _meta_from(d: dict[str, Any]) -> MetaReview:
 
 
 def report_from_dict(d: dict[str, Any]) -> ReviewReport:
-    """Rebuild a report from its ``report.json`` (enough to re-render HTML)."""
+    """Rebuild a report from its ``report.json`` (enough to re-render HTML).
+
+    Raises ValueError for JSON that is not a report (``null``, a list, a
+    missing or mistyped section), so every command that reads one — show,
+    diff, retry, the dashboard — says so in one line."""
+    if not isinstance(d, dict):
+        raise ValueError(f"report.json holds {type(d).__name__}, not a report")
+    for key, kind in (("reviewers", list), ("meta", dict), ("aggregate", dict), ("run", dict)):
+        if not isinstance(d.get(key), kind):
+            raise ValueError(f"report.json has no valid '{key}' section")
+    try:
+        return _report_from_dict(d)
+    except (KeyError, TypeError, AttributeError) as e:
+        raise ValueError(f"report.json is malformed ({type(e).__name__}: {e})") from None
+
+
+def _report_from_dict(d: dict[str, Any]) -> ReviewReport:
     venue = d.get("venue")
     p = d.get("paper") or {}
     paper = StructuredPaper(

@@ -376,6 +376,10 @@ def get_venue(name: str) -> Venue:
     )
 
 
+# the form of a custom venue rebuilt from a report, which keeps only its hash
+FORM_NOT_STORED = "(review form not stored in the report)"
+
+
 def venue_from_report(d: dict) -> Venue:
     """The venue a stored ``report.json`` was written for.
 
@@ -389,5 +393,5 @@ def venue_from_report(d: dict) -> Venue:
     # a stored definition wins: a custom venue may share a name built in later (cvpr)
     if isinstance(spec, dict):
         # the form text is not stored: it is only needed to run a review
-        return custom.venue_from_spec(key, spec, form="(review form not stored in the report)")
+        return custom.venue_from_spec(key, spec, form=FORM_NOT_STORED)
     return get_venue(key)

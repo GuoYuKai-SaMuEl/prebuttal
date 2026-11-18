@@ -30,6 +30,7 @@ from .models import (
     RunInfo,
     StructuredPaper,
     Usage,
+    figures_digest,
     make_aggregate,
     sha256_text,
     slot_label,
@@ -265,15 +266,28 @@ def _to_number(v) -> float | None:
     return None
 
 
+def _scalar_text(v: Any) -> str:
+    if isinstance(v, str):
+        return v.strip()
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return str(v)
+    return ""
+
+
+def _has_text(fields: dict, venue: Venue) -> bool:
+    """A review says something besides its scores (``{"rating": 8}`` does not)."""
+    return any(fields.get(f.key) for f in venue.fields if f.kind in ("text", "list"))
+
+
 def coerce_fields(payload: dict, venue: Venue) -> dict:
     fields: dict = {}
     for f in venue.fields:
         v = payload.get(f.key)
-        if f.kind == "text":
-            fields[f.key] = str(v).strip() if isinstance(v, str) else ("" if v is None else str(v))
+        if f.kind == "text":  # text or a number: an object is not a summary
+            fields[f.key] = _scalar_text(v)
         elif f.kind == "list":
-            if isinstance(v, list):
-                fields[f.key] = [str(x).strip() for x in v if str(x).strip()]
+            if isinstance(v, list):  # strings only: a null item is not the text "None"
+                fields[f.key] = [x.strip() for x in v if isinstance(x, str) and x.strip()]
             elif isinstance(v, str) and v.strip():
                 fields[f.key] = [v.strip()]
             else:
@@ -543,19 +557,26 @@ def run_one_reviewer(
     def is_review(o: dict) -> bool:  # a review, not a weakness inside one
         return not keys.isdisjoint(o)
 
-    def scored(o: dict) -> bool:  # and with a rating: else it is repaired once
-        return is_review(o) and coerce_fields(o, venue).get(venue.rating_key) is not None
+    def scored(o: dict) -> bool:  # with a rating and some text: else it is repaired once
+        if not is_review(o):
+            return False
+        fields = coerce_fields(o, venue)
+        return fields.get(venue.rating_key) is not None and _has_text(fields, venue)
 
     payload = parse_or_repair(
         provider, system, text, seed, cfg.max_tokens, review.usage,
-        want=scored, required=f'valid "{venue.rating_key}"',
+        want=scored, required=f'valid "{venue.rating_key}" and the review text',
     )  # fmt: skip
     review.duration_s = time.monotonic() - t0
     review.raw_output = text[:_RAW_CAP]
 
     if payload is None:  # a review without a score fails too, so `retry` redoes it
         review.parse_ok = False
-        if extract_json_object(text, is_review) is not None:
+        found = extract_json_object(text, is_review)
+        if found is not None and coerce_fields(found, venue).get(venue.rating_key) is not None:
+            review.error = "the review has a score but no text"
+            log(f"[{tag}] completed but the review has no text")
+        elif found is not None:
             review.error = f"the review has no usable {venue.rating_key}"
             log(f"[{tag}] completed but the review has no {venue.rating_key}")
         else:
@@ -686,6 +707,32 @@ def run_reviews(
 _AC_KEYS = frozenset({"meta_review", "estimated_rating", "recommendation", "action_plan"})
 
 
+def _text(v: Any) -> str:
+    """A text field; null or a non-string is no text (not ``"None"``)."""
+    return v.strip() if isinstance(v, str) else ""
+
+
+def _meta_content(
+    o: dict, venue: Venue, reviewer_ids: list[str]
+) -> tuple[str, float | None, list[ActionItem]]:
+    """(meta-review, estimated rating, plan) as the report will keep them."""
+    return (
+        _text(o.get("meta_review")),
+        _clamp_score(_to_number(o.get("estimated_rating")), venue),
+        coerce_action_plan(o.get("action_plan"), reviewer_ids),
+    )
+
+
+def _usable_meta(o: dict, venue: Venue, reviewer_ids: list[str]) -> bool:
+    """A meta-review with content, by the same reading the report applies: key
+    names alone (``{"meta_review": ""}``, ``"action_plan": [null]``) are not
+    one, and must not mark the AC finished so `retry` skips it."""
+    if _AC_KEYS.isdisjoint(o):
+        return False
+    text, rating, plan = _meta_content(o, venue, reviewer_ids)
+    return bool(text or plan or rating is not None)
+
+
 def run_meta(
     cfg: RunConfig,
     venue: Venue,
@@ -704,6 +751,7 @@ def run_meta(
     t0 = time.monotonic()
     log(f"[AC] synthesizing via {provider.describe()}")
     system = build_ac_system(venue)
+    ids = [r.reviewer_id for r in reviews]
     max_tokens = min(cfg.max_tokens, 6000)  # meta-review + revision plan
     try:
         comp = provider.complete(
@@ -725,7 +773,9 @@ def run_meta(
     meta.usage = comp.usage
     payload = parse_or_repair(
         provider, system, comp.text, cfg.seed, max_tokens, meta.usage,
-        want=lambda o: not _AC_KEYS.isdisjoint(o),  # not one plan item of a broken answer
+        # not one plan item of a broken answer, nor an empty shell
+        want=lambda o: _usable_meta(o, venue, ids),
+        required="meta_review",
     )  # fmt: skip
     meta.duration_s = time.monotonic() - t0
     meta.raw_output = comp.text[:_RAW_CAP]
@@ -734,15 +784,15 @@ def run_meta(
         log("[AC] output was not valid JSON")
         return meta
 
-    meta.parse_ok = True
-    meta.meta_review = str(payload.get("meta_review", "")).strip()
-    meta.estimated_rating = _clamp_score(_to_number(payload.get("estimated_rating")), venue)
+    meta.meta_review, meta.estimated_rating, meta.action_plan = _meta_content(payload, venue, ids)
     meta.confidence = _clamp_score(_to_number(payload.get("confidence")), max_val=5.0)
-    meta.recommendation = str(payload.get("recommendation", "")).strip()
-    meta.disagreements = str(payload.get("disagreements", "")).strip()
-    meta.action_plan = coerce_action_plan(
-        payload.get("action_plan"), [r.reviewer_id for r in reviews]
-    )
+    meta.recommendation = _text(payload.get("recommendation"))
+    meta.disagreements = _text(payload.get("disagreements"))
+    if not _usable_meta(payload, venue, ids):
+        meta.error = "the meta-review JSON had no meta-review, rating or plan"
+        log(f"[AC] {meta.error}")
+        return meta
+    meta.parse_ok = True
     log(f"[AC] done in {meta.duration_s:.0f}s")
     return meta
 
@@ -770,8 +820,8 @@ def coerce_action_plan(raw: Any, reviewer_ids: list[str]) -> list[ActionItem]:
     for entry in raw:
         if not isinstance(entry, dict):
             continue
-        issue = str(entry.get("issue") or "").strip()
-        action = str(entry.get("action") or "").strip()
+        # text, or nothing: an object here is not an issue the author can act on
+        issue, action = _text(entry.get("issue")), _text(entry.get("action"))
         if not issue:
             continue
         word = re.match(r"[a-z]+", str(entry.get("priority") or "").strip().lower())
@@ -960,6 +1010,7 @@ def assemble_report(
         source_type=paper.source_type,
         pack_chars=len(pack),
         pack_sha256=sha256_text(pack),
+        figures_sha256=figures_digest(paper.figure_images),
         config_path=cfg.config_path,
     )
     return ReviewReport(

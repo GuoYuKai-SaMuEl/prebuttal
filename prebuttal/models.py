@@ -13,12 +13,28 @@ from typing import Any
 from . import __version__
 
 
+def token_count(v: Any) -> int:
+    if isinstance(v, bool):
+        return 0
+    try:
+        n = int(v)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return max(n, 0)
+
+
 @dataclass
 class Usage:
     """Token accounting. Agent-CLI backends do not report usage (0/0)."""
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
+
+    def __post_init__(self) -> None:
+        # a provider may report null, a string or a float: token counts must
+        # never be what stops a finished (and paid) run from being written
+        self.prompt_tokens = token_count(self.prompt_tokens)
+        self.completion_tokens = token_count(self.completion_tokens)
 
     def add(self, other: Usage) -> None:
         self.prompt_tokens += other.prompt_tokens
@@ -327,6 +343,9 @@ class RunInfo:
     source_type: str = ""
     pack_chars: int = 0
     pack_sha256: str = ""
+    # the figure images shown to the reviewers (labels and bytes); "" in runs
+    # archived before 0.7.0, a value (also for no images) since
+    figures_sha256: str = ""
     config_path: str | None = None
 
     @staticmethod
@@ -357,6 +376,13 @@ def dataclass_to_dict(obj: Any) -> Any:
     if isinstance(obj, (list, tuple)):
         return [dataclass_to_dict(v) for v in obj]
     return obj
+
+
+def figures_digest(images: list[FigureImage]) -> str:
+    """One hash over every figure image a reviewer saw, in order."""
+    return sha256_text(
+        "\n".join(f"{im.label}\t{hashlib.sha256(im.png).hexdigest()}" for im in images)
+    )
 
 
 def sha256_text(text: str) -> str:

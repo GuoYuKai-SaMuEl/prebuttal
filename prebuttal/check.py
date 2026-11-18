@@ -149,6 +149,8 @@ def check_pdf_bytes(data: bytes, rules: CheckRules, *, source: str = "") -> Chec
         sizes = [(float(p.width), float(p.height)) for p in pages]
         meta = doc.metadata or {}
         hidden = find_hidden_pdf_text(pages)
+    except Exception as e:  # opens, then breaks while being read: a bad input
+        raise CheckError(f"cannot read PDF: {type(e).__name__}: {e}") from e
     finally:
         doc.close()
     full = "\n".join(texts)
@@ -260,7 +262,17 @@ def _pdf_format(
         ln for ln in lines if any(_heading_matches(ln["text"], name) for name in rules.uncounted)
     ]
     if not ends:
-        result.skipped.append("page limit (no References heading found to end the main text)")
+        if len(sizes) > rules.page_limit:
+            # appendices make long PDFs common, so not an error — but not a pass
+            result.add(
+                WARNING,
+                "format",
+                f"{len(sizes)} pages, over the {rules.page_limit}-page limit, and no "
+                "References heading was found to tell where the main text ends — check "
+                "the page count by hand",
+            )
+        else:
+            result.passed.append(f"{len(sizes)} pages in all, within {rules.page_limit}")
         return
     # reading order: page, then column (left before right), then top to bottom
     end = min(ends, key=lambda ln: (ln["page"], ln["x"] > sizes[ln["page"]][0] / 2, ln["y"]))
@@ -278,13 +290,20 @@ def _pdf_format(
         >= 3
     )
     top = 0.07 * sizes[end["page"]][1]
+
+    # the same reading order as the heading was chosen by: in two columns, the
+    # left column comes before the right one whatever the heights, so the
+    # right column of a page whose References start on the left is after them
+    def right(ln: dict) -> bool:
+        return second_column and ln["x"] > width / 2
+
     before = [
         ln
         for ln in lines
         if ln["page"] == end["page"]
         and ln is not end
         and ln["y"] > top
-        and (ln["y"] < end["y"] - 2 or (second_column and ln["x"] < end["x"] - 100))
+        and ((right(ln) == right(end) and ln["y"] < end["y"] - 2) or (right(end) and not right(ln)))
     ]
     used = page if before else page - 1
     heading = " ".join(end["text"].split())
@@ -375,6 +394,10 @@ def _keys(found: list[str]) -> set[str]:
 
 _BIB_KEY = re.compile(r"@\s*[a-zA-Z]+\s*\{\s*([^,\s]+)\s*,")
 _BIBITEM = re.compile(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
+# where the bibliography comes from: BibTeX's \bibliography{a,b} (no
+# extension) and biblatex's \addbibresource{a.bib}
+_BIBLIOGRAPHY = re.compile(r"\\bibliography\s*\{([^{}]+)\}")
+_BIBRESOURCE = re.compile(r"\\add(?:bibresource|globalbib)\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 _TODO_CMD = re.compile(r"\\(?:todo|TODO|fixme|FIXME)\b")
 # venue styles that hide \author in their default (submission) mode; any
 # package or class loaded with a review / rebuttal / anonymous / blind option does too
@@ -480,7 +503,7 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
             f"\\ref to undefined label(s) — these print as ??: {', '.join(missing[:5])}"
             + (f" (+{len(missing) - 5} more)" if len(missing) > 5 else ""),
         )
-    _latex_citations(result, tex, path if path.is_dir() else root.parent)
+    _latex_citations(result, tex, root, path if path.is_dir() else root.parent)
     if _TODO_CMD.search(tex) or _TODO.search(tex):
         result.add(WARNING, "leftovers", f"{where}: \\todo / TODO / FIXME in the text")
     if not missing and not any(f.area == "leftovers" for f in result.findings):
@@ -499,16 +522,45 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
     return result
 
 
-def _latex_citations(result: CheckResult, tex: str, folder: Path) -> None:
+def _bib_files(tex: str, root: Path, allowed: Path) -> tuple[list[str], list[Path]]:
+    """(the bibliography files the main file loads, the files to read keys from).
+
+    The declared .bib files found in the paper's folder; only when there are
+    none, the main file's own .bbl (arXiv sources ship that instead) — next
+    to the .bib it is the output of an earlier build, which may lack keys
+    added since or keep ones that were removed."""
+    names = [n.strip() for m in _BIBLIOGRAPHY.findall(tex) for n in m.split(",")]
+    declared = [n if n.lower().endswith(".bib") else f"{n}.bib" for n in names if n]
+    declared += [n.strip() for n in _BIBRESOURCE.findall(tex) if n.strip()]
+
+    def inside(p: Path) -> bool:
+        return p.is_file() and p.resolve().is_relative_to(allowed)
+
+    bibs = [p for p in (root.parent / f for f in declared) if inside(p)]
+    bbl = root.with_suffix(".bbl")
+    return declared, bibs or ([bbl] if inside(bbl) else [])
+
+
+def _latex_citations(result: CheckResult, tex: str, root: Path, folder: Path) -> None:
     cited = _keys(_CITE.findall(tex))
     if not cited:
         return
     known = set(_BIBITEM.findall(tex))
     allowed = folder.resolve()
+    # only what the paper loads counts: a .bib elsewhere in the folder would
+    # hide a key that prints as [?].  A declared file that is not there may
+    # come from the TeX installation (IEEEabrv): the others still count
+    declared, candidates = _bib_files(tex, root, allowed)
+    if declared and not candidates:
+        result.add(
+            WARNING,
+            "leftovers",
+            f"the bibliography the paper loads ({', '.join(declared[:3])}) is not in the "
+            "project — citations were not checked; without it they print as [?]",
+        )
+        return
     sources = 0
-    for p in list(folder.rglob("*.bib")) + list(folder.rglob("*.bbl")):
-        if not p.resolve().is_relative_to(allowed):
-            continue
+    for p in candidates:
         sources += 1
         text = p.read_text(encoding="utf-8", errors="replace")
         known |= set(_BIB_KEY.findall(text)) | set(_BIBITEM.findall(text))

@@ -284,14 +284,14 @@ def test_a_retry_of_a_retry_whose_ac_failed_replaces_both(tmp_path):
     from dataclasses import replace
 
     from prebuttal.plantrack import plan_base
-    from prebuttal.runs import retried
+    from prebuttal.runs import version_key
 
     r1 = _rec(tmp_path, 1, _plan(SEED, BASE))
     r2 = _rec(tmp_path, 2, _plan(SEED))  # a reviewer was down
     no_ac = {**_plan(), "meta": {"parse_ok": False, "action_plan": []}}
     r3 = replace(_rec(tmp_path, 3, no_ac), retry_of=r2.id)  # reviews done, the AC failed
     r4 = replace(_rec(tmp_path, 4, _plan(SEED, WRITE)), retry_of=r3.id)
-    assert retried([r3, r2, r1], r3.id) == {r3.id, r2.id}
+    assert version_key([r3, r2, r1], r3) == version_key([r3, r2, r1], r2) == r2.id
     plan = project_plan([r4, r3, r2, r1])
     assert plan is not None and plan.previous is r1
     assert plan_base([r3, r2, r1], skip=r3.id) is r1  # what the run summary follows

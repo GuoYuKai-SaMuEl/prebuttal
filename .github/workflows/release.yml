@@ -44,7 +44,10 @@ jobs:
           mkdir /tmp/sdist && tar xzf dist/*.tar.gz -C /tmp/sdist
           cd /tmp/sdist/prebuttal-*
           python -m pip install "$GITHUB_WORKSPACE"/dist/*.whl pytest reportlab
-          python -m pytest -q
+          # the installed wheel, not this source tree: `python -m pytest` would put
+          # the current folder first on sys.path, the pytest command does not
+          (cd / && python -c "import prebuttal; assert 'site-packages' in prebuttal.__file__, prebuttal.__file__")
+          pytest -q
       - uses: actions/upload-artifact@v4
         with:
           name: dist

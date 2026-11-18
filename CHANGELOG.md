@@ -37,6 +37,8 @@ releases (0.2, 0.3, …) are substantial new features.
   back, a weakness raised in one round only, ratings not noise-checked);
   section headers just say how items were matched.
 - `revdiff.Matcher` is no longer exported: the matchers are internal.
+- Pillow's floor is 9.3, the first release with Python 3.11 wheels, and is
+  now tested by the oldest-dependencies CI job.
 - The built-in price table drops models that are shut down or retire
   within weeks: `gemini-2.0-flash`, `gemini-2.5-flash`, `claude-sonnet-4-5`,
   `gpt-4.1-mini` and `gpt-4o-mini`. A run on one of them shows "unknown
@@ -173,6 +175,121 @@ releases (0.2, 0.3, …) are substantial new features.
 - relay: a responder that paused mid-answer for longer than one poll had
   its half-written answer taken; a non-JSON answer now has to stay
   unchanged for 5 s.
+- Scores of two venues on the same scale were compared: ICLR and ICML both
+  rate out of 10, with other meanings. `prebuttal diff`, the `Change:` line,
+  the dashboard and the `trend` of `prebuttal projects` now need one venue.
+- `prebuttal retry` could merge reviews of different inputs into one report.
+  Before any paid call it now refuses a `pack.md` whose hash differs from
+  the one the report recorded, figure images missing or replaced (they used
+  to be dropped silently, all of them), and a custom venue whose form text
+  changed; reports record the figures' and the form's hashes from now on.
+  It also runs with what the run recorded rather than the current folder's
+  `prebuttal.toml`: the same `max_tokens` and `budget_chars`, a custom venue
+  from the file the run used (found by its path, not only its name), and a
+  custom agent only if its command is unchanged. An archive of a reviewer
+  named `AC` (allowed before) can be retried. Only the custom agents it will
+  run are checked, a damaged `resolved-config.json` or `pack.md` stops it
+  with one line rather than being read as an old archive or a traceback, and
+  a custom venue given by a relative path is found from any folder.
+- A review with a score and no text (`{"rating": 8}`) counted as finished,
+  and a list holding `null` was kept as the text `None`; such a review gets
+  the repair pass, then counts as failed. A plan item whose issue is not
+  text is dropped.
+- A backend answering with something other than text (a list, an object)
+  crashed `prebuttal diff` instead of falling back to matching by wording;
+  it is a backend error now, wherever it happens.
+- An area chair answer with the right key names and nothing in them
+  (`{"meta_review": ""}`, `"action_plan": [null]`) counted as finished, so
+  `retry` saw nothing to redo, and a null meta-review was kept as the text
+  `None`; it gets the repair pass, then counts as failed.
+- A provider reporting token usage as `null` or a string crashed the run
+  after every review had finished, before anything was written; token
+  counts of any type now read as a number or 0.
+- A run whose title or note held a Unicode line separator (U+2028, U+0085)
+  dropped out of the run history: the history file is now split on line
+  feeds only.
+- `prebuttal check` on LaTeX counted keys from any `.bib` in the folder; a
+  key found only in a file the paper does not load prints as [?]. It now
+  reads only the files named in `\bibliography{}` / `\addbibresource{}`, and
+  the main file's `.bbl` only when none of them is there (an arXiv source):
+  next to the `.bib`, a `.bbl` from an earlier build could hide a key the
+  next build will not find. With neither, it warns that citations were not
+  checked.
+- `prebuttal check` on a PDF over the page limit with no References heading
+  passed with the page count "skipped"; it now warns that the main text's
+  end could not be found. A PDF that breaks while being read is a one-line
+  error, not a traceback.
+- A LaTeX project with `main.tex` (or `paper.tex`, …) at the root and
+  another in a subfolder could be read from the subfolder's; the shallowest
+  one wins, whatever its name among the usual ones. Only a file with
+  `\documentclass` is taken for the paper when there is one (a `main.tex`
+  that is a chapter of `manuscript.tex` is not), and a `.tex` that links
+  outside the folder is not even opened to look for it.
+- A PDF that opens but breaks while being read now stops with one line
+  (`cannot read paper.pdf: …`) instead of a traceback.
+- `prebuttal projects rename` onto a name used only by older run history
+  merged two papers' runs; it is refused now. The registry and the history
+  change under one lock, and a failed registry write undoes the history's;
+  a run that was reviewing during the rename is archived under the new name.
+- After `prebuttal rm` of a project's newest run, the next run took its
+  number again, so an old `mamba#4` pointed at another report. The registry
+  keeps the highest number given, also for projects registered before;
+  numbers are never reused. A renamed project's old name is not given to
+  another paper — automatically, by `--project` (which then means the renamed
+  project) or by a rename — so a run still holding it lands in the right
+  project.
+- `prebuttal check` on a two-column PDF counted a page whose References start
+  in the left column as main text when the right column began higher up.
+- `prebuttal diff` of two runs with no reviewer in common (id · persona)
+  said neither raised a weakness; it says they cannot be compared.
+- A review field of the wrong type (an object as the summary) counted as
+  text; a retry's archived settings of the wrong type are a damaged archive,
+  not a reason to use the current ones; a `report.json` of the wrong shape,
+  and a custom venue's `rating` that is not a field name, are one-line
+  errors instead of tracebacks.
+- Writing fewer formats than the previous run left that run's `latest.json`
+  (or `.html`) beside the new `latest.md`; it is removed.
+- `prebuttal rm` reported a run deleted when its folder could not be (a file
+  held open on Windows), and dropped it from the history, leaving no way to
+  try again. A run is now listed until its files are gone, and `rm` says
+  which are left. Files are deleted outside the history lock, so a slow
+  disk cannot make a run being archived meanwhile skip the lock.
+- Retries were counted differently by each view: two retries of one run
+  were two versions in trends but one in `diff`, and a retry of v1 made after
+  v2 plotted as the newest score. Trends, `diff`, the `Change:` line, the
+  dashboard and the revision plan now share one rule: a run and all its
+  retries are one version, the newest stands for it, and versions keep the
+  order of their first run. A retry records that first run (`version` in the
+  history), so deleting a retry in between keeps the others together.
+- A report folder that already existed, empty, got no `.gitignore`; it does
+  now. A folder that holds files is still left as it is.
+- `prebuttal key set` / `unset` run under the store lock and replace the file
+  atomically: two at once no longer drop a key, an interrupted write no
+  longer leaves an empty file.
+- A reviewer with `id = "AC"` took the area chair's effort and, in `retry`,
+  its backend; the id is reserved now.
+- A registry, plan-track file or model listing that is valid JSON of the
+  wrong shape (`null`, a list) no longer crashes `projects`, the plan check
+  or `prebuttal backends <name>`.
+- The GitHub Action used in one job at two refs ran the first ref's version
+  for both; each ref gets its own venv.
+- `scripts/calibration/calibrate.py` refuses a `--venue` of another
+  conference than `--venue-id` (a custom venue named after it, `iclr-2024`,
+  counts), and an untrusted `prebuttal.toml` found in the current folder
+  (pass it with `--config`). It now reviews as `prebuttal run` does, with
+  each role's `effort` and `figures`.
+- The dashboard's trend line joined scores of different venues; it now
+  follows only the newest run's venue.
+- A `prebuttal.toml` is trusted for the content its settings were parsed
+  from, not the file as it is a moment later.
+- Model listings and the project registry with a nested field of the wrong
+  type (`supportedGenerationMethods: null`, `pricing: null`, `sources: null`)
+  no longer crash.
+- CI and the release workflow check the built wheel from outside the source
+  tree, so a file missing from the wheel is no longer hidden by the checkout.
+- `budget_chars` is described as what it is, a target for the paper text:
+  tables are kept whole, so the pack can be longer. `--dry-run` says when it
+  is, and that with `compress` its size is the one before summaries.
 
 ## [0.6.1] — 2026-11-09
 

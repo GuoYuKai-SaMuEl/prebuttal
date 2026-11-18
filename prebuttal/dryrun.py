@@ -83,7 +83,8 @@ def render_dry_run(
     lines.append("")
     lines.append("Paper pack")
     lines.append(
-        f"  {pack_chars:,} chars ≈ {pack_tok:,} tokens (budget {cfg.budget_chars:,} chars)"
+        f"  {pack_chars:,} chars ≈ {pack_tok:,} tokens (budget {cfg.budget_chars:,} chars"
+        + (" — over it: tables are always kept whole)" if pack_chars > cfg.budget_chars else ")")
     )
     lines.append(f"  per reviewer ≈ {in_tok:,} in + ~{out_tok:,} out tokens")
     if cfg.figures:
@@ -94,7 +95,8 @@ def render_dry_run(
     if cfg.compress:
         lines.append(
             "  compress: sections cut to fit the budget are first summarized by the AC's "
-            "backend (one call each, not in the estimate below)"
+            "backend (one call each, not in the estimate below); the size above is the "
+            "estimate before those summaries"
         )
     lines.append("")
     lines.append("Cost estimate (indicative — see [pricing] overrides)")

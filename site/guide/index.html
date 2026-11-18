@@ -297,11 +297,11 @@ model = "opus"</pre>
 <tr class="group"><th colspan="3"><code>[default]</code> — settings for every run</th></tr>
 <tr><td><code>venue</code></td><td><code>&quot;neurips&quot;</code></td><td>The review form for <code>run</code> and the rules for <code>check</code>: <code>neurips</code>, <code>iclr</code>, <code>icml</code>, <code>acl</code>, <code>cvpr</code>, a custom venue's name, or a venue <code>.toml</code> path (relative to this file).</td></tr>
 <tr><td><code>seed</code></td><td><code>42</code></td><td>Recorded in every report; reviewer <em>n</em> gets seed + <em>n</em> unless it sets its own. It stays the same across runs, so change it for a fresh draw.</td></tr>
-<tr><td><code>budget_chars</code></td><td><code>120000</code></td><td>The most paper text one reviewer reads, in characters. Tables are always kept.</td></tr>
+<tr><td><code>budget_chars</code></td><td><code>120000</code></td><td>The target for the paper text one reviewer reads, in characters: sections are cut to fit it. Tables are always kept whole, so the final pack can be longer.</td></tr>
 <tr><td><code>effort</code></td><td><code>unset</code></td><td>Reasoning effort, <code>low</code> | <code>medium</code> | <code>high</code>. Unset leaves each model at its provider's default; models without the control skip it.</td></tr>
 <tr><td><code>figures</code></td><td><code>false</code></td><td>Also show figures as images to reviewers on the vision-capable API backends (about 1.5k tokens each). Other backends keep the captions.</td></tr>
 <tr><td><code>max_figures</code></td><td><code>6</code></td><td>Images per reviewer, 1–20.</td></tr>
-<tr><td><code>repeats</code></td><td><code>1</code></td><td>Advanced: every reviewer reviews this many times, 1–5, to measure how much the scores move by chance. Round k adds 1000·k to the seed. Costs that many times the reviewer calls; the AC still runs once, over all rounds.</td></tr>
+<tr><td><code>repeats</code></td><td><code>1</code></td><td>Advanced: every reviewer reviews this many times, 1–5, to measure how much the scores move by chance. Round <em>k</em> adds 1000·<em>k</em> to the seed. Costs that many times the reviewer calls; the AC still runs once, over all rounds.</td></tr>
 <tr><td><code>compress</code></td><td><code>false</code></td><td>When the paper is over <code>budget_chars</code>, summarize the cut sections with the AC's model instead of truncating them (extra model calls).</td></tr>
 <tr><td><code>max_tokens</code></td><td><code>6000</code></td><td>Output-token cap for each review.</td></tr>
 <tr><td><code>timeout_s</code></td><td><code>900</code></td><td>Seconds before a model call is given up.</td></tr>

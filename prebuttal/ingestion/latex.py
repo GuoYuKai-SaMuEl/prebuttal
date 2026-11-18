@@ -128,17 +128,29 @@ _GRAPHIC = re.compile(r"\\includegraphics\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 
 
 def find_root_tex(directory: Path) -> Path:
-    texs = sorted(directory.rglob("*.tex"))
+    allowed = directory.resolve()
+    # shallowest first: a root main.tex wins over sub/main.tex; a link that
+    # leads outside the folder is never read, not even to look for \documentclass
+    texs = sorted(
+        (t for t in directory.rglob("*.tex") if t.resolve().is_relative_to(allowed)),
+        key=lambda p: (len(p.parts), str(p).lower()),
+    )
     if not texs:
         raise LatexError(f"no .tex files found under {directory}")
-    by_name = {t.name.lower(): t for t in texs}
-    for preferred in ("main.tex", "paper.tex", "ms.tex", "article.tex", "root.tex"):
-        if preferred in by_name:
-            return by_name[preferred]
-    cands = [t for t in texs if "\\documentclass" in _read_text(t)]
-    if cands:
-        return min(cands, key=lambda p: (len(p.parts), str(p).lower()))
-    return texs[0]
+    # a whole document first (a main.tex may be a chapter that manuscript.tex
+    # inputs), then depth (a root paper.tex wins over supp/main.tex), then the
+    # usual names
+    preferred = ("main.tex", "paper.tex", "ms.tex", "article.tex", "root.tex")
+
+    def rank(p: Path) -> tuple[int, int, str]:
+        name = p.name.lower()
+        return (len(p.parts), preferred.index(name) if name in preferred else 99, str(p).lower())
+
+    docs = [t for t in texs if _DOCUMENTCLASS.search(_read_text(t))]
+    return min(docs or texs, key=rank)
+
+
+_DOCUMENTCLASS = re.compile(r"^[^%\n]*\\documentclass", re.M)
 
 
 # ------------------------------------------------------------------ brace tools

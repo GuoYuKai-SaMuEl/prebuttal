@@ -70,14 +70,14 @@ from .runs import (
     load_history,
     make_private_dir,
     previous_run,
+    previous_version,
     project_summaries,
-    rename_in_history,
     render_projects_table,
     render_runs_table,
     resolve_ref,
-    retried,
     save_run,
     set_note,
+    version_of_id,
 )
 from .share import render_share_html
 from .venues import VENUE_KEYS, VENUES, VenueError, get_venue
@@ -384,13 +384,9 @@ def cmd_projects(args) -> int:
         if args.old not in known:
             return _fail(f"no project '{args.old}' — see `prebuttal projects`")
         try:
-            new = rename_project(args.old, args.new)
+            new, n = rename_project(args.old, args.new)
         except (ProjectError, OSError) as e:
             return _fail(str(e))
-        try:
-            n = rename_in_history(args.old, new)
-        except OSError as e:
-            return _fail(f"cannot update the run history: {e}")
         print(f"renamed {args.old} → {new} ({n} run{'s' if n != 1 else ''})")
         print("Existing report folders keep their old name; new runs use the new one.")
         return EXIT_OK
@@ -405,7 +401,7 @@ def cmd_projects(args) -> int:
             delete_runs({r.id for r in runs})
             forget_project(args.name)
         except OSError as e:
-            return _fail(f"cannot update the run history: {e}")
+            return _fail(f"cannot delete project '{args.name}': {e}")
         print(f"deleted {what} (files under ./prebuttal-reports are left alone)")
         return EXIT_OK
 
@@ -487,9 +483,9 @@ def cmd_show(args) -> int:
 def _print_plan(rec, *, as_json: bool) -> int:
     try:
         data = json.loads((rec.dir_path / "report.json").read_text(encoding="utf-8"))
+        plan = report_from_dict(data).meta.action_plan
     except (OSError, ValueError) as e:
         return _fail(f"archived report.json for {rec.label} is unreadable ({e})")
-    plan = report_from_dict(data).meta.action_plan
     if as_json:
         print(json.dumps([dataclass_to_dict(it) for it in plan], indent=2, ensure_ascii=False))
         return EXIT_OK
@@ -602,7 +598,7 @@ def _model_matcher():
     if ac[0] == "relay":
         return None, "the AC's backend is relay, which needs someone to answer"
     concerns = trust.concerns(cfg, [ac], pinned=trust.pinned_by_file(None), relay=False)
-    if concerns and not trust.is_trusted(cfg.config_path or ""):
+    if concerns and not trust.is_trusted(cfg.config_path or "", cfg.config_sha256):
         return None, f"{cfg.config_path} is not trusted yet (`prebuttal run` asks once)"
     try:
         provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
@@ -660,7 +656,7 @@ def cmd_rm(args) -> int:
     try:
         n = delete_runs({r.id for r in recs})
     except OSError as e:
-        return _fail(f"cannot update the run history: {e}")
+        return _fail(f"cannot delete every run: {e}")
     print(f"deleted {n} run{'s' if n != 1 else ''}: {labels}")
     return EXIT_OK
 
@@ -876,13 +872,18 @@ def cmd_key(args) -> int:
             key_store.store_key(var, value)
         except key_store.KeyError_ as e:
             return _fail(str(e))
+        except OSError as e:  # the store is locked by another write, or not writable
+            return _fail(f"cannot store the key: {e}")
         print(f"stored {var} in {key_store.keys_path()}")
         print("Real environment variables still take precedence over stored keys.")
         print("Next: `prebuttal backends` should now show the backend as available.")
         return EXIT_OK
 
     # unset
-    removed = key_store.unset_key(var)
+    try:
+        removed = key_store.unset_key(var)
+    except OSError as e:
+        return _fail(f"cannot remove the key: {e}")
     if removed:
         print(f"removed {var} from {key_store.keys_path()}")
     else:
@@ -906,10 +907,10 @@ def _config_trusted(
     from . import trust
 
     if cfg.config_path and not cfg.config_discovered:
-        trust.remember(cfg.config_path)
+        trust.remember(cfg.config_path, cfg.config_sha256)
         return True
     lines = trust.concerns(cfg, backends, pinned=pinned, relay=relay)
-    if not lines or trust.is_trusted(cfg.config_path):
+    if not lines or trust.is_trusted(cfg.config_path, cfg.config_sha256):
         return True
     _log(
         f"[prebuttal] {cfg.config_path} (found in the current directory, not passed with "
@@ -924,7 +925,7 @@ def _config_trusted(
         except EOFError:
             answer = ""
         if answer.strip().lower() in ("y", "yes"):
-            trust.remember(cfg.config_path)
+            trust.remember(cfg.config_path, cfg.config_sha256)
             return True
         _log("aborted: config not trusted")
         return False
@@ -1142,7 +1143,8 @@ def _deliver(
         try:
             earlier = [r for r in load_history() if r.project == project]
             # a retry completes the same paper: compare with the run before
-            prev = next((r for r in earlier if r.id not in retried(earlier, retry_of)), None)
+            # one rule for every view (runs.revisions): the version before this one
+            prev = previous_version(earlier, version_of_id(earlier, retry_of) if retry_of else None)
             # the plan is followed from the last run whose AC wrote one, and
             # only when this run's AC wrote one too: an empty plan would read
             # as every earlier item fixed
@@ -1187,6 +1189,7 @@ def _deliver(
             and prev.mean is not None
             and agg.mean is not None
             and prev.scale == scale
+            and prev.venue.lower() == venue.key.lower()  # ICLR and ICML are both /10
         ):
             noise = (
                 check_noise(prev.mean, agg.mean, prev.round_means or [], agg.round_means, scale)
@@ -1253,6 +1256,8 @@ def cmd_retry(args) -> int:
         failed_reviewers,
         load_figures,
         load_pack,
+        load_resolved,
+        retry_config,
         retry_report,
         venue_for_retry,
     )
@@ -1271,25 +1276,32 @@ def cmd_retry(args) -> int:
         return EXIT_OK
 
     cfg = load_config(None)
+    reviewer_roles = [
+        (r.reviewer_id, r.backend, r.model, r.effort) for r in (old.reviews[i] for i in targets)
+    ]
+    ac_role = (old.meta.backend, old.meta.model, old.meta.effort)
     try:
-        venue = venue_for_retry(data)
-        pack = load_pack(rec.dir_path)
+        resolved = load_resolved(rec.dir_path)
+        venue = venue_for_retry(data, str(resolved.get("venue_path") or ""))
+        # checked before any paid call: the retried reviews must read what the others read
+        pack = load_pack(rec.dir_path, old.run.pack_sha256)
+        figures = load_figures(rec.dir_path, old.run.figures_sha256)
+        running = {b for (_r, b, _m, _e) in reviewer_roles} | {ac_role[0]}
+        cfg = retry_config(cfg, resolved, running)
     except RetryError as e:
         return _fail(f"cannot retry {rec.label}: {e}")
 
-    roles = [
-        (r.reviewer_id, r.backend, r.model, r.effort) for r in (old.reviews[i] for i in targets)
-    ] + [("AC", old.meta.backend, old.meta.model, old.meta.effort)]
-    uses_relay = any(b == "relay" for (_r, b, _m, _e) in roles)
-    if not _config_trusted(
-        cfg, [(b, m) for (_r, b, m, _e) in roles], pinned=False, relay=uses_relay
-    ):
+    backends = [(b, m) for (_r, b, m, _e) in reviewer_roles] + [ac_role[:2]]
+    uses_relay = any(b == "relay" for b, _m in backends)
+    if not _config_trusted(cfg, backends, pinned=False, relay=uses_relay):
         return EXIT_USAGE
     try:
-        built = {rid: build_provider(b, m, cfg, effort=e) for rid, b, m, e in roles}
+        # reviewers and the AC apart: an archive of a reviewer called "AC"
+        # (allowed before 0.7.0) must not lose one to the other
+        built = {rid: build_provider(b, m, cfg, effort=e) for rid, b, m, e in reviewer_roles}
+        ac_provider = build_provider(*ac_role[:2], cfg, effort=ac_role[2])
     except ProviderError as e:
         return _fail(str(e), EXIT_NO_BACKEND)
-    ac_provider = built.pop("AC")
     names = ", ".join(old.reviews[i].label for i in targets)
     _log(
         f"[prebuttal] retrying {rec.label}: "
@@ -1298,9 +1310,7 @@ def cmd_retry(args) -> int:
 
     interrupted = False
     try:
-        report = retry_report(
-            data, pack, venue, cfg, built, ac_provider, _log, load_figures(rec.dir_path)
-        )
+        report = retry_report(data, pack, venue, cfg, built, ac_provider, _log, figures)
     except RunInterrupted as e:
         # keep a reviewer that finished (and was paid for) this time
         if e.report is None or not any(e.report.reviews[i].parse_ok for i in targets):

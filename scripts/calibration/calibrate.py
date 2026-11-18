@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo-local import
 
-from prebuttal.config import RunConfig, load_config
+from prebuttal.config import RunConfig, load_config, role_effort
 from prebuttal.ingestion.pdf import ingest_pdf_bytes
 from prebuttal.orchestrator import run_report
 from prebuttal.providers import build_provider, resolve_backends, scan_backends
@@ -84,29 +84,74 @@ def fetch_pdf(client, venue_id: str, entry: dict) -> bytes:
     return client.get_attachment(note, "pdf")
 
 
+# OpenReview id prefix -> the prebuttal venue whose form and scale it uses
+_OPENREVIEW_VENUES = {"iclr": "iclr", "neurips": "neurips", "icml": "icml", "aclweb": "acl"}
+
+
+def venue_matches(venue_id: str, venue: str) -> bool:
+    """Whether OpenReview's ``venue_id`` (``ICLR.cc/2024/Conference``) is the
+    conference of prebuttal's ``venue``: an MAE between two different forms
+    (ICLR and ICML both run to 10, with other meanings) is meaningless.
+
+    A custom venue for one year's form counts when its name starts with the
+    conference's (``iclr-2024``); whether that year's scale is the one in the
+    file is for the user to check (see README.md)."""
+    prefix = venue_id.strip().split("/")[0].split(".")[0].lower()
+    venue = venue.strip().lower()
+    conference = _OPENREVIEW_VENUES.get(prefix, prefix)
+    return venue in (prefix, conference) or venue.startswith((f"{prefix}-", f"{conference}-"))
+
+
 def run_prebuttal(pdf_bytes: bytes, cfg: RunConfig):
+    """One review as `prebuttal run` makes it: the same figures and effort."""
     venue = get_venue(cfg.venue)
-    paper = ingest_pdf_bytes(pdf_bytes, source_path="openreview")
+    paper = ingest_pdf_bytes(
+        pdf_bytes, source_path="openreview", figure_images=cfg.max_figures if cfg.figures else 0
+    )
     statuses = scan_backends(cfg)
     resolved, ac = resolve_backends(cfg, statuses)
-    providers = {rid: build_provider(b, m, cfg) for rid, b, m in resolved}
-    ac_provider = build_provider(ac[0], ac[1], cfg)
+    providers = {
+        rid: build_provider(b, m, cfg, effort=role_effort(cfg, rid)) for rid, b, m in resolved
+    }
+    ac_provider = build_provider(ac[0], ac[1], cfg, effort=role_effort(cfg, "AC"))
     return run_report(paper, cfg, venue, providers, ac_provider, log=lambda m: None)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--venue-id", required=True, help="e.g. ICLR.cc/2024/Conference")
-    ap.add_argument("--venue", required=True, help="prebuttal venue key: neurips|iclr|icml|acl")
+    ap.add_argument(
+        "--venue",
+        required=True,
+        help="prebuttal venue: neurips|iclr|icml|acl, or a custom one named after the "
+        "conference (iclr-2024)",
+    )
     ap.add_argument("-n", "--n", type=int, default=20)
     ap.add_argument("--out-dir", default="calib_out")
     ap.add_argument("--config", default=None, help="prebuttal.toml (backends/models/seed)")
     args = ap.parse_args()
 
+    # both checks come before anything is fetched or paid for
+    if not venue_matches(args.venue_id, args.venue):
+        ap.error(
+            f"--venue {args.venue} does not rate on the scale of {args.venue_id}: the "
+            "errors would compare two different forms"
+        )
+    cfg = load_config(args.config)
+    if cfg.config_discovered:
+        from prebuttal import trust
+
+        # a prebuttal.toml in the current folder may start any program as an
+        # agent backend; `prebuttal run` asks first, this script has no prompt
+        if not trust.is_trusted(cfg.config_path, cfg.config_sha256):
+            ap.error(
+                f"{cfg.config_path} was found in the current folder and is not trusted yet: "
+                "pass it with --config if you wrote it"
+            )
+
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cfg = load_config(args.config)
     from prebuttal.config import apply_overrides
 
     cfg = apply_overrides(cfg, venue=args.venue)

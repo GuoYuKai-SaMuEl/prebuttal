@@ -114,6 +114,8 @@ class OllamaProvider(BaseProvider):
             data = r.json()
         except ValueError as e:
             raise ProviderError(f"non-JSON Ollama response: {r.text[:200]}") from e
+        if not isinstance(data, dict) or not isinstance(data.get("message") or {}, dict):
+            raise ProviderError(f"unexpected Ollama response shape: {r.text[:200]}")
         text = (data.get("message") or {}).get("content", "")
         usage = Usage(data.get("prompt_eval_count", 0), data.get("eval_count", 0))
         return text, usage

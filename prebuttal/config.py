@@ -7,6 +7,7 @@ Run ``prebuttal init`` to write a commented sample config.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shlex
 import tomllib
@@ -42,7 +43,8 @@ DEFAULT_CONFIG_TOML = """\
 venue = "iclr"          # neurips | iclr | icml | acl | cvpr, a custom venue, or a
                         # venue .toml path (relative to this file) — `prebuttal venues`
 seed = 42               # reproducibility: recorded in every report
-budget_chars = 120000   # max chars of the reviewer pack (tables always kept)
+budget_chars = 120000   # target chars of paper text per reviewer (sections are cut to
+                        # fit; tables are always kept whole, so the pack can be longer)
 # figures = true        # also show figures as images to reviewers on vision
                         # APIs (anthropic, openai, gemini, openrouter); others
                         # keep captions only. Costs ~1.5k tokens per image.
@@ -180,6 +182,9 @@ class RunConfig:
     # True when prebuttal.toml was picked up from the cwd rather than passed
     # with --config: its [agents.*] commands then need the user's consent.
     config_discovered: bool = False
+    # sha256 of the bytes these settings were parsed from: trust is checked
+    # and remembered for exactly this content, not the file as it is later
+    config_sha256: str = ""
 
 
 PERSONA_CYCLE = ["senior_kind", "adversarial", "detail_obsessive"]
@@ -256,11 +261,15 @@ def load_config(path: str | Path | None = None) -> RunConfig:
     path = Path(path)
     if not path.is_file():
         raise ConfigError(f"config file not found: {path}")
+    data = path.read_bytes()  # read once: parsed and hashed from the same bytes
     try:
-        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        raw = tomllib.loads(data.decode("utf-8").replace("\r\n", "\n"))
+    except UnicodeDecodeError as e:
+        raise ConfigError(f"{path} is not UTF-8 text: {e}") from e
     except tomllib.TOMLDecodeError as e:  # pragma: no cover - message passthrough
         raise ConfigError(f"invalid TOML in {path}: {e}") from e
     cfg.config_path = str(path)
+    cfg.config_sha256 = hashlib.sha256(data).hexdigest()
     try:
         _apply_toml(cfg, raw, path)
     except (ValueError, TypeError, AttributeError) as e:
@@ -306,6 +315,10 @@ def _apply_toml(cfg: RunConfig, raw: dict[str, Any], path: Path) -> None:
         rid = str(entry.get("id", f"R{len(reviewers) + 1}"))
         if rid in seen_ids:
             raise ConfigError(f"duplicate reviewer id '{rid}' in {path}")
+        if rid.strip().upper() == "AC":
+            raise ConfigError(
+                f"reviewer id '{rid}' in {path} is reserved for the area chair — use R1, R2, …"
+            )
         seen_ids.add(rid)
         reviewers.append(
             ReviewerConfig(

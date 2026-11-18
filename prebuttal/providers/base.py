@@ -101,7 +101,11 @@ class BaseProvider(ABC):
                     max_tokens=max_tokens,
                     **extra,
                 )
-                if not text or not text.strip():
+                if not isinstance(text, str):  # a backend's odd JSON, not a crash downstream
+                    raise ProviderError(
+                        f"[{self.backend}] answered with {type(text).__name__}, not text"
+                    )
+                if not text.strip():
                     raise TransientProviderError("empty completion")
                 return Completion(text=text, usage=usage, model=self.model, backend=self.backend)
             except TransientProviderError as e:

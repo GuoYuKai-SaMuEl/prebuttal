@@ -20,6 +20,7 @@ import re
 import statistics
 from collections.abc import Sequence
 from itertools import pairwise
+from pathlib import Path
 
 from ..models import Figure, Section, StructuredPaper, Table
 from .figures import pdf_figure_images
@@ -455,6 +456,13 @@ def ingest_pdf_bytes(
         if figure_images:
             paper.figure_images = pdf_figure_images(pages, paper.figures, figure_images)
         return paper
+    except PDFError:
+        raise
+    except Exception as e:
+        # a PDF that opens but breaks pdfminer/pdfplumber halfway (a damaged
+        # stream, an odd font) is a bad input, not a crash: one line, no traceback
+        name = Path(source_path).name if source_path else "the PDF"
+        raise PDFError(f"cannot read {name}: {type(e).__name__}: {e}") from e
     finally:
         doc.close()
 

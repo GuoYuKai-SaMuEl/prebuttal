@@ -72,6 +72,10 @@ class Project:
     title: str = ""
     sources: list[str] = field(default_factory=list)
     created: str = ""
+    # the highest run number ever given (#N is never reused after `rm`) and
+    # the names it had (a run started before a rename is archived under it)
+    last_run_no: int = 0
+    aliases: list[str] = field(default_factory=list)
 
 
 def _root() -> Path:
@@ -87,6 +91,10 @@ def _lock(*, required: bool) -> contextlib.AbstractContextManager[None]:
     return store_lock(required=required)
 
 
+def _as_list(v: Any) -> list:
+    return v if isinstance(v, list) else []
+
+
 def registry_path() -> Path:
     return _root() / "projects.json"
 
@@ -99,17 +107,31 @@ def load_projects() -> dict[str, Project]:
         raw = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}  # a corrupt registry must never block a review
+    entries = raw.get("projects") if isinstance(raw, dict) else None
     out: dict[str, Project] = {}
-    for key, entry in (raw.get("projects") or {}).items():
+    for key, entry in (entries if isinstance(entries, dict) else {}).items():
         if not isinstance(entry, dict):
             continue
         out[key] = Project(
             key=key,
             title=str(entry.get("title", "")),
-            sources=[str(s) for s in entry.get("sources", [])],
+            sources=[str(s) for s in _as_list(entry.get("sources"))],
             created=str(entry.get("created", "")),
+            last_run_no=_whole(entry.get("last_run_no")),
+            aliases=[str(s) for s in _as_list(entry.get("aliases"))],
         )
     return out
+
+
+def _whole(v: Any) -> int:
+    return v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else 0
+
+
+def current_key(projects: dict[str, Project], key: str) -> str:
+    """``key``, or the project it was renamed to."""
+    if key in projects:
+        return key
+    return next((p.key for p in projects.values() if key in p.aliases), key)
 
 
 def save_projects(projects: dict[str, Project]) -> None:
@@ -119,7 +141,13 @@ def save_projects(projects: dict[str, Project]) -> None:
     data: dict[str, Any] = {
         "version": 1,
         "projects": {
-            k: {"title": p.title, "sources": p.sources, "created": p.created}
+            k: {
+                "title": p.title,
+                "sources": p.sources,
+                "created": p.created,
+                **({"last_run_no": p.last_run_no} if p.last_run_no else {}),
+                **({"aliases": p.aliases} if p.aliases else {}),
+            }
             for k, p in sorted(projects.items())
         },
     }
@@ -172,7 +200,9 @@ def _assign(source: str, title: str, explicit: str | None, *, register: bool) ->
     projects = load_projects()
     ident = source_identity(source)
     if explicit:
-        key = normalize_key(explicit)
+        # an old name of a renamed project means that project: it is never
+        # given to another paper, by --project any more than automatically
+        key = current_key(projects, normalize_key(explicit))
         for p in projects.values():  # the source now belongs to the named project
             if p.key != key and ident in p.sources:
                 p.sources.remove(ident)
@@ -181,7 +211,10 @@ def _assign(source: str, title: str, explicit: str | None, *, register: bool) ->
         legacy = "path:" + Path(source.strip()).expanduser().resolve().as_posix()
         found = next((p.key for p in projects.values() if ident in p.sources), None)
         found = found or next((p.key for p in projects.values() if legacy in p.sources), None)
-        key = found or _unique_key(slugify(title), set(projects))
+        # a renamed project's old names stay taken: a run or retry that still
+        # holds one must not land in another paper's project
+        taken = set(projects) | {a for p in projects.values() for a in p.aliases}
+        key = found or _unique_key(slugify(title), taken)
     proj = projects.get(key)
     if proj is None:
         proj = projects[key] = Project(key=key, created=time.strftime("%Y-%m-%dT%H:%M:%S"))
@@ -194,20 +227,52 @@ def _assign(source: str, title: str, explicit: str | None, *, register: bool) ->
     return key
 
 
-def rename_project(old: str, new: str) -> str:
-    """Rename a project in the registry; the caller rewrites run history."""
+def rename_project(old: str, new: str) -> tuple[str, int]:
+    """Rename a project in the registry and the run history: (new key, runs renamed).
+
+    Both files change under one lock, so a run archived meanwhile cannot land
+    under the old name; a name used only by the history (a project archived
+    before the registry existed) is taken too — renaming onto it would merge
+    two papers' runs and number them twice."""
+    from .runs import load_history, rewrite_history
+
     new_key = normalize_key(new)
     with _lock(required=True):
         projects = load_projects()
-        if new_key in projects and new_key != old:
-            raise ProjectError(f"project '{new_key}' already exists")
+        records = load_history()
+        own = projects[old].aliases if old in projects else []
+        taken = (
+            set(projects)
+            | {r.project for r in records}
+            | {a for p in projects.values() if p.key != old for a in p.aliases}
+        )
+        if new_key in taken and new_key != old:
+            raise ProjectError(
+                f"project '{new_key}' already exists (or was another project's name)"
+            )
+        moved = [r for r in records if r.project == old]
+        for r in moved:
+            r.project = new_key
+        rewrite_history(records)  # the runs first: they are what `runs` and `show` read
         proj = projects.pop(old, None)
         if proj is None:
             proj = Project(key=old)  # legacy project known only from run history
         proj.key = new_key
+        if old != new_key and old not in proj.aliases:
+            proj.aliases.append(old)
+        if new_key in own:  # back to one of its own earlier names
+            proj.aliases.remove(new_key)
         projects[new_key] = proj
-        save_projects(projects)
-    return new_key
+        try:
+            save_projects(projects)
+        except BaseException:
+            # the two files cannot change in one step: undo the first, so the
+            # paper is never split between the old and the new name
+            for r in moved:
+                r.project = old
+            rewrite_history(records)
+            raise
+    return new_key, len(moved)
 
 
 def forget_project(key: str) -> None:

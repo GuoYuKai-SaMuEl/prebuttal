@@ -107,7 +107,8 @@ def load_venue_file(path: str | Path) -> Venue:
         except (OSError, UnicodeDecodeError) as e:
             raise VenueError(f"{path}: cannot read form file {form_path}: {e}") from e
     try:
-        venue = venue_from_spec(key, raw, form=form, origin=str(path))
+        # absolute: `retry` from another folder finds the file again
+        venue = venue_from_spec(key, raw, form=form, origin=str(path.resolve()))
     except VenueError as e:
         raise VenueError(f"{path}: {e}") from None
     return venue
@@ -138,13 +139,17 @@ def venue_from_spec(key: str, spec: dict[str, Any], *, form: str | None, origin:
         raise VenueError(f"field key(s) used twice: {', '.join(dup)}")
     by_key = {f.key: f for f in fields}
     rating = spec.get("rating")
-    if rating not in by_key or by_key[rating].kind != "score":
+    if not isinstance(rating, str) or rating not in by_key or by_key[rating].kind != "score":
         scores = [f.key for f in fields if f.kind == "score"] or ["(none)"]
         raise VenueError(
             f"rating = {rating!r} must name a score field (score fields: {', '.join(scores)})"
         )
     confidence = spec.get("confidence")
-    if confidence is not None and (confidence not in by_key or by_key[confidence].kind != "score"):
+    if confidence is not None and (
+        not isinstance(confidence, str)
+        or confidence not in by_key
+        or by_key[confidence].kind != "score"
+    ):
         raise VenueError(f"confidence = {confidence!r} must name a score field")
     if form is None:
         raise VenueError('no review form: add form = "<file>.md" (or form_text = """...""")')

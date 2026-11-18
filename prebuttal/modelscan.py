@@ -12,6 +12,7 @@ import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -86,9 +87,24 @@ def _get(url: str, headers: dict) -> dict | None:
     if r.status_code != 200:
         return None
     try:
-        return r.json()
+        data = r.json()
     except ValueError:
         return None
+    return data if isinstance(data, dict) else None
+
+
+def _entries(data: dict, key: str) -> list[dict]:
+    """The objects under ``data[key]``; anything else (a proxy's odd answer) is skipped."""
+    items = data.get(key)
+    return [m for m in items if isinstance(m, dict)] if isinstance(items, list) else []
+
+
+def _obj(v: object) -> dict[str, Any]:
+    return v if isinstance(v, dict) else {}
+
+
+def _list(v: object) -> list:
+    return v if isinstance(v, list) else []
 
 
 def gemini_models(api_key: str) -> list[str] | None:
@@ -99,10 +115,10 @@ def gemini_models(api_key: str) -> list[str] | None:
     if data is None:
         return None
     out = []
-    for m in data.get("models", []):
-        if "generateContent" not in m.get("supportedGenerationMethods", []):
+    for m in _entries(data, "models"):
+        if "generateContent" not in _list(m.get("supportedGenerationMethods")):
             continue
-        mid = m.get("name", "").removeprefix("models/")
+        mid = str(m.get("name") or "").removeprefix("models/")
         if mid and not _GEMINI_DROP.search(mid):
             out.append(mid)
     return sorted(out)
@@ -112,12 +128,8 @@ def openai_models(api_key: str, base_url: str = "https://api.openai.com/v1") -> 
     data = _get(f"{base_url.rstrip('/')}/models", headers={"Authorization": f"Bearer {api_key}"})
     if data is None:
         return None
-    ids = [
-        m.get("id", "")
-        for m in data.get("data", [])
-        if _OPENAI_KEEP.match(m.get("id", "")) and not _OPENAI_DROP.search(m.get("id", ""))
-    ]
-    return sorted({i for i in ids if i})
+    ids = (str(m.get("id") or "") for m in _entries(data, "data"))
+    return sorted({i for i in ids if i and _OPENAI_KEEP.match(i) and not _OPENAI_DROP.search(i)})
 
 
 def anthropic_models(api_key: str) -> list[str] | None:
@@ -127,7 +139,7 @@ def anthropic_models(api_key: str) -> list[str] | None:
     )
     if data is None:
         return None
-    return sorted(m.get("id", "") for m in data.get("data", []) if m.get("id"))
+    return sorted(str(m["id"]) for m in _entries(data, "data") if m.get("id"))
 
 
 def openrouter_catalog(max_rows: int = 40) -> tuple[list[str], dict[str, str]] | None:
@@ -139,18 +151,19 @@ def openrouter_catalog(max_rows: int = 40) -> tuple[list[str], dict[str, str]] |
     free: list[str] = []
     notable: list[str] = []
     prices: dict[str, str] = {}
-    for m in data.get("data", []):
-        mid = m.get("id", "")
+    for m in _entries(data, "data"):
+        mid = str(m.get("id") or "")
         if not mid or _OR_NOISE.search(mid):
             continue
-        arch = m.get("architecture") or {}
-        if "text" not in (arch.get("output_modalities") or []):
+        if "text" not in _list(_obj(m.get("architecture")).get("output_modalities")):
             continue
         if mid.endswith(":free"):
             prices[mid] = "(free)"
             free.append(mid)
             continue
-        pin, pout = m.get("pricing", {}).get("prompt"), m.get("pricing", {}).get("completion")
+        pricing = _obj(m.get("pricing"))
+        pin: Any = pricing.get("prompt")
+        pout: Any = pricing.get("completion")
         try:
             per_in, per_out = float(pin) * 1e6, float(pout) * 1e6
         except (TypeError, ValueError):

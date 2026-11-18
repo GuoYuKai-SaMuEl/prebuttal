@@ -562,8 +562,9 @@ def config_docs() -> list[tuple[str, str, list[tuple[str, str, str]]]]:
                 (
                     "budget_chars",
                     _toml(run.budget_chars),
-                    "The most paper text one reviewer reads, in characters. Tables are always "
-                    "kept.",
+                    "The target for the paper text one reviewer reads, in characters: sections "
+                    "are cut to fit it. Tables are always kept whole, so the final pack can be "
+                    "longer.",
                 ),
                 (
                     "effort",
@@ -582,7 +583,7 @@ def config_docs() -> list[tuple[str, str, list[tuple[str, str, str]]]]:
                     "repeats",
                     _toml(run.repeats),
                     "Advanced: every reviewer reviews this many times, 1–5, to measure how "
-                    "much the scores move by chance. Round k adds 1000·k to "
+                    "much the scores move by chance. Round *k* adds 1000·*k* to "
                     "the seed. Costs that many times the reviewer calls; the AC still runs "
                     "once, over all rounds.",
                 ),

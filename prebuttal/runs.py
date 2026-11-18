@@ -15,7 +15,7 @@ import re
 import shutil
 import time
 import uuid
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -124,6 +124,9 @@ class RunRecord:
     # `prebuttal retry`: the id of the run this one completes (and replaces
     # when following the revision plan)
     retry_of: str | None = None
+    # the first run of this version of the paper: a retry's original, kept
+    # even if the runs between are deleted (None: itself, or before 0.7.0)
+    version: str | None = None
 
     @property
     def dir_path(self) -> Path:
@@ -143,6 +146,15 @@ class RunRecord:
 _FIELDS = set(RunRecord.__dataclass_fields__)
 
 _VENUE_SCALES: dict[str, float | None] = {}
+
+
+def comparable(a: RunRecord, b: RunRecord) -> bool:
+    """Whether two runs' raw scores compare: one venue, one scale.
+
+    A shared maximum is not enough — ICLR and ICML both rate out of 10, but
+    an 8 means "accept, good paper" on one form and "top 50% of accepted
+    papers" on the other."""
+    return (a.venue or "").lower() == (b.venue or "").lower() and a.scale == b.scale
 
 
 def _venue_scale(venue: str) -> float | None:
@@ -190,6 +202,10 @@ def _write_run_files(
     )
 
 
+def _backends(report: Any) -> set[str]:
+    return {r.backend for r in report.reviews} | {report.meta.backend}
+
+
 def save_run(
     report: Any,
     venue: Any,
@@ -230,15 +246,35 @@ def save_run(
             for r in report.reviews
         ],
         "ac": {"backend": report.meta.backend, "model": report.meta.model},
+        # what `retry` must run with again, whatever folder it starts from
+        "max_tokens": cfg.max_tokens,
+        "budget_chars": cfg.budget_chars,
+        "venue_path": venue.origin,  # a custom venue's file ("" built in)
+        "agents": {
+            name: {"command": spec.command, "stdin": spec.stdin}
+            for name, spec in cfg.agents.items()
+            if any(b == f"agent-{name}" for b in _backends(report))
+        },
     }
     with store_lock():
         # the id's time and the run number are both taken under the lock: two
         # runs saved at once across a second boundary must not get ids in one
         # order and numbers in the other (history is ordered by the id's time)
+        from .projects import Project, current_key, load_projects, save_projects
+
+        projects = load_projects()
+        # renamed while this run was reviewing: archive it under the new name
+        project = current_key(projects, project)
         run_id = new_run_id(report.paper.title)
         out_dir = runs_dir() / run_id
         _write_run_files(out_dir, report, md, json_str, html, resolved)
-        run_no = 1 + max((r.run_no for r in load_history() if r.project == project), default=0)
+        proj = projects.get(project)
+        # one past the highest number ever given: after `rm` of the newest run
+        # its #N must not come back pointing at another report
+        run_no = 1 + max(
+            max((r.run_no for r in load_history() if r.project == project), default=0),
+            proj.last_run_no if proj else 0,
+        )
         rec = RunRecord(
             id=run_id,
             ts=report.run.generated_at,
@@ -256,9 +292,19 @@ def save_run(
             scale=venue.rating_field.max,
             round_means=list(rm) if len(rm := report.aggregate.round_means) > 1 else None,
             retry_of=retry_of,
+            version=_version_of_retry(retry_of) if retry_of else None,
         )
         with history_path().open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
+        if proj is None:  # archived without `assign_project` (a script, an old project)
+            proj = projects[project] = Project(
+                key=project, title=report.paper.title, created=time.strftime("%Y-%m-%dT%H:%M:%S")
+            )
+        proj.last_run_no = run_no
+        # best effort: the run is archived; a lost counter only means the
+        # history's own maximum is used next time
+        with contextlib.suppress(OSError):
+            save_projects(projects)
     return rec
 
 
@@ -269,7 +315,9 @@ def _read_history() -> tuple[list[RunRecord], list[str]]:
         return [], []
     records: list[RunRecord] = []
     unreadable: list[str] = []
-    for line in p.read_text(encoding="utf-8").splitlines():
+    # JSONL lines end in "\n" only: splitlines() would also break a record at a
+    # U+2028 / U+0085 kept verbatim in a title or note (ensure_ascii=False)
+    for line in p.read_text(encoding="utf-8").split("\n"):
         line = line.strip()
         if not line:
             continue
@@ -303,7 +351,8 @@ def load_history() -> list[RunRecord]:
     return out
 
 
-def _rewrite_history(records: list[RunRecord]) -> None:
+def rewrite_history(records: list[RunRecord]) -> None:
+    """Replace the history file with ``records``; the caller holds :func:`store_lock`."""
     ordered = sorted(records, key=_order)
     lines = [json.dumps(r.__dict__, ensure_ascii=False) for r in ordered]
     lines += _read_history()[1]  # lines load_history() skips are kept, not deleted
@@ -317,7 +366,7 @@ def _update_history(apply: Callable[[list[RunRecord]], None]) -> list[RunRecord]
     with store_lock(required=True):
         records = load_history()
         apply(records)
-        _rewrite_history(records)
+        rewrite_history(records)
     return records
 
 
@@ -331,32 +380,56 @@ def set_note(run_id: str, note: str) -> None:
 
 
 def delete_runs(run_ids: set[str]) -> int:
-    """Remove runs from the history and delete their archived files."""
+    """Delete runs' archived files, then drop from the history the runs whose
+    files are gone.  A folder that cannot be deleted (a file held open on
+    Windows) keeps its run listed, so `rm` can be tried again; OSError then
+    names what is left, after the others are deleted."""
     removed: list[RunRecord] = []
+    left: list[str] = []
+    # the files go first, outside the lock (a slow disk must not hold it while
+    # a run is being archived); the history is then read afresh under it
+    for r in load_history():
+        if r.id not in run_ids:
+            continue
+        if r.dir_path.parent == runs_dir() and r.dir_path.exists():
+            try:
+                shutil.rmtree(r.dir_path)
+            except OSError as e:
+                left.append(f"{r.label}: {e}")
+                continue
+        removed.append(r)
+    gone = {r.id for r in removed}
 
     def apply(records: list[RunRecord]) -> None:
-        removed.extend(r for r in records if r.id in run_ids)
-        records[:] = [r for r in records if r.id not in run_ids]
+        _keep_run_numbers(records, gone)
+        records[:] = [r for r in records if r.id not in gone]
 
     _update_history(apply)
-    for r in removed:
-        if r.dir_path.parent == runs_dir():
-            shutil.rmtree(r.dir_path, ignore_errors=True)
+    if left:
+        raise OSError(
+            f"deleted {len(removed)} run(s); could not delete "
+            + "; ".join(left)
+            + " — they stay listed: close what holds them and run `prebuttal rm` again"
+        )
     return len(removed)
 
 
-def rename_in_history(old: str, new: str) -> int:
-    n = 0
+def _keep_run_numbers(records: list[RunRecord], run_ids: set[str]) -> None:
+    """Before runs leave the history, the registry keeps each project's highest
+    number (a registry from before 0.7.0 has none): #N is never given again."""
+    from .projects import Project, load_projects, save_projects
 
-    def apply(records: list[RunRecord]) -> None:
-        nonlocal n
-        for r in records:
-            if r.project == old:
-                r.project = new
-                n += 1
-
-    _update_history(apply)
-    return n
+    projects = load_projects()
+    changed = False
+    for key in {r.project for r in records if r.id in run_ids}:
+        top = max((r.run_no for r in records if r.project == key), default=0)
+        proj = projects.get(key) or Project(key=key)
+        if top > proj.last_run_no:
+            proj.last_run_no = top
+            projects[key] = proj
+            changed = True
+    if changed:
+        save_projects(projects)
 
 
 # ------------------------------------------------------------- run references
@@ -444,34 +517,78 @@ def find_run(
     return None, (pref or sub)[:10]
 
 
-def retried(runs: Iterable[RunRecord], run_id: str | None) -> set[str]:
-    """``run_id`` and every run it retried in turn (a retry of a retry whose
-    AC failed, ...): the runs a `prebuttal retry` of ``run_id`` completes."""
+def version_key(runs: list[RunRecord], rec: RunRecord) -> str:
+    """The id of the first run of ``rec``'s version of the paper: a retry, a
+    retry of that retry, ... and the run they complete share it."""
+    if rec.version:
+        return rec.version
     by_id = {r.id: r for r in runs}
-    out: set[str] = set()
-    while run_id and run_id not in out:
-        out.add(run_id)
-        rec = by_id.get(run_id)
-        run_id = rec.retry_of if rec is not None else None
-    return out
+    run_id, seen = rec.id, set()
+    while run_id not in seen:
+        seen.add(run_id)
+        cur = by_id.get(run_id)
+        if cur is None:
+            return run_id
+        if cur.version:
+            return cur.version
+        if not cur.retry_of:
+            return run_id
+        run_id = cur.retry_of
+    return run_id
 
 
-def revisions(runs: list[RunRecord]) -> list[RunRecord]:
-    """``runs`` less those a later `prebuttal retry` completed: one entry per
-    version of the paper, for score trends."""
-    replaced = {x for r in runs if r.retry_of for x in retried(runs, r.retry_of)}
-    return [r for r in runs if r.id not in replaced]
+def _version_of_retry(retry_of: str) -> str:
+    """The version a new retry of ``retry_of`` belongs to (read under the lock)."""
+    return version_of_id(load_history(), retry_of)
+
+
+def version_of_id(runs: list[RunRecord], run_id: str) -> str:
+    """:func:`version_key` of the run ``run_id`` (itself if it is not in ``runs``)."""
+    rec = next((r for r in runs if r.id == run_id), None)
+    return version_key(runs, rec) if rec is not None else run_id
+
+
+def revisions(
+    runs: list[RunRecord], keep: Callable[[RunRecord], bool] | None = None
+) -> list[RunRecord]:
+    """One run per version of the paper, newest version first: the newest run
+    of each version (a finished `prebuttal retry` stands for the run it
+    completes, and the newer of two retries for both), versions ordered by
+    when their first run was made — a retry of v1 made after v2 is still v1.
+
+    Every view that compares versions (trends, `diff`, the `Change:` line,
+    the dashboard, the revision plan) goes through this one rule.  ``keep``:
+    only such runs stand for a version (the plan: those whose AC finished);
+    versions are still told apart through all of ``runs``."""
+    runs = list(runs)
+    groups: dict[str, list[int]] = {}
+    for i, r in enumerate(runs):  # newest first
+        if keep is None or keep(r):
+            groups.setdefault(version_key(runs, r), []).append(i)
+    # a version is as old as its oldest run: the largest index
+    order = sorted(groups.values(), key=lambda idx: max(idx))
+    return [runs[min(idx)] for idx in order]
+
+
+def previous_version(runs: list[RunRecord], key: str | None) -> RunRecord | None:
+    """The newest run of the version before ``key`` in ``runs`` (newest first,
+    one project) — or of the newest version when ``key`` is not among them
+    (a run not archived yet)."""
+    vs = revisions(runs)
+    keys = [version_key(runs, r) for r in vs]
+    if key in keys:
+        i = keys.index(key)
+        return vs[i + 1] if i + 1 < len(vs) else None
+    return vs[0] if vs else None
 
 
 def previous_run(rec: RunRecord) -> RunRecord | None:
-    """The run before ``rec`` in the same project, if any; for a retry, the
-    one before the runs it completes (the same paper, not a revision)."""
+    """The run before ``rec``'s version of the paper, same project: for a retry,
+    the version before the one it completes (the same paper, not a revision)."""
     runs = [r for r in load_history() if r.project == rec.project]
-    idx = next((i for i, r in enumerate(runs) if r.id == rec.id), None)
-    if idx is None:
+    if not any(r.id == rec.id for r in runs):
         return None
-    done = retried(runs, rec.retry_of)
-    return next((r for r in runs[idx + 1 :] if r.id not in done), None)
+    return previous_version(runs, version_key(runs, rec))
 
 
 # ------------------------------------------------------------------ rendering
@@ -526,13 +643,13 @@ def render_projects_table(projects: list[ProjectSummary]) -> str:
         versions = revisions(p.runs)  # a retry and the run it completes: one version
         first, last = versions[-1], p.latest
         trend = "-"
-        # a raw-mean trend across different rating scales (iclr /10 vs
-        # neurips /6) compares incomparable numbers — skip it
+        # a raw-mean trend across venues (iclr /10 vs neurips /6, or even
+        # iclr /10 vs icml /10) compares incomparable numbers — skip it
         if (
             len(versions) > 1
             and first.mean is not None
             and last.mean is not None
-            and first.scale == last.scale
+            and comparable(first, last)
         ):
             trend = f"{first.mean:g} → {last.mean:g} ({last.mean - first.mean:+g})"
         rows.append((p.key, str(len(p.runs)), _score(last), trend, last.when, p.title[:48]))
@@ -547,4 +664,7 @@ def _load_run_json(rec: RunRecord) -> dict:
     p = Path(rec.dir) / "report.json"
     if not p.is_file():
         raise FileNotFoundError(f"archived report.json missing for {rec.id} ({p})")
-    return json.loads(p.read_text(encoding="utf-8"))
+    data = json.loads(p.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):  # ValueError, as for broken JSON: callers catch it
+        raise ValueError(f"archived report.json of {rec.label} is not a report")
+    return data
