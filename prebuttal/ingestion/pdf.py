@@ -88,6 +88,21 @@ _CAP_NUM = r"((?:[A-Z]\.?)?\d{1,3}(?:\.\d{1,2})?)"
 _TABLE_CAP = re.compile(
     r"^\s*(?:table|tab\.)\s*" + _CAP_NUM + r"(?:[a-z])?\s*[:.)]\s+(\S.*)$", re.I
 )
+# IEEE: "TABLE IV" in capitals, a Roman numeral, the title on the next line
+# (or after it once the lines are joined); capitals only, so prose's
+# "Table I shows" is not a caption
+_IEEE_CAP = re.compile(r"^\s*TABLE\s+([IVX]{1,5})(?![A-Za-z])[.:]?\s*(.*)$")
+
+
+def _table_caption(text: str) -> tuple[str, str] | None:
+    """(number, caption) when ``text`` starts a table caption."""
+    if cm := _TABLE_CAP.match(text):
+        return cm.group(1), text
+    if im := _IEEE_CAP.match(text):
+        return im.group(1), text
+    return None
+
+
 # max vertical gap between a table's rules and its caption, in points
 _CAPTION_GAP = 120
 # max vertical gap between consecutive rules of one table (a 25-row table body)
@@ -104,7 +119,11 @@ _FIG_CAP = re.compile(r"^\s*(?:figure|fig\.)\s*" + _CAP_NUM + r"(?:[a-z])?\s*[:.
 
 
 def _number_key(num: str) -> tuple:
-    """Natural order: 2 < 3.1 < 10 < A.1 < S1 (appendix/supplement last)."""
+    """Natural order: 2 < 3.1 < 10 < A.1 < S1 (appendix/supplement last);
+    IEEE's Roman numbers by value (IV < V < IX)."""
+    if re.fullmatch(r"[IVX]+", num):
+        vals = [{"I": 1, "V": 5, "X": 10}[c] for c in num]
+        return ("", sum(-v if v < w else v for v, w in zip(vals, [*vals[1:], 0], strict=True)))
     letter = num[0].upper() if num[:1].isalpha() else ""
     return (letter, *(int(n) for n in re.findall(r"\d+", num)))
 
@@ -679,9 +698,9 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
             found.append((tab.bbox, grid))
         blocks = _text_blocks(page)
         caps = [
-            (x0, top, x1, bottom, cm.group(1), t[:400])
+            (x0, top, x1, bottom, cm[0], t[:400])
             for x0, top, x1, bottom, t in blocks
-            if (cm := _TABLE_CAP.match(t))
+            if (cm := _table_caption(t))
         ]
         fig_caps = [
             (x0, top, x1, bottom, "", "") for x0, top, x1, bottom, t in blocks if _FIG_CAP.match(t)
@@ -711,9 +730,12 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         seen_numbers.add(number)
         tables.append(Table(number=number, caption=caption[:400], **kw))
 
-    for found, caps, texts in page_finds:
+    unowned: list[int] = []  # pages with a ruled table no caption was found for
+    for pno, (found, caps, texts) in enumerate(page_finds, 1):
         matched = set()
+        owned: set[int] = set()
         for ci, panels in _match_captions(found, caps, above):
+            owned.update(panels)
             grid = _join_panels([found[gi][1] for gi in panels])
             number, caption = caps[ci][4], caps[ci][5]
             if len(grid) < 2 or number in seen_numbers:
@@ -727,6 +749,8 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
                 raw="\n".join(" | ".join(r) for r in grid),
                 source="pdf-table",
             )
+        if any(gi not in owned and len(g) >= 2 for gi, (_b, g) in enumerate(found)):
+            unowned.append(pno)
         # captions left over may own a ruled block of plain text: keep its words
         rest = [ci for ci in range(len(caps)) if ci not in matched]
         for k, panels in _match_captions(texts, [caps[ci] for ci in rest], above):
@@ -741,12 +765,16 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
     # --- fallback: caption blocks without a detected grid
     cap_blocks: dict[str, str] = {}
     order: list[str] = []
-    for ln in lines_all:
-        cm = _TABLE_CAP.match(ln["text"])
-        if cm and cm.group(2):
-            num = cm.group(1)
+    for li, ln in enumerate(lines_all):
+        tm = _TABLE_CAP.match(ln["text"])
+        im = None if tm else _IEEE_CAP.match(ln["text"])
+        if (tm and tm.group(2)) or im:
+            num = tm.group(1) if tm else im.group(1) if im else ""
+            text = ln["text"]
+            if im and not im.group(2) and li + 1 < len(lines_all):  # title on the next line
+                text = f"{text} {lines_all[li + 1]['text']}"
             if num not in cap_blocks:
-                cap_blocks[num] = ln["text"][:400]
+                cap_blocks[num] = text[:400]
                 order.append(num)
     for num in order:
         if num in seen_numbers:
@@ -768,6 +796,12 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         warnings.append(
             f"{names}: cell values not extracted from the PDF (caption only) — "
             "reviewers are told this is a tool limitation"
+        )
+    # only when nothing else was found: papers box algorithms and examples too
+    if unowned and not tables:
+        warnings.append(
+            f"a ruled table on page {', '.join(map(str, unowned))} has no caption that was "
+            "recognized — its cells were not extracted as a table (they may still be in the text)"
         )
 
     # --- figure captions

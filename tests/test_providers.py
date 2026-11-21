@@ -828,19 +828,34 @@ def test_ollama_sizes_the_context_to_hold_the_whole_paper(monkeypatch):
     assert ctx >= 64_000 // 4 + 4000 and ctx % 2048 == 0
     assert sent[0]["truncate"] is False and sent[0]["shift"] is False  # an error, not a cut
 
-    # a dense table: about two characters a token, not four
-    table = "| 0.912 | 0.874 | 12.3 | 45.6 |\n" * 1000
-    assert ollama.upper_tokens(table) >= len(table) // 2
+    # a dense table: about two characters a token, not four — and Llama 3 makes
+    # the space before each number and each line break a token of its own
+    row = "| 0.912 | 0.874 | 12.3 | 45.6 |\n"
+    table = row * 1000
+    llama3_row = 22  # | ␠ 0 . 912 ␠| ␠ 0 . 874 ␠| ␠ 12 . 3 ␠| ␠ 45 . 6 ␠| \n
+    assert ollama.upper_tokens(table) >= llama3_row * 1000 > len(table) // 2
 
-    def cut(url, json, **k):  # an Ollama that cut the prompt anyway
-        if url.endswith("/api/show"):
-            return R({"model_info": {"llama.context_length": 131072}})
-        n = json["options"]["num_ctx"]
-        return R({"message": {"content": "ok"}, "prompt_eval_count": n - 10, "eval_count": 1})
+    def answered(prompt_tokens, cached=0):
+        def post(url, json, **k):
+            if url.endswith("/api/show"):
+                return R({"model_info": {"llama.context_length": 10240}})
+            n = prompt_tokens(json["options"]["num_ctx"])
+            done = {"message": {"content": "ok"}, "prompt_eval_count": n - cached}
+            return R({**done, "prompt_eval_cached_count": cached, "eval_count": 300})
 
-    monkeypatch.setattr(ollama.httpx, "post", cut)
+        return post
+
+    # a whole prompt and a short answer: used, though prompt + max_tokens > the context
+    monkeypatch.setattr(ollama.httpx, "post", answered(lambda n: 4273))
+    p = ollama.OllamaProvider(model="llama3.1:8b")
+    text, _usage = p._complete(
+        system="s", user="t" * 9000, temperature=0, seed=None, max_tokens=6000
+    )
+    assert text == "ok"
+    # a prompt that fills the context to the brim was cut: not used (cached part counted)
+    monkeypatch.setattr(ollama.httpx, "post", answered(lambda n: n - 2, cached=1000))
     with pytest.raises(ProviderError, match="may have been cut"):
-        p._complete(system="s", user=paper, temperature=0, seed=None, max_tokens=4000)
+        p._complete(system="s", user="t" * 9000, temperature=0, seed=None, max_tokens=6000)
 
     class Err(R):
         status_code = 400
@@ -863,8 +878,46 @@ def test_ollama_sizes_the_context_to_hold_the_whole_paper(monkeypatch):
 
     monkeypatch.setattr(ollama.httpx, "post", small)
     q = ollama.OllamaProvider(model="tiny:1b")
-    with pytest.raises(ProviderError, match="holds 8,192: Ollama would cut the paper"):
+    with pytest.raises(ProviderError, match="holds 8,192: the paper does not fit"):
         q._complete(system="s", user=paper, temperature=0, seed=None, max_tokens=4000)
+
+    # a short paper (the demo paper's size, ~3,200 characters of LaTeX) on an
+    # 8K model (gemma2:9b): sent with the default 6,000 max_tokens, though
+    # prompt + max_tokens > 8K — a review is rarely that long.  Written here:
+    # the sdist's test suite has no examples/ folder.
+    demo = (
+        r"\section{Method} We route each token through a latent expert chosen by a "
+        r"gate $g(x)=\mathrm{softmax}(Wx)$, trained with a load-balancing loss "
+        r"\cite{shazeer2017}; Table~\ref{tab:main} reports 76.1 vs.\ 74.3 top-1." + "\n"
+    ) * 15
+    assert 3000 <= len(demo) <= 3600
+    sent.clear()
+
+    def eight_k(url, json, **k):
+        if url.endswith("/api/show"):
+            return R({"model_info": {"gemma2.context_length": 8192}})
+        sent.append(json)
+        return R({"message": {"content": "ok"}, "prompt_eval_count": 1500, "eval_count": 900})
+
+    monkeypatch.setattr(ollama.httpx, "post", eight_k)
+    g = ollama.OllamaProvider(model="gemma2:9b")
+    assert g._complete(system="s" * 4000, user=demo, temperature=0, seed=None, max_tokens=6000)
+    assert sent[0]["options"]["num_ctx"] == 8192  # the model's whole context
+
+    # a 4K model (phi3:mini) and a ~3K-token prompt: sent; how long the review
+    # runs is the model's — an answer cut short fails as broken JSON
+    sent.clear()
+
+    def four_k(url, json, **k):
+        if url.endswith("/api/show"):
+            return R({"model_info": {"phi3.context_length": 4096}})
+        sent.append(json)
+        return R({"message": {"content": "ok"}, "prompt_eval_count": 3000, "eval_count": 800})
+
+    monkeypatch.setattr(ollama.httpx, "post", four_k)
+    m = ollama.OllamaProvider(model="phi3:mini")
+    assert m._complete(system="s", user="w " * 6000, temperature=0, seed=None, max_tokens=6000)
+    assert sent[0]["options"]["num_ctx"] == 4096
 
 
 @pytest.mark.parametrize("model", ["--dangerously-skip-permissions", "sonnet & calc", "a|b"])

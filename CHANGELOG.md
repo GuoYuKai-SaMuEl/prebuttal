@@ -138,10 +138,25 @@ releases (0.2, 0.3, …) are substantial new features.
   paper was rated from its last part, and the review counted as a success.
   Each call now asks for a context the whole prompt and the answer fit in,
   up to what the model was trained for, counted high (dense tables run near
-  two characters a token); a paper the model cannot hold fails that reviewer
-  before any call, saying so. Ollama is asked not to truncate (`truncate`
-  and `shift` off, on versions that know them), and an answer whose prompt
-  filled the context is not used.
+  two characters a token, and the space before a number is a token of its
+  own); a paper the model cannot hold fails that reviewer before any call,
+  saying so. Ollama is asked not to truncate (`truncate` and `shift` off, on
+  versions that know them), and an answer whose prompt filled the context
+  to the brim — what a cut leaves — is not used. A whole prompt whose answer
+  had less room than `max_tokens` is fine: only the answer could run short.
+  So only a prompt that by itself surely does not fit is refused before the
+  call: an 8K or 4K model takes a paper that fits, whatever `max_tokens`
+  says, and an answer that runs out of room fails as broken JSON.
+- A LaTeX paper's citations reached the reviewers as `[cite]`, so no one
+  could tell which work a claim cited — citing another baseline left the
+  input unchanged. They now carry the number of their entry in the
+  References list (`[1, 2]`), in its order; a key the list lacks stays
+  readable (`[smith2020]`).
+- PDF tables captioned the IEEE way — `TABLE IV` in capitals, a Roman
+  numeral, the title on the next line — were dropped although their grid
+  was found, and the reviewers read "no tables detected". They are now
+  captions (sorted IV < V < IX), and a paper whose ruled table matched no
+  caption, with no other table found, says so in a warning.
 - A relay request was written straight to its `.req.md` name, so a
   responder watching the folder could read it half written, answer
   nothing, and the review timed out. It is now written aside and renamed
@@ -181,8 +196,10 @@ releases (0.2, 0.3, …) are substantial new features.
   related work and baselines were judged without them. The cited entries of
   the `.bib` files the paper loads are now listed (all of them with
   `\nocite{*}`), in order of first citation; `check` and the review read
-  the same files. So are they when a `.bbl` gives none: a biblatex/biber
-  `.bbl`, whose entries are not `\bibitem`s, dropped the references too.
+  the same files: the `.bib` comes before a `.bbl` next to it, an earlier
+  build that lacks citations added since (and a biblatex/biber `.bbl`,
+  whose entries are not `\bibitem`s, yielded none). A `.bbl` alone, as
+  arXiv sources ship it, is still read.
 - `prebuttal diff` matched by wording after `prebuttal run --config
   prebuttal.toml`: `diff` has no `--config`, reads `./prebuttal.toml`, and
   found it "not trusted yet" because passing a file with `--config` trusted

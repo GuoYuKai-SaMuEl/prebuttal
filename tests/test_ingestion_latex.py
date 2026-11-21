@@ -460,6 +460,73 @@ def _bib_paper(tmp_path, cites: str):
     return (refs[0].text if refs else ""), paper.warnings
 
 
+def _intro(tmp_path) -> str:
+    from prebuttal.ingestion.latex import ingest_latex_source
+
+    paper = ingest_latex_source(tmp_path / "main.tex")
+    return next(s for s in paper.sections if s.title == "Intro").text
+
+
+def test_citations_carry_the_number_of_their_reference(tmp_path):
+    _bib_paper(tmp_path, r"\citep{he2016} beats \citet[p.~3]{vaswani2017,he2016}\nocite{he2016}")
+    assert "Text [1] beats [2, 1]." in _intro(tmp_path)  # [1] He, [2] Vaswani in References
+    # another cited work is another input: a reviewer can check which
+    _bib_paper(tmp_path, r"\citep{vaswani2017} beats \citet{vaswani2017}")
+    assert "Text [1] beats [1]." in _intro(tmp_path)
+    # a key no list has stays readable
+    _bib_paper(tmp_path, r"\cite{smith2020}")
+    assert "Text [smith2020]." in _intro(tmp_path) and "[cite]" not in _intro(tmp_path)
+
+
+def test_a_citation_keeps_the_latex_structure_around_it(tmp_path):
+    from prebuttal.ingestion.latex import ingest_latex_source
+
+    (tmp_path / "refs.bib").write_text(_BIB, encoding="utf-8")
+    (tmp_path / "main.tex").write_text(
+        r"\documentclass{article}\begin{document}\section{Intro}Hello."
+        "\n" + r"\section[Baselines \cite{he2016}]{Baselines from \cite{he2016}}Body."
+        "\n" + r"\begin{table}\caption{Scores \cite{vaswani2017}.}"
+        r"\begin{tabular}{lc}Model & Acc \\[2pt]"
+        "\n" + r"\cite{he2016} ResNet & 76.1 \\ Ours & 80.2 \\ \end{tabular}\end{table}"
+        "\n" + r"\bibliography{refs}\end{document}",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(tmp_path / "main.tex")
+    titles = [s.title for s in paper.sections]
+    assert "Baselines from [1]" in titles  # its own section, not merged into Intro
+    (table,) = paper.tables
+    assert table.caption.endswith("Scores [2].")
+    assert table.rows[0][0] == "[1] ResNet" and table.rows[0][1] == "76.1"  # name kept
+    assert "" not in " ".join([*titles, *(s.text for s in paper.sections), table.raw])
+
+
+def test_a_stale_bbl_does_not_hide_a_new_citation(tmp_path):
+    # cited vaswani2017 since the last build: the .bbl only has he2016
+    (tmp_path / "main.bbl").write_text(
+        r"\begin{thebibliography}{1}\bibitem{he2016} K. He. Old build entry."
+        r"\end{thebibliography}",
+        encoding="utf-8",
+    )
+    text, _w = _bib_paper(tmp_path, r"\cite{he2016,vaswani2017}")
+    assert "Attention Is All You Need" in text and "Old build entry" not in text
+    assert "Text [1, 2]." in _intro(tmp_path)
+
+
+def test_citations_follow_the_thebibliography_order(tmp_path):
+    from prebuttal.ingestion.latex import ingest_latex_source
+
+    (tmp_path / "main.tex").write_text(
+        r"\documentclass{article}\begin{document}\section{Intro}See \cite{b, a}."
+        "\n" + r"\begin{thebibliography}{9}\bibitem{a} Alpha. A, 2020."
+        "\n" + r"\bibitem[B2]{b} Beta. B, 2021.\end{thebibliography}\end{document}",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(tmp_path / "main.tex")
+    assert "See [2, 1]." in next(s for s in paper.sections if s.title == "Intro").text
+    refs = next(s for s in paper.sections if s.title == "References").text
+    assert refs.splitlines() == ["[1] Alpha. A, 2020.", "[2] Beta. B, 2021."]
+
+
 def test_a_source_without_its_bbl_lists_the_cited_bib_entries(tmp_path):
     # an Overleaf download: main.tex and refs.bib, no .bbl
     text, warnings = _bib_paper(tmp_path, r"\citep{he2016} and \cite{vaswani2017,he2016}")

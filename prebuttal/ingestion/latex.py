@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 from ..models import Figure, Section, StructuredPaper, Table
-from .bibtex import declared_bibs, reference_lines
+from .bibtex import CITE, declared_bibs, reference_lines
 from .figures import latex_figure_images
 from .hidden import find_hidden_latex_text, hidden_text_warning
 
@@ -667,6 +667,11 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         body = tex
         warnings.append("no \\begin{document} found; treating whole file as body")
 
+    # --- references first: each citation in the text becomes its number there
+    refs, ref_keys = _collect_references(tex, body, root, allowed)
+    cites: list[str] = []  # "[1, 2]" per citation, shown once the structure is read
+    tex, body = _mark_citations(tex, ref_keys, cites), _mark_citations(body, ref_keys, cites)
+
     # --- title & abstract (\title may live in the preamble, so search all of tex)
     title = ""
     tm = re.search(r"\\title\s*(?:\[[^\]]*\])?", tex)
@@ -835,7 +840,6 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         )
 
     # --- references
-    refs = _collect_references(tex, body, root, resolve_ref, allowed)
     if refs:
         sections.append(Section(level=1, number="", title="References", text=refs))
     else:
@@ -854,7 +858,7 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
                     break
             t.section = best
 
-    return StructuredPaper(
+    paper = StructuredPaper(
         title=title or root.stem,
         abstract=abstract,
         sections=sections,
@@ -870,6 +874,8 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
             else []
         ),
     )
+    _show_citations(paper, cites)
+    return paper
 
 
 _GRAPHICSPATH = re.compile(r"\\graphicspath\s*\{((?:\s*\{[^{}]*\})+)\s*\}")
@@ -885,35 +891,90 @@ def _graphics_dirs(tex: str) -> list[str]:
     ]
 
 
-def _collect_references(tex: str, body: str, root: Path, resolve_ref, allowed: Path) -> str:
-    """The paper's references: its thebibliography or .bbl as built, else —
-    when that yields no entry (no build output, as Overleaf downloads it, or
-    a biblatex .bbl, whose entries are not bibitems) — the cited entries
-    of the .bib files it loads."""
-    entries: list[str] = []
+_BIBITEM_KEY = re.compile(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{([^{}]*)\}")
+_MAX_REFS = 60
+
+
+def _collect_references(tex: str, body: str, root: Path, allowed: Path) -> tuple[str, list[str]]:
+    """The paper's references, numbered, and the key of each in that order.
+
+    Its own thebibliography first; else the cited entries of the .bib files
+    it loads, as `check` reads them (a .bbl next to them is an earlier build:
+    a citation added since would have no entry); else its .bbl, as arXiv
+    sources ship it (a biblatex .bbl, whose entries are not bibitems, yields
+    none)."""
+    entries: list[tuple[str, str]] = []  # (key, text)
     bib_spans = _env_spans(body, "thebibliography")
     source = ""
+    _declared, bibs = declared_bibs(tex, root, allowed)
+
+    def from_bib() -> list[tuple[str, str]]:
+        return reference_lines(
+            tex,
+            bibs,
+            lambda s: " ".join(_clean_inline(s).replace("{", "").replace("}", "").split()),
+            lambda p: _strip_comments(_read_text(p)),
+        )
+
     if bib_spans:
         source = bib_spans[0][2]
-    else:
+    elif bibs:
+        entries = from_bib()
+    if not source and not entries:
         bbl = root.with_suffix(".bbl")
         if bbl.is_file() and bbl.resolve().is_relative_to(allowed):
             source = _strip_comments(_read_text(bbl))
     if source:
         source = re.sub(r"\\(?:begin|end)\s*\{[^{}]*\}(?:\s*\{[^{}]*\})?", " ", source)
-        parts = re.split(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{[^{}]*\}", source)
-        entries = [_clean_inline(" ".join(p.split()), resolve_ref) for p in parts[1:]]
-        entries = [e for e in entries if e]
-    # none read (no build output, or biber's \entry format): the .bib it came from
-    if not entries:
-        _declared, bibs = declared_bibs(tex, root, allowed)
-        entries = reference_lines(
-            tex,
-            bibs,
-            lambda s: " ".join(
-                _clean_inline(s, resolve_ref).replace("{", "").replace("}", "").split()
-            ),
-            lambda p: _strip_comments(_read_text(p)),
-        )
-    entries = [e for e in entries if e][:60]
-    return "\n".join(f"[{i}] {e[:240]}" for i, e in enumerate(entries, 1))
+        keys = [k.strip() for k in _BIBITEM_KEY.findall(source)]
+        parts = _BIBITEM_KEY.split(source)[2::2]  # the text after each \bibitem{key}
+        entries = [
+            (k, _clean_inline(" ".join(p.split()))) for k, p in zip(keys, parts, strict=False)
+        ]
+        entries = [(k, e) for k, e in entries if e]
+    entries = entries[:_MAX_REFS]
+    text = "\n".join(f"[{i}] {e[:240]}" for i, (_k, e) in enumerate(entries, 1))
+    return text, [k for k, _e in entries]
+
+
+# a citation while the structure is read: no brackets, braces or backslash
+# (``\section[Short [1]]`` would end at the first ], a row starting "[1]"
+# would read as the \\[2pt] before it), only its index into the shown forms
+_CITE_MARK = "{}"
+_CITE_MARKED = re.compile("(\\d+)")
+
+
+def _mark_citations(text: str, keys: list[str], cites: list[str]) -> str:
+    """``\\citep{he2016,vaswani2017}`` as a mark for ``[1, 2]``, the numbers
+    of the References list, so a reviewer sees which work each claim cites;
+    a key the list lacks stays readable (``[smith2020]``).  \\nocite prints
+    nothing.  ``cites`` collects the shown forms."""
+    number = {k: i for i, k in enumerate(keys, 1)}
+
+    def cite(m: re.Match) -> str:
+        if m.group(0).lstrip("\\").startswith("nocite"):
+            return ""
+        found = [k.strip() for k in m.group(1).split(",") if k.strip() and "#" not in k]
+        if not found:
+            return m.group(0)
+        cites.append("[" + ", ".join(str(number.get(k, k)) for k in found) + "]")
+        return _CITE_MARK.format(len(cites) - 1)
+
+    return CITE.sub(cite, text)
+
+
+def _show_citations(paper: StructuredPaper, cites: list[str]) -> None:
+    """Every citation mark in ``paper``'s text as its ``[1, 2]``."""
+
+    def show(s: str) -> str:
+        return _CITE_MARKED.sub(lambda m: cites[int(m.group(1))], s) if "" in s else s
+
+    paper.title, paper.abstract = show(paper.title), show(paper.abstract)
+    for sec in paper.sections:
+        sec.title, sec.text = show(sec.title), show(sec.text)
+    for t in paper.tables:
+        t.caption, t.raw, t.section = show(t.caption), show(t.raw), show(t.section)
+        t.header = [show(c) for c in t.header]
+        t.rows = [[show(c) for c in row] for row in t.rows]
+    for f in paper.figures:
+        f.caption, f.section = show(f.caption), show(f.section)

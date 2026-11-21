@@ -78,9 +78,12 @@ def _can_chat(base: str, name: str) -> bool:
 
 _CTX_FLOOR = 8192  # never below what a short paper needs
 _TEMPLATE_TOKENS = 64  # the chat template's role markers
+_CUT_SLACK = 8  # a prompt this close to the context is one Ollama cut to fit
 # what a BPE tokenizer (Llama 3's) splits text into, at most: digits in runs
-# of up to three, letters in short pieces, every other symbol on its own
-_PIECES = re.compile(r"\d+|[A-Za-z]+|\S")
+# of up to three, letters in short pieces, every other symbol on its own; a
+# space before a digit and a line break are tokens of their own too (a space
+# before a word or a symbol joins it)
+_PIECES = re.compile(r"\d+|[A-Za-z]+|\n+|[^\S\n]+(?=\d)|\S")
 
 
 def upper_tokens(text: str) -> int:
@@ -164,20 +167,29 @@ class OllamaProvider(BaseProvider):
     _max_ctx: int | None = None  # the model's trained context, asked once
 
     def _num_ctx(self, system: str, user: str, max_tokens: int) -> int:
-        """A context the whole prompt and the answer fit in.  Ollama's own
-        default is as small as 4K tokens and it cuts a longer prompt without
-        saying so: a reviewer would rate half a paper.  A paper the model
-        cannot hold fails here, before any call."""
-        need = upper_tokens(system) + upper_tokens(user) + _TEMPLATE_TOKENS + max_tokens
+        """A context the whole prompt and the answer fit in, up to the model's
+        own.  Ollama's default is as small as 4K tokens and it cuts a longer
+        prompt without saying so: a reviewer would rate half a paper.
+
+        Only a prompt that by itself surely does not fit (a usual count, ~4
+        characters a token) fails here, before any call.  The rest is sent:
+        a prompt that did not fit after all is caught on the way back (the
+        server refusing to truncate, or a prompt filling the context), and
+        an answer that ran out of room is cut JSON, a failed review — how
+        long a review runs is the model's, not ours to guess."""
+        from ..pack import estimate_tokens
+
+        prompt = upper_tokens(system) + upper_tokens(user) + _TEMPLATE_TOKENS
         if self._max_ctx is None:
             self._max_ctx = _model_context(self.base_url, self.model)
-        if self._max_ctx and need > self._max_ctx:
+        likely = estimate_tokens(len(system) + len(user)) + _TEMPLATE_TOKENS
+        if self._max_ctx and likely > self._max_ctx - _CUT_SLACK:
             raise ProviderError(
-                f"this prompt needs ~{need:,} tokens of context and {self.model} holds "
-                f"{self._max_ctx:,}: Ollama would cut the paper — use a model with a longer "
+                f"this prompt takes ~{likely:,} tokens and {self.model} holds "
+                f"{self._max_ctx:,}: the paper does not fit — use a model with a longer "
                 "context, or another backend"
             )
-        size = max(_CTX_FLOOR, -(-need // _CTX_STEP) * _CTX_STEP)
+        size = max(_CTX_FLOOR, -(-(prompt + max_tokens) // _CTX_STEP) * _CTX_STEP)
         return min(size, self._max_ctx) if self._max_ctx else size
 
     def _complete(self, *, system, user, temperature, seed, max_tokens):
@@ -223,9 +235,11 @@ class OllamaProvider(BaseProvider):
         evaluated = _int(data.get("prompt_eval_count"))
         # the whole prompt: evaluated now plus taken from the cache (newer Ollama)
         prompt = evaluated + _int(data.get("prompt_eval_cached_count"))
-        if prompt + max_tokens > num_ctx:  # it filled the context: the cut we asked against
+        # A cut prompt fills the context to the brim; one that fits leaves room
+        # (a long answer that runs short of room only ends early, the prompt whole)
+        if prompt >= num_ctx - _CUT_SLACK:
             raise ProviderError(
-                f"Ollama read {prompt:,} prompt tokens into a {num_ctx:,}-token context with "
-                f"{max_tokens:,} left for the answer — the paper may have been cut; not used"
+                f"Ollama read {prompt:,} prompt tokens into a {num_ctx:,}-token context — "
+                "the paper may have been cut; not used"
             )
         return text, Usage(evaluated, _int(data.get("eval_count")))

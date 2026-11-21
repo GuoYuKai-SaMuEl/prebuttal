@@ -225,6 +225,19 @@ def test_ruled_block_without_caption_is_not_a_table():
     ghost = Tab(50, 200, 300, [["Some", "boxed", "text"], *_rows(2, 3, "g")], (0, 120, 220))
     paper = ingest_pdf_bytes(_pdf([[ghost]]))
     assert paper.tables == []
+    # said, rather than "no tables detected" alone
+    assert any("no caption that was recognized" in w for w in paper.warnings)
+
+
+def test_ieee_table_caption_in_two_lines():
+    """IEEE: "TABLE II" in capitals on one line, the title on the next."""
+    t = Tab(50, 220, 300, [["Model", "acc", "f1"], *_rows(3, 3, "k")], (0, 150, 230))
+    lines = [(120, 196, "TABLE II"), (70, 208, "ACCURACY ON THE BENCHMARK")]
+    paper = ingest_pdf_bytes(_pdf([[t]], captions=[lines]))
+    got = _table(paper, "II")
+    assert got is not None and got.source == "pdf-table" and len(got.rows) == 3
+    assert got.header == ["Model", "acc", "f1"]
+    assert not any("no caption" in w for w in paper.warnings)
 
 
 def test_caption_only_table_is_flagged_for_reviewers():

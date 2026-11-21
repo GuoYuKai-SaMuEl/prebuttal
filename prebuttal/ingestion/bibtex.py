@@ -140,7 +140,7 @@ def _authors(raw: str, clean: Callable[[str], str]) -> str:
 
 def reference_lines(
     tex: str, bibs: list[Path], clean: Callable[[str], str], read: Callable[[Path], str]
-) -> list[str]:
+) -> list[tuple[str, str]]:
     """The cited entries of ``bibs`` (all of them with \\nocite{*}) as
     ``Authors. Title. Venue, Year.``, in order of first citation."""
     entries: dict[str, dict[str, str]] = {}
@@ -151,7 +151,7 @@ def reference_lines(
     order = [k for k in keys if k in entries]
     if "*" in keys:
         order += [k for k in entries if k not in order]
-    lines = []
+    lines: list[tuple[str, str]] = []  # (key, line)
     for k in order:
         f = entries[k]
         venue = (
@@ -164,5 +164,5 @@ def reference_lines(
         ]
         line = ". ".join(p.rstrip(".") for p in parts if p)
         if line:
-            lines.append(line + ".")
+            lines.append((k, line + "."))
     return lines
