@@ -237,8 +237,9 @@ def _by_reviewer(reviewers: list[dict], failed: bool = False) -> dict[str, list[
 def rated_slots(reviewers: list[dict]) -> dict[tuple[str, int], str]:
     """Every rating a report's panel mean averages: (``R1 · senior_kind``,
     round) of each review that finished with a rating, and the model that
-    gave it (``backend/model``, with the effort it was sent: another effort
-    is another reviewer)."""
+    gave it (``backend/model``, with the effort it was sent and whether it saw
+    the figures: another effort, or images after text only, is another
+    reviewer).  How many figures does not count: a revision may add one."""
     return {
         (key, int(_num(r.get("repeat")) or 0)): _rater(r)
         for key, rs in _by_reviewer(reviewers).items()
@@ -249,7 +250,8 @@ def rated_slots(reviewers: list[dict]) -> dict[tuple[str, int], str]:
 
 def _rater(r: dict) -> str:
     effort = f" · effort {r['effort']}" if r.get("effort") else ""
-    return f"{r.get('backend') or '?'}/{r.get('model') or '?'}{effort}"
+    figures = " · with figures" if (_num(r.get("images")) or 0) > 0 else ""
+    return f"{r.get('backend') or '?'}/{r.get('model') or '?'}{effort}{figures}"
 
 
 def slot_change(a: list[dict], b: list[dict]) -> list[str]:

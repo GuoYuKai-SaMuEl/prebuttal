@@ -31,6 +31,24 @@ class PDFError(Exception):
     pass
 
 
+_BODY_HEADINGS = {
+    "background",
+    "related work",
+    "method",
+    "methods",
+    "methodology",
+    "approach",
+    "materials and methods",
+    "experiments",
+    "experimental setup",
+    "evaluation",
+    "results",
+    "results and discussion",
+    "discussion",
+    "limitations",
+    "preliminaries",
+    "future work",
+}
 _HEADING_WORDS = {
     "abstract",
     "introduction",
@@ -41,6 +59,8 @@ _HEADING_WORDS = {
     "conclusion",
     "conclusions",
     "bibliography",
+    # unnumbered section names common outside ML (journals, workshops)
+    *_BODY_HEADINGS,
 }
 # recognized heading words that are not a section start (0) or are (1)
 _SPECIAL_HEADINGS = {
@@ -52,8 +72,14 @@ _SPECIAL_HEADINGS = {
     "introduction": 1,
     "conclusion": 1,
     "conclusions": 1,
+    **dict.fromkeys(_BODY_HEADINGS, 1),
 }
+_LEAD_KEEP_CHARS = 1500  # more than a title block, authors and affiliations
+_ABSTRACT_CHARS = 3000  # past this, the rest is body text the headings missed
 _ABSTRACT_LINES = 80  # lines read after the "Abstract" marker, at most
+# IEEE and many journals: "II. METHODS" (a section), "A. Dataset" (its subsection)
+_ROMAN = re.compile(r"^(?=[IVX])(X{0,2}(?:IX|IV|V?I{0,3}))\.\s+([A-Z][A-Za-z].*)$")
+_LETTERED = re.compile(r"^([A-H])\.\s+([A-Z][a-z].*)$")
 _NUMBERED = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+(\S.*)$")
 # A real caption has punctuation right after the number ("Table 3: ...", "Fig. 2.");
 # in-prose references like "Table 1 confirms that ..." must NOT match.
@@ -536,20 +562,25 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
 
     # --- abstract (text before the first heading, after an Abstract marker)
     abstract = ""
+    abstract_end = 0  # the first line after the abstract
+    abstract_cut = False  # it ran past _ABSTRACT_CHARS: what follows is body text
     for i, ln in enumerate(lines_all[:60]):
         if re.fullmatch(r"(?i)abstract\b.*", ln["text"]) or ln["text"].lower() == "abstract":
             first = ln["text"][8:] if ln["text"].lower().startswith("abstract") else ""
             buf = [first]
             size = 0.0  # the abstract's own font size, from its first line
-            for nxt in lines_all[i + 1 : i + 1 + _ABSTRACT_LINES]:
+            abstract_end = min(i + 1 + _ABSTRACT_LINES, len(lines_all))
+            for j, nxt in enumerate(lines_all[i + 1 : i + 1 + _ABSTRACT_LINES], i + 1):
                 if len(nxt["text"].strip()) < 2:
                     continue  # a stray glyph of the rotated arXiv stamp
                 if (
                     _NUMBERED.match(nxt["text"])
+                    or _ROMAN.match(nxt["text"])
                     or nxt["size"] > body_size * 1.13
                     or nxt["text"].strip().strip(".").lower() in _HEADING_WORDS
                     or nxt["page"] != ln["page"]  # the next page's running header
                 ):
+                    abstract_end = j
                     break
                 if not size:
                     if nxt["size"] < body_size * 0.85:
@@ -559,8 +590,11 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
                     # footnotes and the venue line; in two columns a footnote
                     # can sit between two lines of the abstract
                     continue
+                if sum(len(t) + 1 for t in buf) >= _ABSTRACT_CHARS:
+                    abstract_end, abstract_cut = j, True  # the rest is kept below
+                    break
                 buf.append(nxt["text"])
-            abstract = _norm(" ".join(buf))[:3000]
+            abstract = _norm(" ".join(buf))[:_ABSTRACT_CHARS]
             break
 
     # --- headings & sections
@@ -568,11 +602,19 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
     current: dict | None = None
 
     def _is_heading(ln: dict) -> tuple[bool, int, str, str]:
+        big = ln["size"] >= body_size * 1.08 or ln["bold"]
         m = _NUMBERED.match(ln["text"])
         if m:
             num, rest = m.group(1), m.group(2)
-            if (ln["size"] >= body_size * 1.08 or ln["bold"]) and len(ln["text"]) < 90:
+            if big and len(ln["text"]) < 90:
                 return True, num.count(".") + 1, num, rest
+        m = _ROMAN.match(ln["text"])
+        if m and len(ln["text"]) < 90 and (big or m.group(2).isupper()):
+            return True, 1, m.group(1), m.group(2)
+        m = _LETTERED.match(ln["text"])
+        parent = current["number"] if current else ""
+        if m and big and len(ln["text"]) < 90 and parent and _ROMAN.match(f"{parent}. X"):
+            return True, 2, f"{parent}.{m.group(1)}", m.group(2)
         low = ln["text"].strip().strip(".").lower()
         if (
             low in _HEADING_WORDS
@@ -585,7 +627,8 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
                 return (True, 1, "", ln["text"]) if _SPECIAL_HEADINGS[low] else (False, 0, "", "")
         return False, 0, "", ""
 
-    for ln in lines_all:
+    before: list[str] = []  # body text before the first heading, past the abstract
+    for k, ln in enumerate(lines_all):
         hit, level, num, ttl = _is_heading(ln)
         if hit and level > 0:
             if current:
@@ -600,9 +643,22 @@ def _ingest(doc, pages, *, source_path: str, title_hint: str | None) -> Structur
         elif current is not None:
             cur_text = current["text"]
             current["text"] = (cur_text + " " + ln["text"]).strip()
-        # text before the first heading is dropped (title block / abstract)
+        elif k >= abstract_end:
+            before.append(ln["text"])
     if current:
         sections.append(Section(**current))
+    # the title block and abstract come before the first heading; more than
+    # that is body text under headings not recognized — kept, not dropped
+    lead = _norm(" ".join(before))
+    if len(lead) >= _LEAD_KEEP_CHARS or (abstract_cut and lead):
+        sections.insert(
+            0,
+            Section(level=1, number="", title="Text before the first detected heading", text=lead),
+        )
+        warnings.append(
+            f"{len(lead):,} characters came before the first section heading found — kept "
+            "as one section; the paper's headings may not have been recognized"
+        )
 
     # --- tables
     page_finds = []

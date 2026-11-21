@@ -1215,6 +1215,16 @@ def test_another_effort_for_a_reviewer_is_a_changed_panel():
     assert slot_change(a, [{**a[0], "effort": ""}]) == []  # an older archive: no effort
 
 
+def test_figures_after_text_only_is_a_changed_panel():
+    from prebuttal.revdiff import slot_change
+
+    text = [{"reviewer_id": "R1", "persona": "p", "rating": 5, "backend": "x", "model": "m"}]
+    seen = [{**text[0], "rating": 8, "images": 3}]
+    assert slot_change(text, seen) == ["R1 · p model x/m → x/m · with figures"]
+    assert slot_change(seen, [{**seen[0], "images": 4}]) == []  # a revision added a figure
+    assert slot_change(text, [{**text[0], "images": 0}]) == []  # older archives: text only
+
+
 def test_a_field_value_of_the_wrong_type_fails_when_read(latex_project):
     from prebuttal.report import report_from_dict
 

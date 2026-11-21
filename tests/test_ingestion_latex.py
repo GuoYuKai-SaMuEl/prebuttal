@@ -475,3 +475,59 @@ def test_a_source_without_its_bbl_lists_the_cited_bib_entries(tmp_path):
 def test_nocite_star_lists_every_bib_entry(tmp_path):
     text, _w = _bib_paper(tmp_path, r"\cite{he2016}\nocite{*}")
     assert text.startswith("[1] Kaiming He") and "Secret Unpublished Detail" in text
+
+
+def test_a_biblatex_bbl_still_lists_the_bib_entries(tmp_path):
+    # biber writes \entry{key}{type}{} with \field{...}: no \bibitem to split on
+    (tmp_path / "main.bbl").write_text(
+        r"\refsection{0}\datalist[entry]{nty/global//global/global}"
+        r"\entry{he2016}{article}{}\field{title}{Deep Residual Learning}\endentry"
+        r"\enddatalist\endrefsection",
+        encoding="utf-8",
+    )
+    text, warnings = _bib_paper(tmp_path, r"\cite{he2016}")
+    assert text == "[1] Kaiming He, Xiangyu Zhang. Deep Residual Learning. CVPR, 2016."
+    assert not any("references not included" in w for w in warnings)
+
+
+def test_subfiles_and_imports_are_part_of_the_paper(tmp_path):
+    # Overleaf's subfiles layout, and the import package's \import / \subimport
+    (tmp_path / "sections").mkdir()
+    (tmp_path / "parts" / "deep").mkdir(parents=True)
+    (tmp_path / "sections" / "results.tex").write_text(
+        r"\documentclass[../main.tex]{subfiles}\begin{document}"
+        "\n" + r"\section{Results}Widgets win by ten points.\end{document}",
+        encoding="utf-8",
+    )
+    (tmp_path / "parts" / "method.tex").write_text(
+        r"\section{Method}We route widgets.\subimport{deep/}{detail}", encoding="utf-8"
+    )
+    (tmp_path / "parts" / "deep" / "detail.tex").write_text(
+        "Routing uses a gate.", encoding="utf-8"
+    )
+    (tmp_path / "main.tex").write_text(
+        r"\documentclass{article}\usepackage{subfiles}\usepackage{import}\title{T}"
+        r"\begin{document}\section{Intro}Hello."
+        "\n" + r"\import{parts/}{method}\subfile{sections/results}\subfile{sections/gone}"
+        r"\end{document}",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(tmp_path / "main.tex")
+    text = " ".join(s.text for s in paper.sections)
+    assert "Widgets win by ten points" in text and "documentclass" not in text
+    assert "We route widgets" in text and "Routing uses a gate" in text
+    assert any("sections/gone" in w for w in paper.warnings)  # said, not silently dropped
+
+
+def test_an_input_shown_verbatim_is_not_read(tmp_path):
+    (tmp_path / "secret.tex").write_text("Do not include me.", encoding="utf-8")
+    (tmp_path / "main.tex").write_text(
+        r"\documentclass{article}\begin{document}\section{Usage}"
+        "\nWrite " + r"\verb|\input{secret}| or \verb+\input{nowhere}+:" + "\n"
+        r"\begin{verbatim}" + "\n" + r"\input{secret}" + "\n" + r"\end{verbatim}"
+        "\n" + r"\end{document}",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(tmp_path / "main.tex")
+    assert "Do not include me" not in " ".join(s.text for s in paper.sections)
+    assert not any("nowhere" in w for w in paper.warnings)

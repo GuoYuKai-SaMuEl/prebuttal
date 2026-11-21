@@ -114,10 +114,14 @@ class RelayProvider(BaseProvider):
         req = self.spool / f"{stem}.req.md"
         ans = self.spool / f"{stem}.ans.md"
         ans.unlink(missing_ok=True)  # never take an answer written before the request
-        req.write_text(
+        # written aside, then renamed: a responder watching for *.req.md never
+        # reads one half written (as we ask of its answers)
+        tmp = self.spool / f"{stem}.req.md.tmp"
+        tmp.write_text(
             system + "\n\n---\n\n" + user + _PROTOCOL_NOTE.format(ans_name=ans.name),
             encoding="utf-8",
         )
+        os.replace(tmp, req)
         deadline = time.monotonic() + self.timeout_s
         prev: str | None = None
         changed_at = time.monotonic()

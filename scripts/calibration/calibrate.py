@@ -43,10 +43,11 @@ def parse_rating(value) -> float | None:
     return float(m.group(1)) if m else None
 
 
-def fetch_calibration_set(venue_id: str, n: int, min_reviews: int = 2):
-    import openreview
+def fetch_calibration_set(venue_id: str, n: int, min_reviews: int = 2, client=None):
+    if client is None:
+        import openreview  # pip install openreview-py
 
-    client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net")
+        client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net")
     notes = client.get_all_notes(
         invitation=f"{venue_id}/-/Submission",
         details={"replies": {"invitation": f"{venue_id}/-/Official_Review"}},
@@ -63,12 +64,14 @@ def fetch_calibration_set(venue_id: str, n: int, min_reviews: int = 2):
             r = parse_rating(v)
             if r is not None:
                 ratings.append(r)
-        if len(ratings) >= min_reviews:
+        # API v2 notes keep every field in content as {"value": ...}: no note.pdf
+        pdf = (note.content.get("pdf") or {}).get("value") if note.content else None
+        if len(ratings) >= min_reviews and pdf:
             out.append(
                 {
                     "id": note.id,
                     "title": (note.content.get("title", {}) or {}).get("value", note.id),
-                    "pdf": note.pdf,
+                    "pdf": pdf,
                     "true_ratings": ratings,
                     "true_mean": round(statistics.mean(ratings), 2),
                 }
@@ -79,9 +82,8 @@ def fetch_calibration_set(venue_id: str, n: int, min_reviews: int = 2):
 
 
 def fetch_pdf(client, venue_id: str, entry: dict) -> bytes:
-
-    note = client.get_note(entry["id"])
-    return client.get_attachment(note, "pdf")
+    """openreview-py: ``get_attachment(field_name, id=note_id)``."""
+    return client.get_attachment("pdf", id=entry["id"])
 
 
 # OpenReview id prefix -> the prebuttal venue whose form and scale it uses
@@ -156,13 +158,12 @@ def main() -> int:
 
     cfg = apply_overrides(cfg, venue=args.venue)
 
-    print(f"fetching {args.n} {args.venue_id} submissions with public reviews ...")
-    entries = fetch_calibration_set(args.venue_id, args.n)
-    print(f"got {len(entries)} papers")
-
-    import openreview
+    import openreview  # pip install openreview-py
 
     client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net")
+    print(f"fetching {args.n} {args.venue_id} submissions with public reviews ...")
+    entries = fetch_calibration_set(args.venue_id, args.n, client=client)
+    print(f"got {len(entries)} papers")
 
     pairs = []
     for i, entry in enumerate(entries, 1):

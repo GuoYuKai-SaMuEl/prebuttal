@@ -237,13 +237,16 @@ prebuttal projects rename mamba mamba-v2</pre>
     <tr><td><code>api-gemini</code></td><td><code>GEMINI_API_KEY</code></td><td>free tier — the cheapest first key</td></tr>
     <tr><td><code>api-openai</code> / <code>api-anthropic</code></td><td><code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code></td><td>mid-tier models by default</td></tr>
     <tr><td><code>api-openrouter</code></td><td><code>OPENROUTER_API_KEY</code></td><td>hundreds of models; <code>:free</code> ids cost nothing</td></tr>
-    <tr><td><code>ollama</code></td><td>none</td><td>local: the paper never leaves your machine</td></tr>
+    <tr><td><code>ollama</code></td><td>none</td><td>local: the paper never leaves your machine (except an Ollama Cloud model you name, e.g. <code>gpt-oss:120b-cloud</code>)</td></tr>
     <tr><td><code>relay</code></td><td>none</td><td>prompts go to files and you or your agent answer; never chosen automatically</td></tr>
   </table>
   <p>An agent CLI counts only when it is signed in (asked through <code>claude auth
   status</code> / <code>codex login status</code>, no model call); agy has no such
   command, so an installed <code>agy</code> counts as ready. Ollama's default is
-  the first installed model that can chat; embedding models are skipped.
+  the first installed local model that can chat; embedding models and Ollama Cloud
+  models (<code>…-cloud</code>, run on ollama.com) are skipped. A cloud model runs
+  only when you name it with <code>--model</code>, and the run says so before the
+  first call.
   <code>prebuttal backends &lt;name&gt;</code> lists one backend's models.</p>
   <p><strong>Keys.</strong> <code>prebuttal key set gemini</code> asks for the key with
   hidden input and stores it in <code>~/.prebuttal/keys.env</code> (user-only); real

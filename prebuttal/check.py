@@ -426,6 +426,29 @@ def _named_authors(tex: str) -> str:
     return text
 
 
+def _latex_inputs(result: CheckResult, missing: list[str], blocked: list[str]) -> None:
+    """Every \\input / \\include read, or the check covered part of the paper.
+
+    A path into the project (``sections/methods``, ``intro.tex``) that is not
+    there fails the build: an error.  A bare name may come from the TeX
+    installation (``glyphtounicode``): a warning."""
+    ours = [n for n in missing if "/" in n or "\\" in n or n.lower().endswith(".tex")]
+    maybe = [n for n in missing if n not in ours]
+    for names, level, why in (
+        (
+            ours,
+            ERROR,
+            "not found — the paper does not build and this check covered only part of it",
+        ),
+        (blocked, ERROR, "points outside the paper's folder — not read, so not checked"),
+        (maybe, WARNING, "not in the project (from your TeX installation?) — not checked"),
+    ):
+        if names:
+            shown = ", ".join(f"\\input{{{n}}}" for n in names[:3])
+            more = f" (+{len(names) - 3} more)" if len(names) > 3 else ""
+            result.add(level, "leftovers", f"{shown}{more} {why}")
+
+
 def check_latex(path: Path, rules: CheckRules) -> CheckResult:
     from .ingestion.hidden import find_hidden_latex_text
     from .ingestion.latex import LatexError, _merge_inputs, _strip_comments, find_root_tex
@@ -437,10 +460,15 @@ def check_latex(path: Path, rules: CheckRules) -> CheckResult:
         if path.is_dir() and not root.resolve().is_relative_to(allowed):
             raise CheckError(f"{root} links outside the paper's folder — not read")
         tex = _strip_comments(root.read_text(encoding="utf-8", errors="replace"))
-        tex = _merge_inputs(tex, root.parent, {root.resolve()}, [], allowed=allowed, blocked=[])
+        missing: list[str] = []
+        blocked: list[str] = []
+        tex = _merge_inputs(
+            tex, root.parent, {root.resolve()}, missing, allowed=allowed, blocked=blocked
+        )
     except (LatexError, OSError) as e:
         raise CheckError(str(e)) from e
     result = CheckResult(source=str(path), kind="latex")
+    _latex_inputs(result, missing, blocked)
     where = root.name
 
     if rules.double_blind:

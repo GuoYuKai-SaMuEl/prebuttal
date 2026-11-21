@@ -527,3 +527,34 @@ def test_latex_sections_with_nested_braces_and_macros(tmp_path, heading, venue):
     result = check_latex(tmp_path, get_venue(venue).rules)
     assert [f for f in result.errors if f.area == "format"] == []
     assert any("acknowledgements" in f.message for f in result.warnings)
+
+
+def test_a_missing_input_fails_the_check(tmp_path, monkeypatch, capsys):
+    (tmp_path / "main.tex").write_text(
+        r"\documentclass{article}\input{glyphtounicode}\begin{document}\section{Intro}"
+        "\n" + r"\input{sections/methods}\input{../outside}\end{document}",
+        encoding="utf-8",
+    )
+    (tmp_path.parent / "outside.tex").write_text("Elsewhere.", encoding="utf-8")
+    result = check_latex(tmp_path, CheckRules())
+    errors = " | ".join(f.message for f in result.errors)
+    assert r"\input{sections/methods} not found" in errors and "only part of it" in errors
+    assert r"\input{../outside} points outside" in errors
+    # a bare name may come from the TeX installation
+    assert any(r"\input{glyphtounicode}" in f.message for f in result.warnings)
+    assert "glyphtounicode" not in errors
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["check", str(tmp_path), "--venue", "iclr"]) == cli.EXIT_CHECK_FAILED
+    assert "No problems found" not in capsys.readouterr().out
+
+
+def test_an_input_shown_verbatim_is_no_missing_file(tmp_path):
+    (tmp_path / "main.tex").write_text(
+        r"\documentclass{article}\begin{document}\section{Usage}"
+        "\n" + r"Write \verb|\input{sections/methods}|." + "\n"
+        r"\begin{lstlisting}" + "\n" + r"\include{chapters/one}" + "\n" + r"\end{lstlisting}"
+        "\n" + r"\end{document}",
+        encoding="utf-8",
+    )
+    result = check_latex(tmp_path, CheckRules())
+    assert not any(r"\input{" in f.message for f in result.findings)

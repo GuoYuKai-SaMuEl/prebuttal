@@ -75,6 +75,50 @@ def test_latex_figures_from_inside_the_project_only(tmp_path):
     assert paper.figure_images[0].png.startswith(PNG)
 
 
+def test_latex_figures_follow_the_graphicspath(tmp_path):
+    proj = tmp_path / "paper"
+    _png_file(proj / "figures" / "plot.png")
+    _png_file(tmp_path / "private.png")
+    (proj / "main.tex").write_text(
+        r"\documentclass{article}\graphicspath{{img/}{figures/}{../}}"
+        r"\begin{document}\section{Intro}"
+        r"\begin{figure}\includegraphics{plot}\caption{Accuracy.}\end{figure}"
+        r"\begin{figure}\includegraphics{private}\caption{Leak?}\end{figure}"
+        r"\end{document}",
+        encoding="utf-8",
+    )
+    paper = ingest_latex_source(proj, figure_images=6)
+    assert [im.label for im in paper.figure_images] == ["Figure 1"]  # never outside the project
+
+
+def test_imported_sections_show_their_own_figures(tmp_path):
+    from PIL import Image
+
+    proj = tmp_path / "paper"
+    for part, colour in (("a", (255, 0, 0)), ("b", (0, 0, 255)), ("", (0, 255, 0))):
+        (proj / part).mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (40, 30), colour).save(proj / part / "plot.png")
+    for part in ("a", "b"):
+        (proj / part / "sec.tex").write_text(
+            rf"\section{{{part}}}\begin{{figure}}\includegraphics{{plot}}"
+            rf"\caption{{Part {part}.}}\end{{figure}}",
+            encoding="utf-8",
+        )
+    (proj / "main.tex").write_text(
+        r"\documentclass{article}\begin{document}\import{a/}{sec}\subimport{b/}{sec}"
+        r"\end{document}",
+        encoding="utf-8",
+    )
+    import io
+
+    paper = ingest_latex_source(proj, figure_images=6)
+    assert [f.graphic for f in paper.figures] == ["a/plot", "b/plot"]
+    colours = [
+        Image.open(io.BytesIO(im.png)).convert("RGB").getpixel((5, 5)) for im in paper.figure_images
+    ]
+    assert colours == [(255, 0, 0), (0, 0, 255)]  # each its own, not the main folder's green one
+
+
 # ------------------------------------------------------------------ dispatch
 
 IMAGES = [FigureImage("page 2 (Figure 1)", PNG + b"one"), FigureImage("Figure 2", PNG + b"two")]

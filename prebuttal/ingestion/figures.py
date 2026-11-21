@@ -68,20 +68,31 @@ def _render_graphic(path: Path) -> bytes | None:
 
 
 def latex_figure_images(
-    figures: list[Figure], base: Path, allowed: Path, max_images: int = DEFAULT_MAX_IMAGES
+    figures: list[Figure],
+    base: Path,
+    allowed: Path,
+    max_images: int = DEFAULT_MAX_IMAGES,
+    graphics_dirs: list[str] | None = None,
 ) -> list[FigureImage]:
+    """``graphics_dirs``: the paper's graphicspath, searched after ``base``
+    as LaTeX does (relative to it); never outside ``allowed``."""
     allowed = allowed.resolve()
+    dirs = [base] + [base / d for d in graphics_dirs or []]
     out: list[FigureImage] = []
     for f in figures:
         if len(out) >= max_images:
             break
         if not f.graphic:
             continue
-        for ext in _GRAPHIC_EXTS:
-            cand = (base / (f.graphic + ext)).resolve()
-            if cand.is_file() and cand.is_relative_to(allowed):
-                png = _render_graphic(cand)
-                if png:
-                    out.append(FigureImage(label=f"Figure {f.number}", png=png))
-                break
+        cand = next(
+            (
+                c
+                for d in dirs
+                for ext in _GRAPHIC_EXTS
+                if (c := (d / (f.graphic + ext)).resolve()).is_file() and c.is_relative_to(allowed)
+            ),
+            None,
+        )
+        if cand is not None and (png := _render_graphic(cand)):
+            out.append(FigureImage(label=f"Figure {f.number}", png=png))
     return out

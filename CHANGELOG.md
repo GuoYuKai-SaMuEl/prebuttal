@@ -127,12 +127,62 @@ releases (0.2, 0.3, …) are substantial new features.
   - `prebuttal runs --paper`: `prebuttal runs <project>`.
 
 ### Fixed
+- `--backend ollama` without a model could pick an Ollama Cloud model
+  (`gpt-oss:120b-cloud`): listed and called like a local one, it runs on
+  ollama.com, while `--dry-run` called it "local model — free". The default
+  is now the first *local* model that chats; a cloud model runs only when
+  named, says so on stderr before the first call, and `--dry-run` labels it
+  Ollama Cloud.
+- Ollama reviewed with its default context, as small as 4K tokens on a GPU
+  under 24 GiB, and cut a longer prompt without saying so: a 16K-token
+  paper was rated from its last part, and the review counted as a success.
+  Each call now asks for a context the whole prompt and the answer fit in,
+  up to what the model was trained for, counted high (dense tables run near
+  two characters a token); a paper the model cannot hold fails that reviewer
+  before any call, saying so. Ollama is asked not to truncate (`truncate`
+  and `shift` off, on versions that know them), and an answer whose prompt
+  filled the context is not used.
+- A relay request was written straight to its `.req.md` name, so a
+  responder watching the folder could read it half written, answer
+  nothing, and the review timed out. It is now written aside and renamed
+  into place, as responders are asked to do with their answers.
+- The calibration script could not be installed or run: the `calibration`
+  extra named `openreview` (the official client is `openreview-py`), and it
+  read API v1 fields (`note.pdf`) and passed `get_attachment` the wrong
+  arguments. Papers without a PDF are now skipped.
+- A PDF whose sections have no numbers and names outside a short list
+  (`Background`, `Methods`, `Results`, `Discussion`) lost every word before
+  the first heading it recognized — often all but `References` — with no
+  warning, and the review went ahead. More unnumbered names are recognized,
+  and body text before the first recognized heading is kept as one section
+  with a warning. Roman-numbered sections (`II. METHODS`, IEEE's style, with
+  `A. Dataset` subsections) were read as part of the abstract, which was cut
+  at 3,000 characters and took the rest with it; they are now headings, and
+  an abstract that runs past its limit hands what follows to the body.
+- `prebuttal check` of a LaTeX project with a missing `\input` /
+  `\include` (`sections/methods.tex` not in the zip) said "No problems
+  found" and exited 0 after checking part of the paper. A missing file of
+  the project, or one outside its folder, is now an error; a bare name that
+  may come from the TeX installation (`glyphtounicode`) a warning. An
+  `\input` shown in `\verb|…|` or a verbatim/listing environment is an
+  example in the text: it is no longer read, nor reported missing.
+- A LaTeX project split with `\subfile` (Overleaf's multi-file layout) or
+  the import package's `\import` / `\subimport` reached the reviewers
+  without those parts, and nothing said so. They are now read — a subfile's
+  document body only — and one that is not there is reported like a
+  missing `\input`. With `--figures`, an imported file's graphics are found
+  next to it, as LaTeX does, not in the main file's folder.
+- `--figures` on a LaTeX project that sets `\graphicspath{{figures/}}`
+  sent captions without their images: graphics were looked up only next to
+  the main file. The graphicspath folders are searched too, inside the
+  project only.
 - A LaTeX source without its `.bbl` (an Overleaf download: `main.tex` and
   `refs.bib`) reached the reviewers with no references at all, so novelty,
   related work and baselines were judged without them. The cited entries of
   the `.bib` files the paper loads are now listed (all of them with
   `\nocite{*}`), in order of first citation; `check` and the review read
-  the same files.
+  the same files. So are they when a `.bbl` gives none: a biblatex/biber
+  `.bbl`, whose entries are not `\bibitem`s, dropped the references too.
 - `prebuttal diff` matched by wording after `prebuttal run --config
   prebuttal.toml`: `diff` has no `--config`, reads `./prebuttal.toml`, and
   found it "not trusted yet" because passing a file with `--config` trusted
@@ -288,10 +338,11 @@ releases (0.2, 0.3, …) are substantial new features.
   says to unset it or start a new run.
 - The score trend of `prebuttal projects` and the dashboard's line joined
   versions rated by different panels (a reviewer on another model or
-  effort, a missing round); a trend now covers only the latest versions one
-  panel rated, and says "since #N" when it starts later than the first.
-  `prebuttal diff` counts another effort as another reviewer too, and no
-  longer checks such a change against run-to-run noise.
+  effort, shown the figures after text only, a missing round); a trend now
+  covers only the latest versions one panel rated, and says "since #N" when
+  it starts later than the first. `prebuttal diff` counts those changes as
+  another reviewer too (how many figures does not count: a revision may add
+  one), and no longer checks such a change against run-to-run noise.
 - A run whose reviews finished but whose report could be saved nowhere (the
   archive failed and `[output] dir = ""`) exited 0. It now prints the report
   and exits 7 — also when every reviewer failed but the area chair wrote.

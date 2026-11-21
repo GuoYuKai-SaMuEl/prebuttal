@@ -19,6 +19,10 @@ def _cost(
     if kind == "relay":
         return None, "answered by you / your agent — no model cost"
     if kind == "ollama":
+        from .providers.ollama import is_cloud_model
+
+        if is_cloud_model(model):
+            return None, "Ollama Cloud — runs on ollama.com, not this machine (your Ollama plan)"
         return None, "local model — free"
     if model.endswith(":free"):
         return None, "OpenRouter :free tier — $0 (rate-limited)"

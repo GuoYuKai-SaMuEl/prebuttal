@@ -797,6 +797,76 @@ def test_ollama_bad_responses_are_provider_errors(monkeypatch):
         p._complete(system="s", user="u", temperature=0, seed=None, max_tokens=10)
 
 
+def test_ollama_sizes_the_context_to_hold_the_whole_paper(monkeypatch):
+    import json as _json
+
+    from prebuttal.providers import ollama
+    from prebuttal.providers.base import ProviderError
+
+    sent: list[dict] = []
+
+    class R:
+        status_code = 200
+
+        def __init__(self, data):
+            self._data, self.text = data, _json.dumps(data)
+
+        def json(self):
+            return self._data
+
+    def post(url, json, **k):
+        if url.endswith("/api/show"):
+            return R({"model_info": {"llama.context_length": 131072}})
+        sent.append(json)
+        return R({"message": {"content": "ok"}, "prompt_eval_count": 1, "eval_count": 1})
+
+    monkeypatch.setattr(ollama.httpx, "post", post)
+    paper = "x" * 64_000  # ~16k tokens: four times Ollama's smallest default
+    p = ollama.OllamaProvider(model="llama3.1:8b")
+    p._complete(system="s", user=paper, temperature=0, seed=None, max_tokens=4000)
+    ctx = sent[0]["options"]["num_ctx"]
+    assert ctx >= 64_000 // 4 + 4000 and ctx % 2048 == 0
+    assert sent[0]["truncate"] is False and sent[0]["shift"] is False  # an error, not a cut
+
+    # a dense table: about two characters a token, not four
+    table = "| 0.912 | 0.874 | 12.3 | 45.6 |\n" * 1000
+    assert ollama.upper_tokens(table) >= len(table) // 2
+
+    def cut(url, json, **k):  # an Ollama that cut the prompt anyway
+        if url.endswith("/api/show"):
+            return R({"model_info": {"llama.context_length": 131072}})
+        n = json["options"]["num_ctx"]
+        return R({"message": {"content": "ok"}, "prompt_eval_count": n - 10, "eval_count": 1})
+
+    monkeypatch.setattr(ollama.httpx, "post", cut)
+    with pytest.raises(ProviderError, match="may have been cut"):
+        p._complete(system="s", user=paper, temperature=0, seed=None, max_tokens=4000)
+
+    class Err(R):
+        status_code = 400
+
+    def refused(url, json, **k):  # truncate: false honoured
+        if url.endswith("/api/show"):
+            return R({})
+        return Err({"error": "input length exceeds the context length"})
+
+    monkeypatch.setattr(ollama.httpx, "post", refused)
+    with pytest.raises(ProviderError, match="does not fit"):
+        ollama.OllamaProvider(model="m")._complete(
+            system="s", user="u", temperature=0, seed=None, max_tokens=10
+        )
+
+    def small(url, json, **k):
+        if url.endswith("/api/show"):
+            return R({"model_info": {"llama.context_length": 8192}})
+        raise AssertionError("no chat call: the paper does not fit")
+
+    monkeypatch.setattr(ollama.httpx, "post", small)
+    q = ollama.OllamaProvider(model="tiny:1b")
+    with pytest.raises(ProviderError, match="holds 8,192: Ollama would cut the paper"):
+        q._complete(system="s", user=paper, temperature=0, seed=None, max_tokens=4000)
+
+
 @pytest.mark.parametrize("model", ["--dangerously-skip-permissions", "sonnet & calc", "a|b"])
 def test_agent_cli_refuses_unsafe_model_values(monkeypatch, model):
     """A model id from someone's prebuttal.toml must not become a flag or,
@@ -969,6 +1039,24 @@ def test_ollama_trusts_the_listed_capabilities(monkeypatch):
     assert ol.pick_ollama_model("http://127.0.0.1:11434") == "qwen3:8b"
 
 
+def test_ollama_never_picks_a_cloud_model_and_announces_a_named_one(monkeypatch, capsys):
+    from prebuttal.dryrun import _cost
+    from prebuttal.providers.base import ProviderError
+
+    cloud = {"name": "gpt-oss:120b-cloud", "remote_host": "https://ollama.com:443"}
+    tags = [cloud, {"name": "llama3.1:8b"}]
+    ol = _ollama(monkeypatch, tags)
+    assert ol.pick_ollama_model("http://127.0.0.1:11434") == "llama3.1:8b"
+    assert ol.is_cloud_model("x", {"name": "x", "remote_model": "x"})  # marked by the server
+    _ollama(monkeypatch, [cloud])
+    with pytest.raises(ProviderError, match="Ollama Cloud and are used only when named"):
+        ol.OllamaProvider()
+    ol.OllamaProvider(model="gpt-oss:120b-cloud")
+    assert "runs on Ollama Cloud" in capsys.readouterr().err
+    assert "ollama.com" in _cost("gpt-oss:120b-cloud", "ollama", 1, 1, load_config(None))[1]
+    assert _cost("llama3.1:8b", "ollama", 1, 1, load_config(None))[1] == "local model — free"
+
+
 def test_only_embedding_models_means_no_ollama_backend(monkeypatch):
     import prebuttal.providers.detect as det
 
@@ -976,7 +1064,7 @@ def test_only_embedding_models_means_no_ollama_backend(monkeypatch):
     ol = _ollama(monkeypatch, tags)
     monkeypatch.setattr("shutil.which", lambda name: None)
     ollama = next(s for s in det.scan_backends(load_config(None)) if s.backend == "ollama")
-    assert ollama.available is False and "only embedding models" in ollama.detail
+    assert ollama.available is False and "no local chat model" in ollama.detail
     assert ol.tag_calls == 1  # one listing per scan
 
 
@@ -987,7 +1075,7 @@ def test_backends_ollama_shows_no_default_without_a_chat_model(monkeypatch):
     _ollama(monkeypatch, tags)
     (listing,) = scan(only="ollama")
     assert listing.models == ["nomic-embed-text:latest"]  # still listed, for `ollama rm`
-    assert listing.default == "none" and "only embedding models" in listing.note
+    assert listing.default == "none" and "no local chat model" in listing.note
     assert "(default: none)" in listing.render() and " *" not in listing.render()
 
 

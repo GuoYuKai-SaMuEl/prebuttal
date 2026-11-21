@@ -257,3 +257,24 @@ def test_relay_does_not_take_an_answer_paused_mid_write(tmp_path, monkeypatch):
     monkeypatch.setattr(relay.time, "sleep", tick)
     comp = provider.complete(system="s", user="u", retries=0)
     assert comp.text == ANSWER
+
+
+def test_a_request_appears_only_once_written(tmp_path, monkeypatch):
+    """A responder watching for *.req.md must never find one half written."""
+    spool = tmp_path / "s"
+    provider = RelayProvider(spool_dir=spool, timeout_s=0.2, poll_s=0.05)
+    seen_while_writing: list[str] = []
+    real = Path.write_text
+
+    def watching(self, data, *a, **k):
+        if ".req.md" in self.name:
+            seen_while_writing.extend(p.name for p in spool.glob("*.req.md"))
+        return real(self, data, *a, **k)
+
+    monkeypatch.setattr(Path, "write_text", watching)
+    with pytest.raises(ProviderError):  # no responder: it times out
+        provider.complete(system="s", user="u" * 10_000, retries=0)
+    assert seen_while_writing == []
+    (req,) = spool.glob("*.req.md")
+    assert req.read_text(encoding="utf-8").count("u" * 10_000) == 1
+    assert not list(spool.glob("*.tmp"))

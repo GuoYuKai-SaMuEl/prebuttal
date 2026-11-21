@@ -46,8 +46,9 @@ exactly what this tool exists to avoid.
    `prebuttal-reports/<project>/`; the CLI prints the paths.
 4. If the user has no API keys: Prebuttal auto-detects subscription CLIs
    (`claude -p`, `codex exec`, `agy -p`) and local Ollama — zero-key paths. Check
-   `prebuttal backends`. For unpublished work, suggest Ollama (nothing leaves
-   the machine). Use `--dry-run` first if the user asks about cost.
+   `prebuttal backends`. For unpublished work, suggest Ollama with a local
+   model (nothing leaves the machine; a `-cloud` model runs on ollama.com and
+   is used only when named). Use `--dry-run` first if the user asks about cost.
 5. Leave effort unset (each model's default) unless the user asks for a
    deeper or a cheaper/faster review: then set `effort = "high"` or `"low"`
    under `[default]` in `prebuttal.toml` (`prebuttal init` writes one). Like

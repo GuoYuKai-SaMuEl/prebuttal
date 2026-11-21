@@ -231,7 +231,10 @@ def _ollama() -> ModelListing:
     if chat:
         note = "(ollama pull <model> to add more)"
     elif installed:  # still listed: `ollama rm` needs the names
-        note = "(only embedding models, which can't review — ollama pull llama3.1)"
+        note = (
+            "(no local chat model: embedding models can't review, cloud ones run only "
+            "when named — ollama pull llama3.1)"
+        )
     else:
         note = "(not running)"
     return ModelListing("ollama", installed, chat or "none", note)

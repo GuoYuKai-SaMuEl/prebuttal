@@ -79,11 +79,15 @@ def _merge_inputs(
     allowed: Path | None = None,
     blocked: list[str] | None = None,
 ) -> str:
-    """Inline ``\\input``/``\\include`` recursively (braced or ``\\input file``).
+    """Inline ``\\input``/``\\include`` recursively (braced or ``\\input file``),
+    ``\\subfile`` (the subfile's document body) and the import package's
+    ``\\import{dir}{file}`` / ``\\subimport{dir}{file}``.
 
     Like LaTeX, paths resolve against the root file's directory at every
     nesting level; the including file's own directory is only a fallback.
     Unresolvable inputs are recorded in ``missing`` instead of vanishing.
+    One shown verbatim (``\\verb|\\input{x}|``, a verbatim or listing
+    environment) is an example in the text, not a file to read.
 
     The source may come from someone else (an arXiv tarball, a co-author's
     repo) and the merged text is sent to a model provider, so files outside
@@ -93,9 +97,26 @@ def _merge_inputs(
     allowed = (allowed or root_dir).resolve()
     blocked = [] if blocked is None else blocked
 
+    here = cur_dir or root_dir
+    shown = _verbatim_spans(tex)
+
     def repl(m: re.Match) -> str:
-        name = (m.group(1) or m.group(2)).strip()
-        dirs = [root_dir] if cur_dir in (None, root_dir) else [root_dir, cur_dir]
+        if any(a <= m.start() < b for a, b in shown):
+            return m.group(0)
+        cmd = m.group("cmd") or m.group("cmd2")
+        if cmd.startswith(("import", "subimport")):
+            # \import{dir}: from the main file's folder; \subimport{dir}: from this file's
+            sub_dir = (root_dir if cmd.startswith("import") else here) / m.group("dir").strip()
+            name = m.group("ifile").strip()
+            dirs = [sub_dir]
+            shown_name = f"{m.group('dir').strip()}{name}"
+        else:
+            name = (m.group("file") or m.group("bare")).strip()
+            shown_name = name
+            if cmd == "subfile":  # relative to the file that names it
+                dirs = [here] if here == root_dir else [here, root_dir]
+            else:
+                dirs = [root_dir] if cur_dir in (None, root_dir) else [root_dir, cur_dir]
         found = False
         for d in dirs:
             for cand in (d / name, d / (name + ".tex")):
@@ -104,25 +125,79 @@ def _merge_inputs(
                     continue
                 found = True
                 if not cand.is_relative_to(allowed):
-                    if name not in blocked:
-                        blocked.append(name)
+                    if shown_name not in blocked:
+                        blocked.append(shown_name)
                     return ""
                 if cand not in seen:
                     seen.add(cand)
                     sub = _strip_comments(_read_text(cand))
+                    if cmd == "subfile":  # a whole document: its body only
+                        sub = _document_body(sub)
+                    elif (
+                        "import" in cmd
+                    ):  # its graphics live next to it, as import makes LaTeX look
+                        sub = _rebase_graphics(sub, cand.parent, root_dir)
                     return _merge_inputs(
                         sub, root_dir, seen, missing, cand.parent, allowed=allowed, blocked=blocked
                     )
         if not found:
-            missing.append(name)
+            missing.append(shown_name)
         return ""
 
     return _INPUT_RE.sub(repl, tex)
 
 
-# \input{file} / \include{file}, and TeX's primitive form `\input file`
-# (braces or whitespace required, so \includegraphics and \inputencoding never match)
-_INPUT_RE = re.compile(r"\\(?:input|include)(?:\s*\{([^{}]+)\}|\s+([^\s{}\\%]+))")
+def _rebase_graphics(tex: str, folder: Path, root_dir: Path) -> str:
+    """``\\includegraphics{plot}`` in a file imported from ``folder``, made
+    relative to the main file (``parts/plot``): once inlined, it would
+    otherwise be looked up next to the main file — missed, or another
+    figure of the same name.  Absolute paths stay as they are."""
+    try:
+        prefix = folder.resolve().relative_to(root_dir.resolve()).as_posix()
+    except ValueError:
+        return tex
+    if prefix in ("", "."):
+        return tex
+
+    def rebase(m: re.Match) -> str:
+        path = m.group(1).strip()
+        if path.startswith(("/", "\\")) or re.match(r"[A-Za-z]:", path):
+            return m.group(0)
+        whole, start = m.group(0), m.start(1) - m.start(0)
+        return f"{whole[:start]}{prefix}/{path}{whole[start + len(m.group(1)) :]}"
+
+    return _GRAPHIC.sub(rebase, tex)
+
+
+def _document_body(tex: str) -> str:
+    """What a subfile's ``document`` environment holds (all of it without one)."""
+    b = re.search(r"\\begin\{document\}", tex)
+    if b is None:
+        return tex
+    e = re.search(r"\\end\{document\}", tex[b.end() :])
+    return tex[b.end() : b.end() + e.start()] if e else tex[b.end() :]
+
+
+# \verb|...| / \verb*|...| / \lstinline|...|: any non-letter delimiter, one line
+_VERB = re.compile(r"\\(?:verb\*?|lstinline)([^\sA-Za-z*\[{])[^\n]*?\1")
+
+
+def _verbatim_spans(tex: str) -> list[tuple[int, int]]:
+    """Where text is shown as is: verbatim and listing environments, \\verb."""
+    spans = [(m.start(), m.end()) for m in _VERB.finditer(tex)]
+    for b in _VERBATIM_BEGIN.finditer(tex):
+        e = re.compile(r"\\end\{" + re.escape(b.group(1)) + r"\}").search(tex, b.end())
+        spans.append((b.start(), e.end() if e else len(tex)))
+    return spans
+
+
+# \input{file} / \include{file} / \subfile{file}, TeX's primitive `\input file`
+# (braces or whitespace required, so \includegraphics and \inputencoding never
+# match), and the import package's \import{dir}{file} / \subimport{dir}{file}
+_INPUT_RE = re.compile(
+    r"\\(?P<cmd>(?:sub)?import\*?)\s*\{(?P<dir>[^{}]*)\}\s*\{(?P<ifile>[^{}]+)\}"
+    r"|\\(?P<cmd2>input|include|subfile)(?:\s*\{(?P<file>[^{}]+)\}|\s+(?P<bare>[^\s{}\\%]+))"
+)
 
 
 _GRAPHIC = re.compile(r"\\includegraphics\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
@@ -790,15 +865,31 @@ def ingest_latex_source(path: Path, *, figure_images: int = 0) -> StructuredPape
         warnings=warnings,
         hidden_text=hidden,
         figure_images=(
-            latex_figure_images(figures, base, allowed, figure_images) if figure_images else []
+            latex_figure_images(figures, base, allowed, figure_images, _graphics_dirs(tex))
+            if figure_images
+            else []
         ),
     )
 
 
+_GRAPHICSPATH = re.compile(r"\\graphicspath\s*\{((?:\s*\{[^{}]*\})+)\s*\}")
+
+
+def _graphics_dirs(tex: str) -> list[str]:
+    """The folders ``\\graphicspath{{figures/}{img/}}`` names, in order."""
+    return [
+        d.strip()
+        for m in _GRAPHICSPATH.findall(tex)
+        for d in re.findall(r"\{([^{}]*)\}", m)
+        if d.strip()
+    ]
+
+
 def _collect_references(tex: str, body: str, root: Path, resolve_ref, allowed: Path) -> str:
-    """The paper's references: its thebibliography or .bbl as built, else
-    the cited entries of the .bib files it loads (a source without its
-    build output, as Overleaf downloads it)."""
+    """The paper's references: its thebibliography or .bbl as built, else —
+    when that yields no entry (no build output, as Overleaf downloads it, or
+    a biblatex .bbl, whose entries are not bibitems) — the cited entries
+    of the .bib files it loads."""
     entries: list[str] = []
     bib_spans = _env_spans(body, "thebibliography")
     source = ""
@@ -812,7 +903,9 @@ def _collect_references(tex: str, body: str, root: Path, resolve_ref, allowed: P
         source = re.sub(r"\\(?:begin|end)\s*\{[^{}]*\}(?:\s*\{[^{}]*\})?", " ", source)
         parts = re.split(r"\\bibitem\s*(?:\[[^\]]*\])?\s*\{[^{}]*\}", source)
         entries = [_clean_inline(" ".join(p.split()), resolve_ref) for p in parts[1:]]
-    else:
+        entries = [e for e in entries if e]
+    # none read (no build output, or biber's \entry format): the .bib it came from
+    if not entries:
         _declared, bibs = declared_bibs(tex, root, allowed)
         entries = reference_lines(
             tex,

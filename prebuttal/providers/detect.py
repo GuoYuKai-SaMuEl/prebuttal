@@ -152,8 +152,9 @@ def scan_backends(cfg: RunConfig | None = None) -> list[BackendStatus]:
         ollama_detail = f"running at {base}, models: {', '.join(models[:3])}"
     elif models:
         ollama_detail = (
-            f"running at {base}, but only embedding models ({', '.join(models[:3])}) — "
-            "pull one that chats: `ollama pull llama3.1`"
+            f"running at {base}, but no local chat model ({', '.join(models[:3])}; "
+            "embedding models can't review, cloud ones are used only when named) — "
+            "pull one: `ollama pull llama3.1`"
         )
     else:
         ollama_detail = f"not reachable at {base}"

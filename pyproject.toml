@@ -47,7 +47,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "reportlab>=4"]
-calibration = ["openreview>=1.42", "matplotlib>=3.8"]
+calibration = ["openreview-py>=1.42", "matplotlib>=3.8"]  # the official client is openreview-py
 
 [project.scripts]
 prebuttal = "prebuttal.cli:main"
