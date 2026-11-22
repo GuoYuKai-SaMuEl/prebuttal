@@ -10,7 +10,7 @@ releases (0.2, 0.3, …) are substantial new features.
 
 ## [Unreleased]
 
-## [0.7.0] — 2026-11-18
+## [0.7.0] — 2026-11-22
 
 ### Changed
 - **Site samples re-run on 0.7.0** with one panel on subscription CLIs
@@ -300,8 +300,7 @@ releases (0.2, 0.3, …) are substantial new features.
   checked.
 - `prebuttal check` on a PDF over the page limit with no References heading
   passed with the page count "skipped"; it now warns that the main text's
-  end could not be found. A PDF that breaks while being read is a one-line
-  error, not a traceback.
+  end could not be found.
 - A LaTeX project with `main.tex` (or `paper.tex`, …) at the root and
   another in a subfolder could be read from the subfolder's; the shallowest
   one wins, whatever its name among the usual ones. Only a file with
@@ -383,8 +382,9 @@ releases (0.2, 0.3, …) are substantial new features.
   is; "last run" is still the most recent run.
 - A score change between runs whose means average different ratings (a
   reviewer, or one round of it, failed in B, or gave its rating with another
-  model) was checked against run-to-run noise; `diff`, the `Change:` line and the dashboard now say which ratings
-  are in one run only, and give the change no direction.
+  model) was checked against run-to-run noise; `diff`, the `Change:` line
+  and the dashboard now say which ratings are in one run only, and give the
+  change no direction.
 - A report folder that already existed, empty, got no `.gitignore`; it does
   now. A folder that holds files is still left as it is.
 - `prebuttal key set` / `unset` run under the store lock and replace the file
